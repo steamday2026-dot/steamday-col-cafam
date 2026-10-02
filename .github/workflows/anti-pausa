@@ -1,0 +1,19 @@
+# Evita que Supabase (plan gratuito) pause el proyecto por inactividad.
+# Hace una consulta pequeña cada día. Requiere dos secretos en GitHub:
+#   Settings → Secrets and variables → Actions → New repository secret
+#   SUPABASE_URL (https://dwpfpfrvxoujmsduihah.supabase.co)  y  SUPABASE_ANON_KEY (la llave sb_publishable_...)
+name: Mantener Supabase activo
+on:
+  schedule:
+    - cron: '17 13 * * *'   # todos los días, 8:17 a. m. de Bogotá
+  workflow_dispatch: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consulta a Supabase
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.SUPABASE_URL }}/rest/v1/sd_config?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Respuesta de Supabase: $code"
+          if [ "$code" -ge 400 ]; then exit 1; fi
