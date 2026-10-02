@@ -497,7 +497,7 @@ const _cola=[];
 function lanzarAlerta(s, faltan){
   const p=prefs();
   if(document.hidden && 'Notification' in window && Notification.permission==='granted')
-    navigator.serviceWorker.ready.then(r=>r.showNotification(`En ${faltan} min: ${s.nombre}`,{ body:`📍 ${s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir')} · ${fmtHora(s.h)}`, tag:'steam-'+(s.tipo==='pausa'?'pausa-'+s.nivel:s.cursoA)+'-'+s.h, icon:'img/icon-192.png', badge:'img/icon-192.png' })).catch(()=>{});
+    navigator.serviceWorker.ready.then(r=>r.showNotification(`En ${faltan} min: ${s.nombre}`,{ body:`📍 ${s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir')} · ${fmtHora(s.h)}`, tag:'steam-'+(s.tipo==='pausa'?'pausa-'+s.nivel:s.cursoA)+'-'+s.h, icon:'icon-192.png', badge:'icon-192.png' })).catch(()=>{});
   const vacia=!_cola.length;
   _cola.push({s, hasta:toMin(s.h)});
   if(vacia){ if(p.sonido) sonarTono(p.tono); if(p.vibracion && navigator.vibrate) navigator.vibrate([300,150,300,150,600]); mostrarSiguienteAlerta(); }
