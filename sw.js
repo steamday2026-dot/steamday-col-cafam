@@ -8,7 +8,7 @@ const CACHE = 'steam-v1';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/mapa.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js',
-  'img/icon-192.png', 'img/icon-512.png'
+  'icon-192.png', 'icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -41,8 +41,8 @@ self.addEventListener('push', e => {
     renotify: true,
     requireInteraction: true,
     vibrate: [300, 150, 300, 150, 600],
-    icon: 'img/icon-192.png',
-    badge: 'img/icon-192.png',
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
     data: { url: d.url || './' }
   }));
 });
