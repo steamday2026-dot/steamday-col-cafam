@@ -439,7 +439,7 @@ function render(){
   if(!svg) return;
   if(scene==='ext'){ CX=215;CY=60; svg.innerHTML=sceneExt(NOW); }
   else { svg.innerHTML=INT[scene].draw(NOW)+'<g class="av"></g>'; }
-  if(CAM){ const gg=document.createElementNS('http://www.w3.org/2000/svg','g'); gg.setAttribute('class','ruta'); gg.innerHTML=camSVG(); svg.querySelector('.av').before(gg); }
+  { const extra=(CAM?camSVG():'')+(scene==='ext'?lugarSVG()+orgSVG():''); if(extra){ const gg=document.createElementNS('http://www.w3.org/2000/svg','g'); gg.setAttribute('class','ruta'); gg.innerHTML=extra; svg.querySelector('.av').before(gg); } }
   placeAv(avPos); bindTaps(); header(); strip();
 }
 function header(){
@@ -529,6 +529,11 @@ async function irA(k){
 async function caminarA(k){ if(busy) return; busy=true; if(scene!=='ext'){ scene='ext'; avPos=WX.inicio; render(); fit(); }
   const base=[avPos,WX.plaza,...SENDERO.slice(1).map(p=>IJ(...p)),...RUTAS_P[k].map(p=>IJ(...p)),IJ(...SALA.d)]; await caminar(base); await saludo(); const v=svg._vb; fit(); const F1=[...FULL]; setVB(v); await anim(700,q=>{const e=ease(q); setVB(v.map((x,i)=>lerp(x,F1[i],e)));}); busy=false; }
 async function salir(){ if(busy) return; busy=true; const d=scene!=='ext'&&INT[scene].door; await fadeTo('Saliendo…',()=>{ scene='ext'; avPos=(d||WX.inicio); render(); fit(); }); busy=false; }
+function flagPos(k){ let i,j,z;
+  if(PB[k]){ const r=rect(PB[k]); i=(r[0]+r[1])/2; j=(r[2]+r[3])/2; z=PB[k].h; }
+  else if(PV[k]){ const r=rect(PV[k]); i=(r[0]+r[1])/2; j=(r[2]+r[3])/2; z=0; }
+  else [i,j,z]=({hall:[182,300,16],bS:[160,172,36],b130:[215,-10,30],coliseo:[85,336,46],verde:[319,86,0]})[k]||[182,300,16];
+  return P(i,j,z+4); }
 function door(k){ if(k==='coliseo') return WX.coliseo; if(PB[k]||PV[k]) return puerta(PB[k]||PV[k]); return WX.inicio; }
 const same=(a,b)=>Math.abs(a[0]-b[0])<.5&&Math.abs(a[1]-b[1])<.5;
 const intKey=f=>{ const k=escDe(f); if(k==='bS') return f.salon[0]==='3'?'bS3':'bS2'; if(k==='pAB'||k==='pAC') return k+(f.salon[2]==='2'?'2':'1'); return k; };
@@ -581,11 +586,24 @@ const MSG={ext:'Saliendo…',hall:'Por el Hall Principal…',bS2:'Subiendo al pi
 function encuadrar(l,f){ const ps=l.map(p=>P(...p)); const asp=box_.clientWidth/box_.clientHeight;
   let x0=Math.min(...ps.map(p=>p[0]))-40,x1=Math.max(...ps.map(p=>p[0]))+40,y0=Math.min(...ps.map(p=>p[1]))-55,y1=Math.max(...ps.map(p=>p[1]))+25;
   let w=Math.max(scene==='ext'?170:300,x1-x0),h=y1-y0; if(w/h<asp) w=h*asp; else h=w/asp; h/=(f||0.85); w=h*asp; const cx=(x0+x1)/2; return [cx-w/2,scene==='ext'?y0-h*.04:(y0+y1)/2-h*.45,w,h]; }
+/* ---- lugar señalado (Programa → mapa) y organizador ---- */
+let LUGAR=null, ORGU=null, MARCANDO=null;
+const pinSVG=(x,y,col,t,anima)=>`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(1.6)"><ellipse rx="9" ry="4" fill="${col}" opacity=".3">${anima?'<animate attributeName="rx" values="6;14;6" dur="1.4s" repeatCount="indefinite"/>':''}</ellipse><path d="M0 0 c-5-6-7-9-7-12.5a7 7 0 0 1 14 0c0 3.5-2 6.5-7 12.5z" transform="translate(0,-2)" fill="${col}" stroke="#fff" stroke-width="1.5"/><circle cy="-14.5" r="2.6" fill="#fff"/><g transform="translate(0,-26)"><rect x="${-t.length*2.6-6}" y="-8" width="${t.length*5.2+12}" height="14" rx="7" fill="${col}"/><text y="2.5" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">${esc(t)}</text></g></g>`;
+function lugarSVG(){ if(!LUGAR) return ''; const [x,y]=flagPos(LUGAR.k); return pinSVG(x,y,'#e5484d',LUGAR.txt,true); }
+function orgSVG(){ if(!ORGU||CAM) return ''; const [x,y]=flagPos(ORGU.k); return `<g transform="translate(${x.toFixed(1)},${(y-4).toFixed(1)})"><rect x="-38" y="-14" width="76" height="13" rx="6.5" fill="#ff7a1a"/><text y="-4.5" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">📍 Estás aquí</text></g>`; }
+const LUGS=[['coliseo','Coliseo'],['hall','Hall Principal'],['b130','137'],['bS','203'],['verde','Zona verde'],['pAA1','AA101'],['pAA2','AA105'],['pAA3','AA113'],['pAB','AB103'],['pAC','AC102'],['pV1','Zona verde Primaria'],['pV2','Zona verde Primaria 2']];
+async function volarA(k){ const [x,y]=flagPos(k), v=svg._vb, w=230, h=w*box_.clientHeight/box_.clientWidth, t=[x-w/2,y-h*.5,w,h];
+  await anim(750,q=>{const e=ease(q); setVB(v.map((a,i)=>lerp(a,t[i],e)));}); FULL=t; }
+function clicMarcar(e){ if(!MARCANDO||scene!=='ext') return; e.stopPropagation(); e.preventDefault();
+  const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; const q=pt.matrixTransform(svg.getScreenCTM().inverse());
+  let best=null,bd=1e9; LUGS.forEach(([k,sal])=>{ const [x,y]=flagPos(k), d=(x-q.x)**2+(y-q.y)**2; if(d<bd){ bd=d; best=[k,sal]; } });
+  ORGU={k:best[0],salon:best[1],nombre:EXT[best[0]]}; const cb=MARCANDO; MARCANDO=null; avPos=door(ORGU.k); render(); cb(ORGU); }
+
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-async function mostrarCamino(orgRow,dstRow){ if(busy||!dstRow) return; busy=true;
+async function mostrarCamino(orgRow,dstRow,oTxt){ if(busy||!dstRow) return; busy=true;
   const mk=f=>f?{f,k:escDe(f)}:null, org=mk(orgRow), dst=mk(dstRow);
   const legs=planRuta(org,dst); NOW=toMin(dstRow.hora_inicio)+1;
-  CAM={legs,li:0,oTxt:org?`Estabas aquí · ${org.f.salon}`:'Estás aquí · Entrada'};
+  CAM={legs,li:0,oTxt:oTxt||(org?`Estabas aquí · ${org.f.salon}`:'Estás aquí · Entrada')};
   try{
     for(let i=0;i<legs.length;i++){ const L=legs[i]; CAM.li=i;
       const entra=()=>{ scene=L.scene; avPos=L.pts[0]; render(); setVB(encuadrar(L.pts)); };
@@ -602,7 +620,7 @@ async function mostrarCamino(orgRow,dstRow){ if(busy||!dstRow) return; busy=true
 function montar(){
   if(svg) return; box_=$c('cvMap');
   svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-  box_.insertBefore(svg,box_.firstChild); eventos();
+  box_.insertBefore(svg,box_.firstChild); eventos(); box_.addEventListener('click',clicMarcar,true);
   $c('cvHora').oninput=e=>{ API.manual=Date.now(); setNow(+e.target.value); };
 }
 function setNow(m){ NOW=m; const h=$c('cvHora'); if(h) h.value=m; const t=$c('cvHTxt'); if(t) t.textContent=fmtM(m); if(!busy&&svg) render(); }
@@ -617,7 +635,21 @@ const API={
   refrescar(){ if(svg&&!busy) render(); },
   /* vista docente: camino desde la estación anterior hasta la actual */
   async camino(org,dst){ montar(); CAM=null; scene='ext'; avPos=org?door(escDe(org)):WX.inicio; render(); fit(); await mostrarCamino(org,dst); },
-  cerrar(){ CAM=null; scene='ext'; $c('sheet').classList.remove('open'); }
+  zona(f){ return escDe(f); }, nombreZona(k){ return EXT[k]||k; },
+  cerrar(){ CAM=null; LUGAR=null; scene='ext'; $c('sheet').classList.remove('open'); },
+  /* Programa → mapa: señala el lugar de una actividad */
+  async lugar(row){ montar(); if(busy) return; CAM=null; const k=escDe(row); LUGAR={k,txt:'Aquí es · '+(row.salon||'')}; NOW=toMin(row.hora_inicio)+1; scene='ext';
+    if(ORGU) avPos=door(ORGU.k); render(); if(!svg._vb) fit(); await volarA(k); },
+  /* entra al edificio de la actividad */
+  entrar(row){ LUGAR=null; NOW=toMin(row.hora_inicio)+1; irInterior(intKey(row),true); },
+  quitar(){ if(busy) return; CAM=null; LUGAR=null; scene='ext'; if(ORGU) avPos=door(ORGU.k); render(); },
+  /* organizador: ubicación tocando el mapa */
+  marcar(cb){ montar(); if(scene!=='ext'){ scene='ext'; render(); fit(); } MARCANDO=cb||(()=>{}); },
+  cancelarMarcar(){ MARCANDO=null; },
+  marcando(){ return !!MARCANDO; },
+  setUbicacion(u){ ORGU=u||null; if(svg&&!busy){ if(ORGU) avPos=door(ORGU.k); render(); } },
+  ubicacion(){ return ORGU; },
+  async recorrido(row){ montar(); if(!ORGU||busy) return; LUGAR=null; const o={f:{salon:ORGU.salon,hora_inicio:'00:00'},k:ORGU.k,txt:'Estás aquí'}; await mostrarCamino(o.f,row,o.txt); }
 };
 window.ColegioVivo=API;
 })();
