@@ -1,7 +1,7 @@
 {
-  "name": "STEAM Day Cafam",
-  "short_name": "STEAM Day",
-  "description": "Ruta, horarios y avisos del STEAM Day del Colegio Cafam.",
+  "name": "STEM Day Cafam",
+  "short_name": "STEM Day",
+  "description": "STEM Day 2026 · Colegio Cafam.",
   "lang": "es-CO",
   "start_url": "./",
   "scope": "./",
