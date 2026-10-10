@@ -1,5 +1,5 @@
 /* =====================================================================
-   STEAM Day Cafam · Panel del administrador
+   STEM Day Cafam · Panel del administrador
    Pestañas: Importar Excel · Programación · Usuarios · Correcciones · Avisos · Configuración
    ===================================================================== */
 (function(){
@@ -45,7 +45,7 @@
     if(!S() || !S().perfil || S().perfil.rol!=='admin') return;
     show('s-admin');
     $('admBody').innerHTML = `
-      <div class="top"><div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEAM Day · Administración</b><small>${escHTML(S().perfil.nombre)}</small></div></div>
+      <div class="top"><div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEM Day · Administración</b><small>${escHTML(S().perfil.nombre)}</small></div></div>
         <button class="b2" id="admVolver">← Volver a la app</button></div>
       <div class="desk"><div class="tabs" id="admTabs">
         <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span>
