@@ -1,5 +1,5 @@
 /* =====================================================================
-   STEAM Day Cafam · Aplicación principal
+   STEM Day Cafam · Aplicación principal
    Roles: admin · master (coordinadores y Rectora) · docente (acompañante / apoyo)
    ===================================================================== */
 const CFG = window.STEAM_CONFIG;
@@ -48,8 +48,15 @@ async function boot(){
   S.user=session.user; await continuar();
 }
 
+function cuentaRegresiva(){
+  const f=(S.config&&S.config.fecha_evento)||'2026-10-23', obj=new Date(f+'T07:00:00-05:00').getTime();
+  const pinta=()=>{ if($('s-login').hidden) return clearInterval(S._cd); let d=Math.max(0,obj-Date.now()); if(_simBase) d=Math.max(0,obj-(new Date(ahora().fecha+'T00:00:00-05:00').getTime()+ahora().min*60000));
+    $('cdD').textContent=Math.floor(d/864e5); $('cdH').textContent=Math.floor(d%864e5/36e5); $('cdM').textContent=Math.floor(d%36e5/6e4);
+    if(d===0){ $('cdown').querySelectorAll('div:not(.lbl)').forEach(x=>x.hidden=true); $('loginFecha').textContent='¡Hoy es el STEM Day!'; } };
+  pinta(); clearInterval(S._cd); S._cd=setInterval(pinta,30000);
+}
 function pantallaLogin(){
-  show('s-login');
+  show('s-login'); cuentaRegresiva();
   $('fLogin').onsubmit = async e => {
     e.preventDefault(); $('lErr').textContent=''; $('lBtn').disabled=true; $('lBtn').textContent='Ingresando…';
     const { data, error } = await S.sb.auth.signInWithPassword({ email:$('lCorreo').value.trim().toLowerCase(), password:$('lClave').value });
@@ -77,7 +84,7 @@ async function cargarDatos(){
 
 async function continuar(){
   try{ await cargarPerfil(); }catch(e){ return errorFatal('No fue posible leer tu perfil. '+e.message); }
-  if(!S.perfil){ return errorFatal('Tu cuenta aún no está habilitada para el STEAM Day. Escribe al coordinador de Tecnología.', true); }
+  if(!S.perfil){ return errorFatal('Tu cuenta aún no está habilitada para el STEM Day. Escribe al coordinador de Tecnología.', true); }
   if(!S.perfil.confirmado) return pantallaClave();
   try{ await cargarDatos(); }catch(e){ return errorFatal('No fue posible cargar la programación. '+e.message); }
   definirModo();
@@ -121,7 +128,7 @@ function videoHTML(url){
 }
 function textosVideo(k,t,p){ $('vKick').textContent=k; $('vTit').textContent=t; $('vTxt').textContent=p; }
 function pantallaVideo(desdeMenu){
-  show('s-video'); textosVideo('Bienvenida','Así se vive el STEAM Day 2026','Este video aparece solo la primera vez. Puedes verlo de nuevo desde Alertas → Más.'); $('vBox').innerHTML=videoHTML(S.config.video_url);
+  show('s-video'); textosVideo('Bienvenida','Así se vive el STEM Day 2026','Este video aparece solo la primera vez. Puedes verlo de nuevo desde Alertas → Más.'); $('vBox').innerHTML=videoHTML(S.config.video_url);
   const v=$('vBox').querySelector('video'); if(v) v.onended=()=>$('vSeguir').click();
   const fin=async()=>{ $('vBox').innerHTML=''; if(desdeMenu){ show('s-main'); return; } await guardarPerfil({video_visto:true}); continuar(); };
   $('vSeguir').onclick=fin; $('vSaltar').onclick=fin;
@@ -130,7 +137,7 @@ function pantallaVideo(desdeMenu){
 
 /* video tutorial (perfil Master): reemplaza la antigua pregunta de experiencia */
 function pantallaTutorial(desdeMenu){
-  show('s-video'); textosVideo('Tutorial','Así se usa la app STEAM Day','Aprende a recorrer el Colegio vivo, entrar a los edificios y ver qué pasa en cada lugar. Puedes verlo de nuevo desde Alertas → Más.');
+  show('s-video'); textosVideo('Tutorial','Así se usa la app STEM Day','Aprende a recorrer el Colegio vivo, entrar a los edificios y ver qué pasa en cada lugar. Puedes verlo de nuevo desde Alertas → Más.');
   $('vBox').innerHTML=S.config.video_tutorial_url?videoHTML(S.config.video_tutorial_url):'<div class="vempty">El video tutorial estará disponible muy pronto.</div>';
   const v=$('vBox').querySelector('video'); if(v) v.onended=()=>$('vSeguir').click();
   const fin=async()=>{ $('vBox').innerHTML=''; if(desdeMenu){ show('s-main'); return; } await guardarPerfil({tutorial_visto:true}); continuar(); };
@@ -146,6 +153,7 @@ function cursosDelExcel(){
 }
 function definirModo(){
   const rol=S.perfil.rol;
+  if(rol==='organizador'){ S.modo='org'; return; }
   if(rol==='master'||rol==='admin'){ S.modo='master'; S.area=S.perfil.experiencia||'tec'; S.nivel=LS.get('steam_nivel','Primaria'); S.masterIdx=LS.get('steam_midx_'+S.area+S.nivel,0); return; }
   S.modo='docente';
   const ex=cursosDelExcel();
@@ -182,7 +190,7 @@ function rutaMaster(cat,nv){
 
 function pantallaRol(){
   show('s-rol'); const b=$('rolBody'); const nom=escHTML(firstName(S.perfil.nombre));
-  let h=`<div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEAM Day</b><small>Colegio Cafam</small></div></div>`;
+  let h=`<div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEM Day</b><small>Colegio Cafam</small></div></div>`;
   if(S.modo==='master'){
     let sel=S.perfil.experiencia||null;
     const pintar=()=>{
@@ -198,15 +206,15 @@ function pantallaRol(){
   }
   const ex=S.rolDoc;
   if(ex.acompana.length){ const f=filaDe(ex.acompana[0]);
-    h+=`<h2>Hola, ${nom}. Este es tu rol en el STEAM Day</h2><div class="cc"><span class="sm">Docente acompañante del curso</span><div class="big">${escHTML(ex.acompana.join(', '))}</div><div class="r"><span>Docente de apoyo:</span> ${escHTML(f&&f.apoyo||'—')}</div></div><p>Estarás con tu curso durante toda la jornada. La app te avisará antes de cada actividad.</p>`; }
+    h+=`<h2>Hola, ${nom}. Este es tu rol en el STEM Day</h2><div class="cc"><span class="sm">Docente acompañante del curso</span><div class="big">${escHTML(ex.acompana.join(', '))}</div><div class="r"><span>Docente de apoyo:</span> ${escHTML(f&&f.apoyo||'—')}</div></div><p>Estarás con tu curso durante toda la jornada. La app te avisará antes de cada actividad.</p>`; }
   if(ex.apoya.length){
-    if(!ex.acompana.length) h+=`<h2>Hola, ${nom}. Este es tu rol en el STEAM Day</h2>`;
+    if(!ex.acompana.length) h+=`<h2>Hola, ${nom}. Este es tu rol en el STEM Day</h2>`;
     h+=`<p>Acompañarás como <b>docente de apoyo</b> a ${ex.apoya.length===1?'este curso':'estos dos cursos'}:</p>`;
     ex.apoya.forEach(c=>{ const f=filaDe(c); h+=`<div class="cc"><div class="big">${escHTML(c)}</div><div class="r"><span>Acompañante:</span> ${escHTML(f&&f.acompanante||'—')}</div></div>`; });
     if(ex.apoya.length>1) h+=`<p>En el mapa podrás cambiar entre los dos cursos y recibirás los avisos de ambos.</p>`;
   }
   if(!ex.acompana.length && !ex.apoya.length)
-    h+=`<h2>Hola, ${nom}</h2><div class="alertbox" style="margin:0">No encontramos tu nombre en la programación del STEAM Day.</div><p>Después de crear tu avatar podrás elegir tu grado y curso con el botón <b>?</b> que está arriba a la derecha del mapa.</p>`;
+    h+=`<h2>Hola, ${nom}</h2><div class="alertbox" style="margin:0">No encontramos tu nombre en la programación del STEM Day.</div><p>Después de crear tu avatar podrás elegir tu grado y curso con el botón <b>?</b> que está arriba a la derecha del mapa.</p>`;
   else h+=`<p class="sm">¿Algo no está bien? Usa el botón <b>?</b> arriba a la derecha del mapa para elegir tu grado y curso.</p>`;
   h+=`<div class="bottom"><button class="btn" id="rolOk">Entendido: crear mi avatar</button></div>`;
   b.innerHTML=h; $('rolOk').onclick=async()=>{ if(await guardarPerfil({aviso_cursos_visto:true})) continuar(); };
@@ -219,6 +227,7 @@ function montarEditor(contId){
   S.avTmp=avatarEditor(c, S.perfil.avatar, av=>{ S.avTmp=av; prev.innerHTML=avatarSVG(av); });
 }
 function pantallaAvatar(){
+  if(S.modo==='org'&&!S.perfil.avatar) S.perfil.avatar={gender:0,skin:1,hair:0,hairC:0,style:2,top:0,bot:5,shoe:1,head:1,face:0,extra:[1,2]};
   show('s-avatar'); montarEditor('avFirst');
   $('avGuardar1').onclick=async()=>{ if(await guardarPerfil({avatar:S.avTmp})){ $('avFirst').innerHTML=''; continuar(); } };
 }
@@ -261,28 +270,39 @@ function principal(){
   $('btnAdmin').onclick=()=>{ if(typeof window.abrirAdmin==='function') window.abrirAdmin(); else toast('No se cargó el panel de administración (js/admin.js). Recarga la página con Ctrl + F5.','bad',6000); };
   $('btnHelp').onclick=abrirAyuda;
   $('btnVista').onclick=()=>{ S.vista=S.vista==='mapa'?'lista':'mapa'; $('btnVista').textContent=S.vista==='mapa'?'☰':'🗺'; pintarRuta(false); };
+  const NAVS={ docente:[['ruta','◉','Mi ruta'],['programa','☰','Programa'],['lista','✓','Lista'],['avatar','☺','Avatar'],['alertas','🔔','Alertas']],
+    master:[['ruta','◉','Colegio'],['programa','☰','Programa'],['asis','📋','Asistencia'],['avatar','☺','Avatar'],['alertas','🔔','Alertas']],
+    org:[['vivo','⏱','En vivo'],['ruta','⌖','Mapa'],['programa','☰','Programa'],['chat','💬','Chat'],['asis','📋','Asistencia'],['alertas','⋯','Más']] };
+  NAVS.admin=[['ruta','◉','Colegio'],['programa','☰','Programa'],['asis','📋','Asistencia'],['chat','💬','Chat'],['alertas','⋯','Más']];
+  const nv=S.perfil.rol==='admin'?NAVS.admin:NAVS[S.modo];
+  $('nav').innerHTML=nv.map(([k,i,t])=>`<span data-p="${k}"><i>${i}</i>${t}</span>`).join('');
+  $('nav').classList.toggle('n6',nv.length>5);
   document.querySelectorAll('#nav span').forEach(n=>n.onclick=()=>irPanel(n.dataset.p));
+  $('btnUbic').onclick=marcarUbicacion; $('btnQuitar').onclick=()=>{ ColegioVivo.quitar(); actualizarBotonesCV(); cerrarSheet(); };
   document.querySelectorAll('#gtabs span').forEach(t=>t.onclick=()=>{ document.querySelectorAll('#gtabs span').forEach(x=>x.classList.toggle('on',x===t)); pintarPrograma(t.dataset.n); });
   if(!S.mapa) S.mapa=new MapaSteam($('mapa'),{ onTap:abrirParada, onArrive:i=>{ if(S.modo==='docente') LS.set('steam_last_'+S.curso,i); else { S.masterIdx=i; pintarLista(i); pintarTarjeta(i); } } });
   S.mapa.setAvatar(S.perfil.avatar);
   if(S.modo==='docente' && !S.cursos.length) setTimeout(()=>{ toast('Elige tu grado y curso para ver tu ruta.','',4000); abrirAyuda(); },600);
   $('btnColegio').onclick=abrirCamino; $('cvVolver').onclick=cerrarCamino;
   $('cvAhora').onclick=()=>{ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); };
-  document.querySelector('#nav span[data-p=ruta]').innerHTML=S.modo==='master'?'<i>◉</i>Colegio':'<i>◉</i>Mi ruta';
-  pintarRuta(true); pintarBanner(); irPanel('ruta');
+  pintarRuta(true); pintarBanner(); irPanel(S.modo==='org'?'vivo':'ruta');
   clearInterval(S.timer); S.timer=setInterval(tick,15000); tick();
   suscribirTiempoReal();
 }
 function irPanel(p){
   S.panel=p;
-  ['ruta','programa','avatar','alertas'].forEach(x=>$('p-'+x).hidden=x!==p);
+  ['ruta','programa','avatar','alertas','lista','asis','vivo','chat'].forEach(x=>$('p-'+x).hidden=x!==p);
   document.querySelectorAll('#nav span').forEach(n=>n.classList.toggle('on',n.dataset.p===p));
-  $('btnVista').hidden=p!=='ruta'||S.modo==='master';
+  $('btnVista').hidden=p!=='ruta'||S.modo!=='docente';
   cerrarSheet();
   if(p==='programa') pintarPrograma(document.querySelector('#gtabs span.on').dataset.n);
   if(p==='avatar'){ montarEditor('avMain'); $('avGuardar2').onclick=async()=>{ if(await guardarPerfil({avatar:S.avTmp})){ S.mapa.setAvatar(S.avTmp); ColegioVivo.setAvatar(S.avTmp); toast('Avatar guardado','ok'); } }; }
   else $('avMain').innerHTML='';
   if(p==='alertas') pintarAlertas();
+  if(p==='lista') pintarLista2();
+  if(p==='asis') pintarAsis();
+  if(p==='vivo') pintarVivo();
+  if(p==='chat') abrirChat();
   if(p==='ruta') pintarRuta(false);
 }
 
@@ -311,17 +331,18 @@ function pintarChips(){
 /* rehacer=true: vuelve a dibujar el mapa; si no, solo actualiza textos */
 function pintarRuta(rehacer){
   const nom=escHTML(firstName(S.perfil.nombre));
-  const esM=S.modo==='master';
+  const esM=S.modo==='master'||S.modo==='org';
   $('p-ruta').classList.toggle('esMaster',esM);
   if(esM){   // Master: Colegio vivo
     $('chips').hidden=true; $('btnColegio').hidden=true;
-    $('mHola').innerHTML=`Hola, ${nom} · ${S.perfil.rol==='admin'?'Administrador':'Master'}`; $('mTit').textContent='Colegio vivo';
+    $('mHola').innerHTML=`Hola, ${nom} · ${S.perfil.rol==='admin'?'Administrador':S.modo==='org'?'Organizador':'Master'}`; $('mTit').textContent=S.modo==='org'?'STEM Day · Organización':'Colegio vivo';
     if(S.mapa&&S.mapa.svg.firstChild){ S.mapa.svg.innerHTML=''; S.mapa.road=null; }
     const cv=$('cv'); cv.hidden=false; cv.classList.remove('camino'); $('cvVolver').hidden=true;
     ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar);
     if(rehacer||!S.cvListo){ if(!ColegioVivo.manual) ColegioVivo.setHora(horaMaster()); if(!S.cvListo||!ColegioVivo.ocupado()) ColegioVivo.abrirMaster(); S.cvListo=true; }
     else ColegioVivo.refrescar();
-    return;
+    if(S.modo==='org'&&!S.ubicCargada){ S.ubicCargada=true; ColegioVivo.setUbicacion(LS.get('steam_ubic_'+S.perfil.id,null)); }
+    actualizarBotonesCV(); return;
   }
   pintarChips();
   if(S.modo==='master'){
@@ -330,7 +351,7 @@ function pintarRuta(rehacer){
     if(S.masterIdx>=S.stops.length) S.masterIdx=0;
   } else {
     S.stops=S.curso?rutaCurso(S.curso):[];
-    $('mHola').innerHTML=`Hola, ${nom}${S.curso?' · Curso '+escHTML(S.curso):''}`; $('mTit').textContent='Ruta STEAM Day';
+    $('mHola').innerHTML=`Hola, ${nom}${S.curso?' · Curso '+escHTML(S.curso):''}`; $('mTit').textContent='Ruta STEM Day';
   }
   const lista=S.vista==='lista';
   $('mapa').hidden=lista; $('lista').hidden=!lista; $('btnColegio').hidden=lista||!S.stops.length; $('btnColegio').style.top=($('mapa').offsetTop+10)+'px';
@@ -391,7 +412,8 @@ function pintarLista(idx){
 /* Master: la hora del mapa sigue el reloj el día del evento */
 function horaMaster(){ const a=ahora(); return a.fecha===S.config.fecha_evento&&a.min>=420&&a.min<=900 ? a.min : 515; }
 function tick(){
-  if(S.modo==='master'){ if(S.panel==='ruta'&&!ColegioVivo.ocupado()&&(!ColegioVivo.manual||Date.now()-ColegioVivo.manual>180000)){ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); } revisarAlertas(); return; }
+  if(S.modo==='org'&&S.panel==='vivo'&&!document.hidden&&document.activeElement.id!=='vBus') pintarVivo();
+  if(S.modo==='master'||S.modo==='org'){ if(S.panel==='ruta'&&!ColegioVivo.ocupado()&&(!ColegioVivo.manual||Date.now()-ColegioVivo.manual>180000)){ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); } revisarAlertas(); return; }
   if(!S.stops.length||S.modo!=='docente') { revisarAlertas(); return; }
   const idx=indiceActual(S.stops);
   if(idx!==S.mapa.cur && !S.mapa.busy){
@@ -474,6 +496,187 @@ function abrirAyuda(){
   pintar(); $('sheet').classList.add('open');
 }
 
+/* ================= Programa → mapa ================= */
+async function verEnMapa(rs){
+  if(!rs||!rs.length) return; const f=(S.modo==='docente'&&rs.find(r=>S.cursos.includes(r.curso)))||rs[0];
+  ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar);
+  if(S.modo==='docente'){ irPanel('ruta'); const cv=$('cv'); cv.hidden=false; cv.classList.add('camino'); $('cvVolver').hidden=false; }
+  else irPanel('ruta');
+  if(S.modo==='org'&&ColegioVivo.ubicacion()){ fichaActividad(rs,f,false); cerrarSheet(); await ColegioVivo.recorrido(f); actualizarBotonesCV(); fichaActividad(rs,f); return; }
+  await ColegioVivo.lugar(f); actualizarBotonesCV(); fichaActividad(rs,f);
+  if(S.modo==='org') avisoCV('📍 Toca "Marcar dónde estoy" para ver el recorrido desde tu ubicación',4500);
+}
+function fichaActividad(rs,f,abrir=true){
+  const col=AREA_C[f.categoria]||AREA_C.gen, nombre=f.titulo?cap(f.titulo):f.area;
+  const sh=$('sheet');
+  sh.innerHTML=`<div class="sh" style="background:${col}"><span class="x" id="shX">✕ Cerrar</span><div style="font-size:12px;opacity:.85">${fmtHora(f.hora_inicio)} – ${fmtHora(f.hora_fin)} · ${escHTML(f.grado||'')}</div><h3>${escHTML(nombre)}</h3><span class="tag2">${escHTML(f.area||'')}</span></div>
+    <div class="sb"><div class="facts"><div class="fact"><small>Salón</small><div>${P(f.salon)}</div></div><div class="fact"><small>Docente a cargo</small><div>${P(f.docente_cargo)}</div></div></div>
+    <div class="sec"><h3>Cursos</h3></div>${rs.map(r=>`<div class="rot"><b>${escHTML(r.curso)}</b><span>Salón ${escHTML(r.salon||'—')}<br>${escHTML(r.acompanante||'')}</span></div>`).join('')}
+    ${f.frase?`<div class="sec"><h3>Propósito</h3><p>${escHTML(f.frase)}</p></div>`:''}
+    <div style="padding:8px 16px">${S.modo==='org'?'<button class="btn alt" id="fCam">🧭 Ver recorrido desde donde estoy</button><div style="height:8px"></div>':''}<button class="btn" id="fEnt">🚪 Entrar y ver el salón</button></div></div>`;
+  if(abrir) sh.classList.add('open'); $('shX').onclick=cerrarSheet;
+  $('fEnt').onclick=()=>{ cerrarSheet(); ColegioVivo.entrar(f); actualizarBotonesCV(); };
+  if($('fCam')) $('fCam').onclick=async()=>{ cerrarSheet();
+    if(!ColegioVivo.ubicacion()){ S.pend={rs,f}; marcarUbicacion(); return; }
+    await ColegioVivo.recorrido(f); actualizarBotonesCV(); };
+}
+/* ================= Organizador: ubicación ================= */
+function avisoCV(t,ms){ const a=$('cvAviso'); if(!a) return; a.textContent=t; a.hidden=!t; clearTimeout(a._h); if(ms) a._h=setTimeout(()=>a.hidden=true,ms); }
+function actualizarBotonesCV(){ const org=S.modo==='org'; $('btnUbic').hidden=!org; $('btnQuitar').hidden=S.modo==='docente';
+  $('btnUbic').classList.toggle('on',ColegioVivo.marcando()); $('btnUbic').textContent=ColegioVivo.marcando()?'Toca en el mapa dónde estás…':'📍 Marcar dónde estoy'; }
+function marcarUbicacion(){
+  if(ColegioVivo.marcando()){ ColegioVivo.cancelarMarcar(); actualizarBotonesCV(); avisoCV(''); return; }
+  if(S.panel!=='ruta') irPanel('ruta');
+  ColegioVivo.marcar(async u=>{ LS.set('steam_ubic_'+S.perfil.id,u); actualizarBotonesCV(); avisoCV('📍 Ubicación: '+u.nombre,2500);
+    if(S.pend){ const {rs,f}=S.pend; S.pend=null; await ColegioVivo.recorrido(f); fichaActividad(rs,f); } });
+  actualizarBotonesCV(); avisoCV('📍 Toca en el mapa el lugar donde estás');
+}
+
+/* ================= Estudiantes y asistencia ================= */
+const EST_V={A:['✓','Asistió','#1f9d6b'],N:['✗','No asistió','#e5484d'],T:['⏱','Llegó tarde','#f2a900'],P:['🚪','Permiso de salida','#7b4bd6']};
+async function cargarEstudiantes(forzar){
+  if(S.est&&!forzar&&!S.asisSucia) return;
+  const [e,a]=await Promise.all([ S.sb.from('sd_estudiantes').select('id,grado,curso,nombre,orden').order('curso').order('orden').limit(10000),
+                                  S.sb.from('sd_asistencia').select('*').limit(10000) ]);
+  if(e.error) throw e.error; if(a.error) throw a.error;
+  S.est=e.data||[]; S.asis={}; (a.data||[]).forEach(x=>S.asis[x.estudiante_id]=x); S.asisSucia=false;
+}
+/* ---- docente: llamado a lista ---- */
+async function pintarLista2(){
+  const el=$('listaPz'); if(!S.cursos.length){ el.innerHTML='<div class="alertbox">Aún no tienes un curso asignado. Usa el botón <b>?</b> de Mi ruta.</div>'; return; }
+  if(!S.listaCurso||!S.cursos.includes(S.listaCurso)) S.listaCurso=S.curso||S.cursos[0];
+  el.innerHTML='<p class="sm">Cargando estudiantes…</p>';
+  try{ await cargarEstudiantes(!S.listaLocal); }catch(e){ el.innerHTML=`<div class="alertbox">No se pudo cargar la lista: ${escHTML(e.message)}</div>`; return; }
+  if(!S.listaLocal||S.listaLocal.curso!==S.listaCurso){
+    const L=S.est.filter(x=>x.curso===S.listaCurso);
+    S.listaLocal={curso:S.listaCurso, filas:L.map(x=>({id:x.id,nombre:x.nombre,v:(S.asis[x.id]||{}).estado||null,m:(S.asis[x.id]||{}).motivo||''})), cambios:false};
+  }
+  dibujarLista('');
+}
+function dibujarLista(filtro){
+  const el=$('listaPz'), L=S.listaLocal, c={A:0,N:0,T:0,P:0}; L.filas.forEach(x=>x.v&&c[x.v]++); const pend=L.filas.filter(x=>!x.v).length;
+  const dg=rutaCurso(L.curso).find(s=>s.tipo==='actividad');
+  let h=`${S.cursos.length>1?`<div class="segs">${S.cursos.map(c=>`<span data-c="${escHTML(c)}" class="${c===L.curso?'on':''}">${escHTML(c)}</span>`).join('')}</div>`:''}
+    <h3>Llamado a lista · ${escHTML(L.curso)}</h3><div class="sub">${dg?`${escHTML(dg.nombre)} · ${fmtHora(dg.h)} – ${fmtHora(dg.f)} · Salón ${escHTML(dg.salon||'')} · `:''}${L.filas.length} estudiantes</div>`;
+  if(!L.filas.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes de este curso. El administrador la carga desde Administración → Estudiantes.</div>'; bindSegs(); return; }
+  h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${c[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
+    <div class="leg">${pend?`⚪ Sin marcar: <b>${pend}</b>`:'✔ Todos marcados'}${L.cambios?' · <b style="color:#b07a00">Cambios sin guardar</b>':''}</div>
+    <input class="srch" id="lBus" placeholder="Buscar estudiante…" value="${escHTML(filtro)}">
+    <button class="pbtn alt" id="lTodos">✓ Marcar a los que faltan como "Asistió"</button><div style="height:8px"></div>`;
+  L.filas.forEach((x,i)=>{ if(filtro&&!x.nombre.toLowerCase().includes(filtro.toLowerCase())) return;
+    h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}${x.v?`<small style="color:${EST_V[x.v][2]}">${EST_V[x.v][1]}</small>`:'<small>Sin marcar</small>'}${x.v==='P'?`<input data-m="${i}" maxlength="200" placeholder="Motivo del permiso (opcional)" value="${escHTML(x.m)}">`:''}</div>
+      <div class="st">${Object.keys(EST_V).map(k=>`<span data-i="${i}" data-v="${k}" class="${x.v===k?'on':''}" title="${EST_V[k][1]}">${EST_V[k][0]}</span>`).join('')}</div></div>`; });
+  h+=`<button class="pbtn" id="lGuardar">Guardar llamado a lista</button>`;
+  const st=$('p-lista').scrollTop; el.innerHTML=h; $('p-lista').scrollTop=st; bindSegs();
+  el.querySelectorAll('.st span').forEach(e=>e.onclick=()=>{ const x=L.filas[+e.dataset.i]; x.v=x.v===e.dataset.v?null:e.dataset.v; L.cambios=true; dibujarLista($('lBus').value); });
+  el.querySelectorAll('[data-m]').forEach(e=>e.oninput=()=>{ L.filas[+e.dataset.m].m=e.value; L.cambios=true; });
+  $('lBus').oninput=e=>{ const v=e.target.value; dibujarLista(v); const b=$('lBus'); b.focus(); b.setSelectionRange(v.length,v.length); };
+  $('lTodos').onclick=()=>{ L.filas.forEach(x=>{ if(!x.v) x.v='A'; }); L.cambios=true; dibujarLista(''); };
+  $('lGuardar').onclick=guardarLista;
+}
+function bindSegs(){ $('listaPz').querySelectorAll('.segs [data-c]').forEach(e=>e.onclick=()=>{ if(S.listaLocal&&S.listaLocal.cambios&&!confirm('Hay cambios sin guardar. ¿Cambiar de curso de todas formas?')) return; S.listaCurso=e.dataset.c; S.listaLocal=null; pintarLista2(); }); }
+async function guardarLista(){
+  const L=S.listaLocal, filas=L.filas.filter(x=>x.v).map(x=>({estudiante_id:x.id,curso:L.curso,estado:x.v,motivo:x.v==='P'&&x.m?x.m.slice(0,200):null,registrado_por:S.perfil.id,actualizado_en:new Date().toISOString()}));
+  const quitar=L.filas.filter(x=>!x.v&&S.asis[x.id]).map(x=>x.id);
+  $('lGuardar').disabled=true; $('lGuardar').textContent='Guardando…';
+  let err=null;
+  if(filas.length){ const r=await S.sb.from('sd_asistencia').upsert(filas,{onConflict:'estudiante_id'}); err=r.error; }
+  if(!err&&quitar.length){ const r=await S.sb.from('sd_asistencia').delete().in('estudiante_id',quitar); err=r.error; }
+  if(err){ toast('No se pudo guardar: '+err.message,'bad',5000); dibujarLista(''); return; }
+  filas.forEach(f=>S.asis[f.estudiante_id]=f); quitar.forEach(id=>delete S.asis[id]); L.cambios=false;
+  const pend=L.filas.filter(x=>!x.v).length;
+  toast(pend?`Guardado. Faltan ${pend} por marcar.`:'Llamado a lista guardado ✓','ok',3500); dibujarLista('');
+}
+/* ---- resumen: administración, Master y organizadores ---- */
+async function pintarAsis(grado){
+  const el=$('asisPz'); if(grado!==undefined) S.asisGrado=grado; grado=S.asisGrado||'Todos';
+  if(!S.est) el.innerHTML='<p class="sm">Cargando asistencia…</p>';
+  try{ await cargarEstudiantes(); }catch(e){ el.innerHTML=`<div class="alertbox">No se pudo cargar: ${escHTML(e.message)}</div>`; return; }
+  if(S.asisCurso) return detalleAsis(S.asisCurso);
+  const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})), GR={}; S.est.forEach(x=>GR[x.curso]=x.grado);
+  const grados=[...new Set(S.est.map(x=>x.grado))], cs=cursos.filter(c=>grado==='Todos'||GR[c]===grado);
+  const cuenta=c=>{ const r={A:0,N:0,T:0,P:0,S:0,n:0}; S.est.forEach(x=>{ if(x.curso!==c) return; r.n++; const a=S.asis[x.id]; a?r[a.estado]++:r.S++; }); return r; };
+  const tot={A:0,N:0,T:0,P:0,S:0}; const rs=cs.map(c=>{ const r=cuenta(c); for(const k in tot) tot[k]+=r[k]; return [c,r]; });
+  let h=`<h3>Asistencia · dirección de grupo</h3><div class="sub">Se actualiza en tiempo real a medida que los docentes guardan su lista.</div>`;
+  if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
+  h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
+    <div class="leg">⚪ Sin marcar: <b>${tot.S}</b> · Cursos: <b>${cs.length}</b></div>
+    <div class="segs wrap">${['Todos',...grados].map(g=>`<span data-g="${escHTML(g)}" class="${g===grado?'on':''}">${escHTML(g)}</span>`).join('')}</div>`;
+  rs.forEach(([c,r])=>{ h+=`<div class="crs" data-c="${escHTML(c)}"><div class="t"><b>${escHTML(c)}</b><span>${r.S===r.n?'<span class="pend">Sin llamado aún</span>':`✓${r.A} · ⏱${r.T} · 🚪${r.P} · ✗${r.N}${r.S?` · ⚪${r.S}`:''}`}</span></div>
+    <div class="bar">${['A','T','P','N'].map(k=>`<i style="width:${r[k]/r.n*100}%;background:${EST_V[k][2]}"></i>`).join('')}</div></div>`; });
+  if(S.perfil.rol==='admin') h+=`<button class="pbtn alt" id="aXls">⬇ Descargar Excel de asistencia</button>`;
+  el.innerHTML=h;
+  el.querySelectorAll('[data-g]').forEach(e=>e.onclick=()=>pintarAsis(e.dataset.g));
+  el.querySelectorAll('[data-c]').forEach(e=>e.onclick=()=>{ S.asisCurso=e.dataset.c; detalleAsis(e.dataset.c); });
+  if($('aXls')) $('aXls').onclick=descargarAsistencia;
+}
+function detalleAsis(c){
+  const el=$('asisPz'), L=S.est.filter(x=>x.curso===c);
+  let h=`<h3>${escHTML(c)} · ${escHTML((L[0]||{}).grado||'')}</h3><div class="sub"><a href="#" id="aVol">← Volver al resumen</a></div>`;
+  ['N','P','T','A'].forEach(k=>{ const ls=L.filter(x=>(S.asis[x.id]||{}).estado===k); if(!ls.length) return;
+    h+=`<h4 style="color:${EST_V[k][2]};margin:12px 0 4px">${EST_V[k][0]} ${EST_V[k][1]} (${ls.length})</h4>`+ls.map(x=>`<div class="est"><div class="nm">${escHTML(x.nombre)}${S.asis[x.id].motivo?`<small>${escHTML(S.asis[x.id].motivo)}</small>`:''}</div></div>`).join(''); });
+  const sin=L.filter(x=>!S.asis[x.id]); if(sin.length) h+=`<h4 style="color:var(--muted);margin:12px 0 4px">⚪ Sin marcar (${sin.length})</h4>`+sin.map(x=>`<div class="est"><div class="nm">${escHTML(x.nombre)}</div></div>`).join('');
+  el.innerHTML=h; $('aVol').onclick=e=>{ e.preventDefault(); S.asisCurso=null; pintarAsis(); };
+}
+async function descargarAsistencia(){
+  try{ if(typeof window.cargarXLSX==='function') await window.cargarXLSX(); else throw new Error('Recarga la página.');
+    const filas=S.est.map(x=>{ const a=S.asis[x.id]||{}; return {Grado:x.grado,Curso:x.curso,Estudiante:x.nombre,Estado:a.estado?EST_V[a.estado][1]:'Sin marcar',Motivo:a.motivo||'',Hora:a.actualizado_en?new Date(a.actualizado_en).toLocaleTimeString('es-CO'):''}; });
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filas),'Asistencia');
+    XLSX.writeFile(wb,'asistencia-steam-day.xlsx');
+  }catch(e){ toast('No se pudo generar el Excel: '+e.message,'bad',5000); }
+}
+
+/* ================= Organizador: en vivo ================= */
+function pintarVivo(){
+  const el=$('vivoPz'), a=ahora(); if(S.vivoMin==null) S.vivoMin=null;
+  const m=S.vivoMin!=null?S.vivoMin:(a.fecha===S.config.fecha_evento?a.min:515), q=(S.vivoQ||'').toLowerCase();
+  const act=S.prog.filter(f=>f.tipo==='actividad'&&toMin(f.hora_inicio)<=m&&m<toMin(f.hora_fin));
+  const pz=S.prog.filter(f=>f.tipo==='pausa'&&toMin(f.hora_inicio)<=m&&m<toMin(f.hora_fin));
+  const hm=String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  const G={}; act.forEach(f=>{ const k=ColegioVivo.zona(f); (G[k]=G[k]||[]).push(f); });
+  let h=`<h3>En vivo · ${fmtHora(hm)}</h3><div class="sub">Qué curso está en qué salón y haciendo qué. Toca un curso para ver el recorrido.</div>
+    <div class="hora"><span id="vMenos">− 15 min</span><b id="vAhora">${S.vivoMin==null?'Ahora':'Volver a ahora'}</b><span id="vMas">+ 15 min</span></div>
+    <input class="srch" id="vBus" placeholder="Buscar curso, salón o actividad…" value="${escHTML(S.vivoQ||'')}">
+    ${pz.map(p=>`<div class="leg">☕ ${escHTML(p.area)} ${escHTML(p.nivel)}: ${fmtHora(p.hora_inicio)} – ${fmtHora(p.hora_fin)}</div>`).join('')}`;
+  let n=0;
+  Object.entries(G).forEach(([k,fs])=>{ fs=fs.filter(f=>!q||`${f.curso} ${f.salon} ${f.area}`.toLowerCase().includes(q)).sort((x,y)=>String(x.curso).localeCompare(y.curso,'es',{numeric:true})); if(!fs.length) return; n+=fs.length;
+    const col=(fs.find(f=>f.categoria!=='gen')||{}).categoria; 
+    h+=`<div class="lugar" style="--c:${col?AREA_C[col]:'#5b6577'}"><h4><span>${escHTML(ColegioVivo.nombreZona(k))}</span><span>${fs.length} curso${fs.length>1?'s':''}</span></h4>${fs.map(f=>`<div class="fila" data-id="${f.id}"><b>${escHTML(f.curso)}</b><span>${escHTML(f.titulo?cap(f.titulo):f.area)} · Salón ${escHTML(f.salon||'—')}</span><i>🧭</i></div>`).join('')}</div>`; });
+  if(!n) h+='<p class="pend" style="margin-top:10px">No hay cursos en actividad a esta hora.</p>';
+  el.innerHTML=h;
+  $('vMenos').onclick=()=>{ S.vivoMin=Math.max(420,m-15); pintarVivo(); }; $('vMas').onclick=()=>{ S.vivoMin=Math.min(900,m+15); pintarVivo(); }; $('vAhora').onclick=()=>{ S.vivoMin=null; pintarVivo(); };
+  $('vBus').oninput=e=>{ S.vivoQ=e.target.value; pintarVivo(); const b=$('vBus'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); };
+  el.querySelectorAll('.fila').forEach(e=>e.onclick=()=>{ const f=S.prog.find(x=>String(x.id)===e.dataset.id); if(f) verEnMapa([f]); });
+}
+
+/* ================= Organizador: chat interno ================= */
+async function abrirChat(){
+  S.chatNo=0; marcarNav();
+  if(!S.chat){ const {data,error}=await S.sb.from('sd_chat').select('*').order('creado_en',{ascending:false}).limit(150);
+    if(error){ $('msgs').innerHTML=`<div class="alertbox">No se pudo abrir el chat: ${escHTML(error.message)}</div>`; return; } S.chat=(data||[]).reverse(); }
+  pintarChat();
+  $('quick').innerHTML=['Todo en orden ✅','Necesito apoyo en ','Curso retrasado: ','¿Dónde queda '].map(q=>`<span>${escHTML(q)}</span>`).join('');
+  $('quick').querySelectorAll('span').forEach(q=>q.onclick=()=>{ $('chTxt').value=q.textContent; $('chTxt').focus(); });
+  const enviar=async()=>{ const v=$('chTxt').value.trim(); if(!v) return; $('chTxt').value='';
+    const {data,error}=await S.sb.from('sd_chat').insert({perfil_id:S.perfil.id,nombre:S.perfil.nombre,mensaje:v.slice(0,1000)}).select().single();
+    if(error){ toast('No se envió: '+error.message,'bad',4000); $('chTxt').value=v; return; } if(data) nuevoMensaje(data); };
+  $('chEnv').onclick=enviar; $('chTxt').onkeydown=e=>{ if(e.key==='Enter') enviar(); };
+}
+const COLS=['#1f9d6b','#7b4bd6','#e5484d','#2f6fde','#b07a00','#0f8a8a'];
+function pintarChat(){
+  const box=$('msgs'), fij=S.chat.filter(m=>m.fijado), resto=S.chat.filter(m=>!m.fijado);
+  box.innerHTML=[...fij,...resto].map(m=>{ const yo=m.perfil_id===S.perfil.id, c=COLS[(String(m.nombre).length)%COLS.length];
+    return `<div class="m ${yo?'yo':''} ${m.fijado?'fij':''}" style="--c:${c}">${yo?'':`<small>${m.fijado?'📌 ':''}${escHTML(m.nombre)}</small>`}${escHTML(m.mensaje)}<em>${new Date(m.creado_en).toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit'})}</em></div>`; }).join('')||'<p class="sm" style="padding:10px">Aún no hay mensajes. Escribe el primero.</p>';
+  box.scrollTop=box.scrollHeight;
+}
+function nuevoMensaje(m){
+  if(S.modo!=='org'&&S.perfil.rol!=='admin') return;
+  if(S.chat){ if(S.chat.some(x=>x.id===m.id)) return; S.chat.push(m); }
+  if(S.chat&&S.panel==='chat'&&!document.hidden) pintarChat();
+  else if(m.perfil_id!==S.perfil.id){ S.chatNo=(S.chatNo||0)+1; marcarNav(); const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('💬 '+m.nombre+': '+m.mensaje.slice(0,60),'',4000); }
+}
+function marcarNav(){ const n=document.querySelector('#nav span[data-p=chat]'); if(!n) return; let b=n.querySelector('b.bd'); if(!S.chatNo){ if(b) b.remove(); return; } if(!b){ b=document.createElement('b'); b.className='bd'; n.appendChild(b); } b.textContent=S.chatNo; }
+
 /* ---------------- programa general ---------------- */
 function pintarPrograma(nv){
   const filas=S.prog.filter(f=>f.nivel===nv);
@@ -487,10 +690,12 @@ function pintarPrograma(nv){
     h+=`<tr><td class="h">${fmtHora(fr.hora_inicio)}</td>`;
     if(pausa) h+=`<td class="p" colspan="${grados.length}">${escHTML(pausa.area)}</td>`;
     else grados.forEach(g=>{ const rs=filas.filter(f=>f.grado===g&&f.hora_inicio===fr.hora_inicio);
-      h+= rs.length ? `<td class="c" style="background:${AREA_C[rs[0].categoria]}">${escHTML(short(rs[0].area))}<small>${escHTML(lugarDe(rs.map(r=>r.salon)))}</small></td>` : '<td></td>'; });
+      const mine=S.modo==='docente'&&rs.some(r=>S.cursos.includes(r.curso));
+      h+= rs.length ? `<td class="c ${mine?'mine':''}" style="background:${AREA_C[rs[0].categoria]}" data-g="${escHTML(g)}" data-h="${fr.hora_inicio}" data-n="${escHTML(nv)}">${escHTML(short(rs[0].area))}<small>${escHTML(lugarDe(rs.map(r=>r.salon)))}</small></td>` : '<td></td>'; });
     h+='</tr>';
   });
-  $('gwrap').innerHTML=h+'</table>';
+  $('gwrap').innerHTML=h+'</table><p class="sm" style="padding:8px 4px">Toca una actividad para verla en el mapa del colegio.</p>';
+  $('gwrap').querySelectorAll('td.c').forEach(td=>td.onclick=()=>verEnMapa(S.prog.filter(f=>f.tipo==='actividad'&&f.nivel===td.dataset.n&&f.grado===td.dataset.g&&f.hora_inicio===td.dataset.h)));
 }
 
 /* ---------------- alertas ---------------- */
@@ -520,7 +725,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${S.modo==='master'?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}<span class="chip" id="aSalir">Cerrar sesión</span></div></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${S.modo==='master'?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}<span class="chip" id="aSalir">Cerrar sesión</span></div></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -531,6 +736,7 @@ async function pintarAlertas(){
   $('aProbar').onclick=()=>sonarTono(prefs().tono);
   $('aVideo').onclick=()=>pantallaVideo(true);
   if($('aTuto')) $('aTuto').onclick=()=>pantallaTutorial(true);
+  if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
   $('aSalir').onclick=async()=>{ await S.sb.auth.signOut(); location.reload(); };
 }
 function revisarAlertas(){
@@ -578,6 +784,9 @@ function suscribirTiempoReal(){
   _rt=S.sb.channel('steam')
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_programacion'},recargar)
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_config'},recargar)
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_asistencia'},()=>{ S.asisSucia=true; if(S.panel==='asis') { clearTimeout(S._asT); S._asT=setTimeout(pintarAsis,800); } })
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_estudiantes'},()=>{ S.est=null; S.asisSucia=true; })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_chat'},payload=>nuevoMensaje(payload.new))
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_avisos'},async payload=>{
       S.avisos.unshift(payload.new); pintarBanner();
       if(avisosMios().some(a=>a.id===payload.new.id)){ const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('📣 '+payload.new.titulo,'',5000); } })
