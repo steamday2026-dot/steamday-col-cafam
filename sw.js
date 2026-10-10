@@ -1,14 +1,14 @@
 /* =====================================================================
-   STEAM Day Cafam · Service worker
+   STEM Day Cafam · Service worker
    - Guarda la app en el celular para que abra rápido y funcione con mala señal.
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v6';
+const CACHE = 'steam-v11';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js',
-  'icon-192.png', 'icon-512.png'
+  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo-steam.webp'
 ];
 
 self.addEventListener('install', e => {
@@ -34,8 +34,8 @@ self.addEventListener('fetch', e => {
 // Aviso recibido con la app cerrada
 self.addEventListener('push', e => {
   let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'STEAM Day', body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'STEAM Day Cafam', {
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'STEM Day', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'STEM Day Cafam', {
     body: d.body || '',
     tag: d.tag || 'steam',
     renotify: true,
