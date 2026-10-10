@@ -280,3 +280,61 @@ table.t td input{width:100%;min-width:90px;padding:6px 8px;border:1px solid var(
 .cvAviso{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:4;background:rgba(23,61,122,.93);color:#fff;font-size:12px;font-weight:700;padding:7px 13px;border-radius:16px;max-width:92%;text-align:center}
 .cvAviso[hidden]{display:none}
 .cv.camino #btnQuitar,.cv.camino #btnUbic{display:none}
+
+/* ===== v7: logo e interfaz inicial animada ===== */
+.mark{background:#fff url(../logo-steam.webp) center/112% no-repeat;border:1px solid var(--line);padding:0;width:42px;height:42px;border-radius:12px}
+.mark i{display:none}
+#s-login{background:#0d2550}
+.hero{position:absolute;inset:0;overflow:hidden}.hero .sky{width:100%;height:100%;display:block}
+#s-login .pad.login{position:relative;z-index:1;background:none;gap:14px;align-items:stretch}
+.emb{position:relative;width:200px;height:200px;margin:4px auto 0;flex:none}
+.emblem{width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,#fff 0 60%,#f2f6ff 100%);box-shadow:0 0 0 6px rgba(255,255,255,.18),0 18px 40px rgba(0,0,0,.35);padding:10px;animation:flotar 5s ease-in-out infinite;position:relative;z-index:1}
+.orbit{position:absolute;inset:-22px;animation:girar 22s linear infinite;z-index:2;pointer-events:none}
+.orbit span{position:absolute;width:34px;height:34px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,.3);animation:girar 22s linear infinite reverse}
+.orbit span:nth-child(1){top:0;left:50%;margin-left:-17px}.orbit span:nth-child(2){top:50%;right:0;margin-top:-17px}
+.orbit span:nth-child(3){bottom:0;left:50%;margin-left:-17px}.orbit span:nth-child(4){top:50%;left:0;margin-top:-17px;font-size:14px}
+.titl{text-align:center;color:#fff;animation:aparecer .9s ease .2s both}
+.titl .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#ffd166;font-weight:800}
+.titl h1{font-size:22px;line-height:1.15;margin:4px 0 2px;font-family:Georgia,"Times New Roman",serif;text-shadow:0 2px 10px rgba(0,0,0,.3)}
+.titl p{font-size:12.5px;color:#cfe2ff;font-style:italic}
+.cdown{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;animation:aparecer .9s ease .35s both}
+.cdown div{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:12px;text-align:center;padding:6px 0;color:#fff;backdrop-filter:blur(6px)}
+.cdown b{font-size:22px;display:block;font-variant-numeric:tabular-nums}.cdown small{font-size:10.5px;opacity:.8}
+.cdown .lbl{grid-column:1/-1;background:none;border:0;padding:0;font-size:12px;color:#ffd166;font-weight:700;backdrop-filter:none}
+.lcard{background:rgba(255,255,255,.97);border-radius:18px;padding:16px;box-shadow:0 14px 34px rgba(0,0,0,.3);animation:aparecer .9s ease .5s both}
+.btn.shine{position:relative;overflow:hidden;background:linear-gradient(90deg,#173d7a,#2f6fde)}
+.btn.shine::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);animation:brillo 3.2s ease-in-out infinite}
+.areas{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;animation:aparecer .9s ease .65s both}
+.areas span{font-size:11px;font-weight:700;color:#fff;background:var(--c);border-radius:20px;padding:4px 10px}
+.lload{display:block;margin:0 auto 14px;border-radius:50%;animation:latir 1.6s ease-in-out infinite}
+@keyframes flotar{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes girar{to{transform:rotate(360deg)}}
+@keyframes aparecer{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes brillo{0%,60%{left:-60%}100%{left:130%}}
+@keyframes latir{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.hero .dnaS{animation:dna 3s ease-in-out infinite;transform-origin:0 81px}
+@keyframes dna{0%,100%{transform:scaleX(1)}50%{transform:scaleX(-1)}}
+.hero .gear{animation:girar 9s linear infinite}.hero .gear.r{animation-direction:reverse;animation-duration:6s}
+.hero .orb{animation:girar 2.4s linear infinite}
+.hero .blade{animation:girar 2.8s linear infinite}
+.hero .leaf{animation:caer 9s linear infinite}.hero .l2{animation-delay:-3s;animation-duration:11s}.hero .l3{animation-delay:-6s;animation-duration:13s}
+@keyframes caer{0%{transform:translate(140px,-20px) rotate(0)}25%{transform:translate(170px,160px) rotate(90deg)}50%{transform:translate(130px,330px) rotate(180deg)}75%{transform:translate(175px,500px) rotate(270deg)}100%{transform:translate(150px,720px) rotate(360deg)}}
+.hero .l2{transform-box:fill-box}.hero .wave{animation:ola 7s linear infinite}.hero .w2{animation-duration:10s;animation-direction:reverse}
+@keyframes ola{from{transform:translateX(0)}to{transform:translateX(-200px)}}
+.hero .seis{stroke-dasharray:140;stroke-dashoffset:140;animation:sismo 2.6s ease-in-out infinite}
+@keyframes sismo{0%{stroke-dashoffset:140}60%,100%{stroke-dashoffset:0}}
+.hero .tw{animation:tw 2.4s ease-in-out infinite}.hero .d2{animation-delay:.6s}.hero .d3{animation-delay:1.2s}.hero .d4{animation-delay:1.8s}
+@keyframes tw{0%,100%{opacity:.2}50%{opacity:1}}
+.hero .net{animation:tw 6s ease-in-out infinite}
+@media (max-height:700px){.emb,.emblem{width:150px;height:150px}.titl h1{font-size:19px}}
+@media (prefers-reduced-motion:reduce){.hero *,.emblem,.orbit,.orbit span,.btn.shine::after,.lload{animation:none!important}}
+
+/* v7b: fondo sin animaciones, solo el logo se anima */
+.hero *{animation:none!important}
+
+/* v11: tres áreas en la órbita (STEM) */
+.orbit span:nth-child(1){top:0;left:50%;right:auto;bottom:auto;margin:0 0 0 -17px}
+.orbit span:nth-child(2){top:auto;bottom:16%;right:3%;left:auto;margin:0}
+.orbit span:nth-child(3){top:auto;bottom:16%;left:3%;right:auto;margin:0}
+.titl p{font-size:13.5px;margin-top:4px}
+.emb{margin:10px auto 22px}
