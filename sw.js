@@ -4,11 +4,11 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v11';
+const CACHE = 'steam-v13';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js',
-  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo-steam.webp'
+  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'
 ];
 
 self.addEventListener('install', e => {
