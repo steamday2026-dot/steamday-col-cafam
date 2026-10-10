@@ -1,5 +1,5 @@
 /* =====================================================================
-   STEAM Day Cafam · Avatar (dibujo SVG y editor)
+   STEM Day Cafam · Avatar (dibujo SVG y editor)
    ===================================================================== */
 const PAL=['#2f6fde','#1f9d6b','#7b4bd6','#f2a900','#e5484d','#1b2333','#ffffff','#8a5a3b','#ec7fb0','#4fb3d9'];
 const OPT = {
@@ -13,7 +13,7 @@ const OPT = {
   shoe:['#1b2333','#ffffff','#8a5a3b','#e5484d','#2f6fde'],
   head:['Ninguno','Gorra','Casco de ingeniería','Audífonos'],
   face:['Ninguno','Gafas','Gafas de laboratorio'],
-  extra:['Reloj','Escarapela STEAM','Chaleco de organizador']
+  extra:['Reloj','Escarapela STEM','Chaleco de organizador']
 };
 const AVATAR_DEF={gender:0,skin:1,hair:0,hairC:0,style:0,top:2,bot:5,shoe:1,head:0,face:2,extra:[1]};
 const TOPN={Casual:'Camiseta',Formal:'Camisa',Deportivo:'Buzo','Bata de laboratorio':'Ropa bajo la bata'};
