@@ -1,5 +1,5 @@
 /* =====================================================================
-   STEAM Day Cafam · Colegio vivo (mapa isométrico del colegio)
+   STEM Day Cafam · Colegio vivo (mapa isométrico del colegio)
    - Perfil Master: exploración del colegio con escenas interiores.
    - Perfil docente: camino animado desde donde estaba hasta su estación.
    Requiere avatar.js y mapa.js (AREA_C, ENV_DEFS, entorno, mostrarLlegada).
@@ -465,7 +465,7 @@ function fichaExt(k){
   if(k==='sala'){ sheet('#173d7a','Sede Primaria','Sala de profesores','<p>Punto de encuentro de los docentes en la Sede Primaria.</p><button class="btn alt2" id="ir">🧭 Ir con mi avatar</button>'); document.getElementById('ir').onclick=()=>{ document.getElementById('sheet').classList.remove('open'); caminarA('sala'); }; return; }
   if(k==='rest'){ sheet('#e5484d','Sede Primaria','Restaurante','<p>Restaurante del colegio, al lado de la Sala de profesores.</p>'); return; }
   if(k==='gym'||k==='pool'){ sheet('#8a5aa0','Este día no se usa',EXT[k],'<p>Se muestra para ubicarse en la Sede Primaria.</p>'); return; }
-  if(k==='T'){ sheet('#8a5aa0','Este día no se usa','Ala de Tecnología','<p>Se muestra para ubicarse en el colegio. Las actividades de Tecnología del STEAM Day son en el Coliseo.</p>'); return; }
+  if(k==='T'){ sheet('#8a5aa0','Este día no se usa','Ala de Tecnología','<p>Se muestra para ubicarse en el colegio. Las actividades de Tecnología del STEM Day son en el Coliseo.</p>'); return; }
   const fs=activos(NOW).filter(f=>escDe(f)===k), c=colorF(fs)||'#5b6577';
   const grupos={}; fs.forEach(f=>{ const g=nombreA(f.area)+' · '+f.grado; (grupos[g]=grupos[g]||[]).push(f.curso); });
   const sh=sheet(c,'Ahora',EXT[k],`<h4>En este momento</h4>${Object.keys(grupos).length?Object.entries(grupos).map(([g,cs])=>`<p><b>${g}</b> · ${rango(cs)}</p>`).join(''):'<p class="pend">Sin cursos en este momento</p>'}<button class="btn alt2" id="ir">🧭 Ir con mi avatar</button>`);
