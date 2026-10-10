@@ -216,3 +216,33 @@ table.t td input{width:100%;min-width:90px;padding:6px 8px;border:1px solid var(
 .warnbox{background:#fff8e6;border:1px solid #f5d98a;border-radius:10px;padding:10px 14px;font-size:13px;margin:10px 0}
 .warnbox ul{margin:6px 0 0 18px}
 .okbox{background:#e8f6ef;border:1px solid #b7e2cc;border-radius:10px;padding:10px 14px;font-size:13px;margin:10px 0}
+
+/* ===== Colegio vivo (Master) y camino a la estación (docente) ===== */
+#p-ruta{position:relative}
+.cv{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;background:#fff}
+.cv[hidden]{display:none}
+.cvbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 12px;background:#eef3fb;border-bottom:1px solid var(--line);flex:none;min-height:38px}
+.cvbar b{font-size:13.5px;color:var(--brand);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv .tb{display:flex;gap:6px;flex:none}.cv .tb span{background:#fff;color:var(--brand);border:1px solid var(--line);border-radius:16px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.cv .tb span.on{background:var(--brand);color:#fff}.cv .tb span.out{background:var(--accent);color:#1b2333;border-color:var(--accent)}
+.cv .strip{display:flex;gap:6px;overflow:auto;padding:7px 10px;background:#f3f6fc;border-bottom:1px solid var(--line);flex:none;font-size:11px}
+.cv .strip span{white-space:nowrap;background:#fff;border:1px solid var(--line);border-radius:14px;padding:3px 9px}.cv .strip b{color:var(--c)}
+.cmap{flex:1;min-height:0;position:relative;background:#8fc77a;overflow:hidden;touch-action:none}
+.cmap>svg{width:100%;height:100%;display:block}
+.cv .fade{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .45s;z-index:3;display:grid;place-items:center;font-weight:800;color:var(--brand);font-size:15px}
+.cv .fade.on{opacity:1}
+.cv .slider{padding:7px 14px 9px;border-top:1px solid var(--line);background:#fff;flex:none}
+.cv .slider .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:2px}.cv .slider .row b{color:var(--brand)}
+.cv .slider .now{font-size:11px;font-weight:700;color:var(--brand);border:1px solid var(--brand);border-radius:12px;padding:2px 8px;cursor:pointer}
+.cv .slider input{width:100%}.cv .slider .ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--muted)}
+.cv .tap{cursor:pointer}
+.cv.camino .strip,.cv.camino .slider{display:none}
+.cvsb{padding:8px 16px 16px;font-size:14px}.cvsb h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}.cvsb p{margin:4px 0}
+.cvsb .btn{margin-top:12px}.btn.alt2{background:var(--accent);color:#1b2333}
+.mapbtn{position:absolute;left:10px;top:10px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:68px;padding:6px 4px;border-radius:16px;background:linear-gradient(165deg,#fff 0%,#e8f1ff 100%);border:2px solid var(--brand);color:var(--brand);font-size:9.5px;font-weight:800;line-height:1.1;text-align:center;box-shadow:0 6px 16px rgba(23,61,122,.28);cursor:pointer;animation:mbPulso 2.4s ease-in-out 3}
+.mapbtn[hidden]{display:none}.mapbtn svg{width:46px;height:36px}
+.mapbtn.back{background:var(--brand);color:#fff;animation:none;padding:8px 4px}.mapbtn.back svg{width:30px;height:30px}
+@keyframes mbPulso{50%{box-shadow:0 0 0 7px rgba(242,169,0,.45),0 6px 16px rgba(23,61,122,.28)}}
+.cam-path{stroke-dasharray:1;stroke-dashoffset:1;animation:cvDraw 1.8s ease forwards .3s}
+@keyframes cvDraw{to{stroke-dashoffset:0}}
+#p-ruta.esMaster>.progress,#p-ruta.esMaster>.card{display:none!important}
