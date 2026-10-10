@@ -37,6 +37,7 @@
     const b=new Blob(['﻿'+texto],{type:'text/csv;charset=utf-8'}), a=document.createElement('a');
     a.href=URL.createObjectURL(b); a.download=nombre; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
   }
+  window.cargarXLSX = cargarXLSX;
   const csvCell = v => { const t=String(v==null?'':v); return /[",;\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
 
   /* ---------------- estructura ---------------- */
@@ -48,7 +49,7 @@
         <button class="b2" id="admVolver">← Volver a la app</button></div>
       <div class="desk"><div class="tabs" id="admTabs">
         <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span>
-        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="config">Configuración</span></div>
+        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="config">Configuración</span></div>
         <div class="tbody" id="admTab"></div></div>`;
     $('admVolver').onclick = async () => { show('s-main'); if(window.recargarApp) await window.recargarApp(); };
     $('admTabs').querySelectorAll('span').forEach(s => s.onclick = () => irTab(s.dataset.t));
@@ -56,8 +57,40 @@
   }
   function irTab(t){
     tab=t; $('admTabs').querySelectorAll('span').forEach(s=>s.classList.toggle('on', s.dataset.t===t));
-    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, correcciones:tCorrecciones, avisos:tAvisos, config:tConfig}[t];
+    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, config:tConfig}[t];
     $('admTab').innerHTML='<p class="sm">Cargando…</p>'; f().catch(e=>{ $('admTab').innerHTML=`<div class="warnbox">Error: ${escHTML(e.message)}</div>`; });
+  }
+
+  /* ---------------- Estudiantes (llamado a lista) ---------------- */
+  async function tEstudiantes(){
+    const { count } = await sb().from('sd_estudiantes').select('id',{count:'exact',head:true});
+    $('admTab').innerHTML = `
+      <p>Carga un Excel con una fila por estudiante y estas columnas (en la primera fila): <b>Grado</b>, <b>Curso</b>, <b>Estudiante</b> y, si quieres, <b>Documento</b>.
+      Puede tener una o varias hojas; se leen todas. Al cargarlo se <b>reemplaza</b> la lista completa (y la asistencia ya registrada se borra).</p>
+      <table class="t" style="max-width:520px"><tr><th>Grado</th><th>Curso</th><th>Estudiante</th><th>Documento</th></tr><tr><td>Cuarto</td><td>4D</td><td>Acosta Rincón Valentina</td><td>1023456789</td></tr></table>
+      <p class="sm">Estudiantes cargados actualmente: <b>${count||0}</b></p>
+      <div class="drop" id="dropE">Arrastra aquí el Excel de estudiantes o <b>toca para elegir el archivo</b></div><input type="file" id="fxE" accept=".xlsx,.xls,.csv" hidden><div id="estRes"></div>`;
+    const drop=$('dropE'), fx=$('fxE'); drop.onclick=()=>fx.click(); fx.onchange=()=>{ if(fx.files[0]) leerEst(fx.files[0]); };
+    drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('over'); }; drop.ondragleave=()=>drop.classList.remove('over');
+    drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) leerEst(e.dataTransfer.files[0]); };
+  }
+  async function leerEst(file){
+    const res=$('estRes'); res.innerHTML='<p class="sm">Leyendo…</p>';
+    try{
+      await cargarXLSX(); const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      const norm=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
+      const filas=[]; const orden={};
+      wb.SheetNames.forEach(n=>{ XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:''}).forEach(r=>{ const k={}; Object.keys(r).forEach(c=>k[norm(c)]=r[c]);
+        const nombre=String(k.estudiante||k.nombre||k['nombre del estudiante']||'').trim(), curso=String(k.curso||'').trim().toUpperCase(), grado=String(k.grado||'').trim();
+        if(!nombre||!curso) return; orden[curso]=(orden[curso]||0)+1; filas.push({grado,curso,nombre,documento:String(k.documento||'').trim(),orden:orden[curso]}); }); });
+      if(!filas.length) throw new Error('No se encontraron filas con las columnas Grado, Curso y Estudiante.');
+      const cursos=Object.keys(orden).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+      res.innerHTML=`<div class="okbox">Se leyeron <b>${filas.length}</b> estudiantes de <b>${cursos.length}</b> cursos: ${cursos.map(c=>`${escHTML(c)} (${orden[c]})`).join(', ')}.</div><button class="b1" id="estOk">Reemplazar la lista de estudiantes</button>`;
+      $('estOk').onclick=async()=>{ $('estOk').disabled=true; $('estOk').textContent='Guardando…';
+        const {data,error}=await sb().rpc('sd_importar_estudiantes',{p_filas:filas});
+        if(error){ res.innerHTML=`<div class="warnbox">No se pudo guardar: ${escHTML(error.message)}</div>`; return; }
+        aviso(`Lista cargada: ${data} estudiantes`,'ok'); const st=S(); if(st){ st.est=null; st.listaLocal=null; } tEstudiantes(); };
+    }catch(e){ res.innerHTML=`<div class="warnbox">${escHTML(e.message)}</div>`; }
   }
 
   /* ---------------- 1. Importar Excel ---------------- */
