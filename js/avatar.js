@@ -13,7 +13,7 @@ const OPT = {
   shoe:['#1b2333','#ffffff','#8a5a3b','#e5484d','#2f6fde'],
   head:['Ninguno','Gorra','Casco de ingeniería','Audífonos'],
   face:['Ninguno','Gafas','Gafas de laboratorio'],
-  extra:['Reloj','Escarapela STEAM']
+  extra:['Reloj','Escarapela STEAM','Chaleco de organizador']
 };
 const AVATAR_DEF={gender:0,skin:1,hair:0,hairC:0,style:0,top:2,bot:5,shoe:1,head:0,face:2,extra:[1]};
 const TOPN={Casual:'Camiseta',Formal:'Camisa',Deportivo:'Buzo','Bata de laboratorio':'Ropa bajo la bata'};
@@ -58,6 +58,11 @@ function avatarPose(cfg,pose){
   o+=`<path d="M-14,-56 Q-15,-40 -13,-30 L13,-30 Q15,-40 14,-56 Q0,-61 -14,-56Z" fill="${top}" ${st}/>`;
   o+=`<path d="M4,-58 Q14,-56 14,-56 Q15,-40 13,-30 L6,-30 Q8,-44 4,-58Z" fill="${_sh(top,.82)}"/>`;
   if(coat) o+=`<path d="M-15,-56 Q-16,-38 -15,-24 L-2,-24 L-2,-58 Q-9,-59 -15,-56Z M15,-56 Q16,-38 15,-24 L2,-24 L2,-58 Q9,-59 15,-56Z" fill="#f4f6fa" ${st}/>`;
+  // chaleco de organizador (naranja con cintas reflectivas; "STAFF" en la espalda)
+  if(c.extra.includes(2)){
+    if(back) o+=`<path d="M-15,-57 Q-16,-40 -14,-30 L14,-30 Q16,-40 15,-57 Q0,-61 -15,-57Z" fill="#ff7a1a" ${st}/><text x="0" y="-46" text-anchor="middle" style="font-size:6.2px;font-weight:900;fill:#fff">STAFF</text><path d="M-14.6,-37 L14.6,-37" stroke="#e8f04a" stroke-width="2.6"/>`;
+    else o+=`<path d="M-15,-57 Q-16,-40 -14,-30 L-3,-30 L-3,-50 L-8,-58Z M15,-57 Q16,-40 14,-30 L3,-30 L3,-50 L8,-58Z" fill="#ff7a1a" ${st}/><path d="M-14.6,-37 L-3.6,-37 M3.6,-37 L14.6,-37" stroke="#e8f04a" stroke-width="2.6"/>`;
+  }
   if(!back){
     if(style==='Formal') o+=`<path d="M-5,-58 L0,-51 L5,-58" fill="#fff" ${st}/>${!M?`<path d="M0,-51 L-2,-47 L0,-38 L2,-47Z" fill="${bot}" stroke="${OUT}" stroke-width="1"/>`:''}`;
     if(style==='Deportivo') o+=`<line x1="0" y1="-56" x2="0" y2="-31" stroke="${_sh(top,.6)}" stroke-width="1.4"/>`;
