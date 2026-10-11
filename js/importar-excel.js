@@ -185,6 +185,9 @@
       acompana: [...d.acompana].sort(), apoya: [...d.apoya].sort(), cargo: [...d.cargo].sort()
     })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
+    // completa título, frase y área cuando otra fila de la misma actividad los trae
+    const _comp = (typeof window !== 'undefined' && window.completarProgramacion) || (typeof global !== 'undefined' && global.completarProgramacion);
+    if (_comp) _comp(filas);
     // ---------- revisión ----------
     const act = filas.filter(f => f.tipo === 'actividad');
     const pendientes = {
