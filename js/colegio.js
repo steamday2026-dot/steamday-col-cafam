@@ -284,12 +284,13 @@ const claro=(hex,t)=>{ const n=parseInt(hex.slice(1),16), c=v=>Math.round(v+(255
 const DEFS_INT=`<defs>${ENV_DEFS}<pattern id="pTile" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e6dccb"/><rect width="4" height="4" fill="#ded2bd"/><rect x="4" y="4" width="4" height="4" fill="#ded2bd"/></pattern>
   <pattern id="pWood" width="12" height="40" patternUnits="userSpaceOnUse"><rect width="12" height="40" fill="#d79a68"/><rect width="6" height="40" fill="#cf9160"/><line x1="0" y1="18" x2="6" y2="18" stroke="#b97d4f" stroke-width=".6"/><line x1="6" y1="32" x2="12" y2="32" stroke="#b97d4f" stroke-width=".6"/></pattern></defs>`;
 /* carpa: base, 4 parales y techo a cuatro aguas del color del área */
-function carpa(i,j,col,txt,k=1){ const w=34*k, d=24*k, hp=22*k, hr=30*k; let s=box(i,i+w,j,j+d,3*k,'#e8e1d2','#f3eee4',{});
+function carpa(i,j,col,txt,k=1,act){ const w=34*k, d=24*k, hp=22*k, hr=30*k; let s=box(i,i+w,j,j+d,3*k,'#e8e1d2','#f3eee4',{});
   const A=P(i,j,hp),B=P(i+w,j,hp),C=P(i+w,j+d,hp),D=P(i,j+d,hp),M=P(i+w/2,j+d/2,hr);
   [[i,j],[i+w,j],[i+w,j+d],[i,j+d]].forEach(([a,b])=>{ const p=P(a,b),q=P(a,b,hp); s+=`<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" stroke="#6b7280" stroke-width="1"/>`; });
   s+=`<polygon points="${pts([D,C,M])}" fill="${col}"/><polygon points="${pts([C,B,M])}" fill="${shade(col,.75)}"/><polygon points="${pts([A,D,M])}" fill="${claro(col,.25)}"/>`;
   s+=`<path d="M${D[0]},${D[1]} L${C[0]},${C[1]}" stroke="#fff" stroke-width="${1.8*k}" stroke-dasharray="3 3"/>`;
   if(txt){ const [x,y]=P(i+w/2,j+d,3); s+=`<text x="${x}" y="${y+9}" text-anchor="middle" style="font-size:8px;font-weight:800;fill:${shade(col,.6)}">${txt}</text>`; }
+  if(act&&act.id!=null) s=`<g class="tapc" style="cursor:pointer" data-act="${act.id}" data-pi="${(i+w/2).toFixed(1)}" data-pj="${(j+d+7*k).toFixed(1)}">${s}</g>`;
   return s; }
 /* objeto temático según el área que predomina en el lugar */
 function decorEn(i,j,fs,k=1){ const st=fs.find(f=>f.categoria!=='gen'); if(!st) return ''; const [x,y]=P(i,j); return envDecor(st.categoria,x,y,k); }
@@ -345,7 +346,7 @@ function aulaCristal(i0,i1,j0,j1,m){ const code='Aula de Cristal', fs=enSalon(co
   return s; }
 /* Hall central de los pisos 2 y 3 */
 function hallPiso(n,m){ const code='Hall piso '+n, fs=enSalon(code,m), c=colorF(fs); let s=flat(66,166,190,250,c?claro(c,.82):'#f6f0e2','#d6ccb8');
-  if(fs.length){ fs.slice(0,4).forEach((f,k)=>{ s+=carpa(74+(k%2)*46,198+Math.floor(k/2)*26,AREA_C[f.categoria]||'#8a94a8',f.curso,.6); }); }
+  if(fs.length){ fs.slice(0,4).forEach((f,k)=>{ s+=carpa(74+(k%2)*46,198+Math.floor(k/2)*26,AREA_C[f.categoria]||'#8a94a8',f.curso,.6,f); }); }
   const [x,y]=P(116,250,-6); s+=`<g class="tap room" data-room="${code}"><rect x="${x-32}" y="${y-9}" width="64" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b2333">Hall piso ${n}</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
   return s; }
 function floorBase(){ return DEFS_INT+`<rect class="bgr" x="-600" y="-400" width="1600" height="1400" fill="#e9e4da"/>`; }
@@ -365,7 +366,7 @@ function verdeP(esc,titulo){ return { titulo, pisos:[], esc, entry:[-10,170], ta
     { const a=P(20,15,26), b=P(285,20,26); s+=`<path d="M${a[0]},${a[1]} Q${(a[0]+b[0])/2},${(a[1]+b[1])/2+22} ${b[0]},${b[1]}" stroke="#555" stroke-width=".7" fill="none"/>`;
       for(let k=1;k<16;k++){ const t=k/16, x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t+Math.sin(t*Math.PI)*11; s+=`<polygon points="${x-3},${y} ${x+3},${y} ${x},${y+6}" fill="${['#e5484d','#f2a900','#2f6fde','#1f9d6b'][k%4]}"/>`; } }
     const fs=activos(m).filter(f=>escDe(f)===esc);
-    fs.slice(0,8).forEach((f,k)=>{ const i=40+(k%4)*60, j=50+Math.floor(k/4)*80; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso); });
+    fs.slice(0,8).forEach((f,k)=>{ const i=40+(k%4)*60, j=50+Math.floor(k/4)*80; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso,1,f); });
     { const [x,y]=P(250,150); s+=envPicnic(x,y); }
     if(fs.length){ s+=decorEn(200,200,fs,1.2); const [x,y]=P(300,230); s+=tag(x,y+30,nombreA(fs[0].area),`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,colorF(fs),''); }
     else { const [x,y]=P(150,110); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:9px;fill:#2f6b2f;font-weight:800">Sin cursos en este momento</text>`; }
@@ -388,7 +389,7 @@ const INT={
       { const [zx,zy]=P(200,55); s+=`<g class="tap" data-go="verde"><rect x="${zx-36}" y="${zy-8}" width="72" height="15" rx="7" fill="#2e8b3d"/><text x="${zx}" y="${zy+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">Zona verde →</text></g>`; }
       // actividad en el hall (Ciencias 2)
       const hc=enSalon('Hall Principal',m);
-      if(hc.length){ s+=decorEn(150,215,hc,1.1); hc.slice(0,8).forEach((f,k)=>{ const i=104+(k%2)*28, j=225+Math.floor(k/2)*30; s+=carpa(i,j,AREA_C.cie,f.curso,.6); });
+      if(hc.length){ s+=decorEn(150,215,hc,1.1); hc.slice(0,8).forEach((f,k)=>{ const i=104+(k%2)*28, j=225+Math.floor(k/2)*30; s+=carpa(i,j,AREA_C.cie,f.curso,.6,f); });
         const [x,y]=P(220,300); s+=tag(x+20,y,'Ciencias Naturales 2',`● ${hc[0].grado} (${rango(hc.map(f=>f.curso))})`,AREA_C.cie,''); }
       else { const [x,y]=P(130,280); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:8px;fill:#9a8f7a;font-weight:700">Espacio de Ciencias Naturales 2</text>`; }
       const [px,py]=P(130,350); s+=`<g transform="translate(${px},${py+8})"><rect x="-28" y="-8" width="56" height="15" rx="7" fill="#7ed957"/><text y="3" text-anchor="middle" style="font-size:7.5px;font-weight:800">ENTRADA 1</text></g>`; s+=puertaInt(98,70,'ENTRADA 2',-1)+puertaInt(162,95,'SALIDA 3',1);
@@ -398,7 +399,7 @@ const INT={
       s+=flat(-250,390,160,190,'#efe8db','#d6ccb8');
       ['205','204','203','202','201','200'].forEach((c,k)=>s+=roomBox(140+k*40,176+k*40,115,160,c,m,18));   // derecha, desde el Hall
       ['206','207','208','209','210','211','212','213'].forEach((c,k)=>s+=roomBox(88-k*40-32,88-k*40+4,115,160,c,m,18)); // izquierda, desde el Hall
-      s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
+      s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ux,uy]=P(114,180,10); s+=`<g class="tap" data-go="bS3"><rect x="${ux-26}" y="${uy-38}" width="52" height="14" rx="7" fill="#1f9d6b"/><text x="${ux}" y="${uy-28}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↑ Piso 3</text></g>`; const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
       s+=decorEn(405,195,activos(m).filter(f=>/^2\d\d/.test(f.salon||'')))+hallPiso(2,m);
       return s; } },
   bS3:{ titulo:'Bloque de salones · Piso 3', pisos:['hall','bS2','bS3'], entry:[114,175], target:[200,175],
@@ -406,7 +407,7 @@ const INT={
       s+=flat(-250,390,160,190,'#efe8db','#d6ccb8');
       ['305','304','303','302','301','300'].forEach((c,k)=>s+=roomBox(140+k*40,176+k*40,115,160,c,m,18));   // derecha, desde el Hall
       ['306','307','308','309','310','311','312','313'].forEach((c,k)=>s+=roomBox(88-k*40-32,88-k*40+4,115,160,c,m,18)); // izquierda, desde el Hall
-      s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
+      s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ux,uy]=P(114,180,10); s+=`<g class="tap" data-go="bS2"><rect x="${ux-26}" y="${uy-38}" width="52" height="14" rx="7" fill="#1f9d6b"/><text x="${ux}" y="${uy-28}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 2</text></g>`; const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
       s+=decorEn(405,195,activos(m).filter(f=>/^3\d\d/.test(f.salon||'')))+hallPiso(3,m);
       return s; } },
   b130:{ titulo:'Bloque 130 · Salones 131–144', pisos:[], entry:[0,105], target:[170,105], salir:'hall',
@@ -431,7 +432,7 @@ const INT={
       // banderines entre árboles
       { const a=P(20,15,26), b=P(285,20,26); s+=`<path d="M${a[0]},${a[1]} Q${(a[0]+b[0])/2},${(a[1]+b[1])/2+22} ${b[0]},${b[1]}" stroke="#555" stroke-width=".7" fill="none"/>`;
         for(let k=1;k<16;k++){ const t=k/16, x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t+Math.sin(t*Math.PI)*11; s+=`<polygon points="${x-3},${y} ${x+3},${y} ${x},${y+6}" fill="${['#e5484d','#f2a900','#2f6fde','#1f9d6b'][k%4]}"/>`; } }
-      fs.slice(0,8).forEach((f,k)=>{ const i=40+(k%4)*60, j=50+Math.floor(k/4)*80; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso); });
+      fs.slice(0,8).forEach((f,k)=>{ const i=40+(k%4)*60, j=50+Math.floor(k/4)*80; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso,1,f); });
       { const [x,y]=P(250,150); s+=envPicnic(x,y); } { const [x,y]=P(40,200); s+=envPicnic(x,y); }
       if(fs.length){ s+=decorEn(200,200,fs,1.2); const st=fs.find(f=>f.categoria!=='gen'), tema=st?{tec:'DESASTRES NATURALES',mat:'BIODIVERSIDAD',cie:'CONSECUENCIAS'}[st.categoria]:''; if(tema){ const [x,y]=P(280,140); s+=`<rect x="${x-1}" y="${y-22}" width="2" height="22" fill="#6d4a2e"/><rect x="${x-34}" y="${y-34}" width="68" height="13" rx="2" fill="#b5834e" stroke="#6d4a2e"/><text x="${x}" y="${y-25}" text-anchor="middle" style="font-size:6.5px;font-weight:800;fill:#fff">${tema}</text>`; } }
       if(fs.length){ const [x,y]=P(300,230); s+=tag(x,y+30,nombreA(fs[0].area),`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,AREA_C[fs[0].categoria],''); }
@@ -446,7 +447,7 @@ const INT={
       { const [x,y]=P(MW,MH); s+=`<ellipse cx="${x}" cy="${y}" rx="26" ry="15" fill="none" stroke="#fff" stroke-width="1.5"/>`; }
       [[0,MH],[W,MH]].forEach(([i,j])=>{ const a=P(i,j-14),b=P(i,j+14); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${b[1]-12} ${a[0]},${a[1]-12}" fill="rgba(255,255,255,.35)" stroke="#fff" stroke-width="1.6"/>`; });
       const fs=activos(m).filter(f=>escDe(f)==='cancha');
-      fs.slice(0,8).forEach((f,k)=>{ const i=24+(k%4)*52, j=22+Math.floor(k/4)*82; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso); });
+      fs.slice(0,8).forEach((f,k)=>{ const i=24+(k%4)*52, j=22+Math.floor(k/4)*82; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso,1,f); });
       if(fs.length){ s+=decorEn(MW,H-14,fs,1); const [x,y]=P(W,H); s+=tag(x,y+26,nombreA(fs[0].area),`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,colorF(fs),''); }
       else { const [x,y]=P(MW,MH); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" style="font-size:8.5px;fill:#fff;font-weight:800">Sin cursos en este momento</text>`; }
       const [ex,ey]=P(-12,150); s+=`<g class="tap" data-go="ext"><rect x="${ex-30}" y="${ey-8}" width="60" height="15" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">← Salida</text></g>`;
@@ -459,7 +460,7 @@ const INT={
       for(let k=0;k<70;k++){ const [x,y]=P(-5+R1(k)*310,-36+R1(k+50)*26,22); s+=persona(x,y,['#e5484d','#2f6fde','#f2a900','#1f9d6b','#173d7a'][k%5]); }
       const fs=activos(m).filter(f=>f.salon==='Coliseo');
       if(fs.length){ const [bx,by]=P(150,-22,40); s+=`<rect x="${bx-58}" y="${by-9}" width="116" height="15" rx="2" fill="${AREA_C.tec}"/><text x="${bx}" y="${by+1.5}" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">DESASTRES NATURALES</text>`; s+=decorEn(270,215,fs,1.2); }
-      fs.forEach((f,k)=>{ const i=30+(k%4)*64, j=40+Math.floor(k/4)*90; s+=carpa(i,j,AREA_C.tec,f.curso); });
+      fs.forEach((f,k)=>{ const i=30+(k%4)*64, j=40+Math.floor(k/4)*90; s+=carpa(i,j,AREA_C.tec,f.curso,1,f); });
       if(fs.length){ const [x,y]=P(300,200); s+=tag(x,y+30,'Desastres naturales',`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,AREA_C.tec,''); }
       else { const [x,y]=P(150,120); s+=`<text x="${x}" y="${y+4}" text-anchor="middle" style="font-size:9px;fill:#fff;font-weight:800">Sin cursos en este momento</text>`; }
       return s; } },
@@ -529,6 +530,7 @@ function bindTaps(){
   svg.querySelectorAll('[data-k]').forEach(n=>{ if(!n.dataset.k) return; n.onclick=()=>fichaExt(n.dataset.k); });
   svg.querySelectorAll('[data-go]').forEach(n=>n.onclick=()=>n.dataset.go==='ext'?salir():irInterior(n.dataset.go,true));
   svg.querySelectorAll('[data-room]').forEach(n=>n.onclick=()=>fichaSalon(n.dataset.room));
+  svg.querySelectorAll('.tapc').forEach(n=>n.onclick=e=>{ e.stopPropagation(); fichaCarpa(n.dataset.act,[+n.dataset.pi,+n.dataset.pj]); });
 }
 function sheet(col,sub,title,body){ const sh=document.getElementById('sheet');
   sh.innerHTML=`<div class="sh" style="background:${col}"><span class="x" id="cvX">✕ Cerrar</span><div style="font-size:12px;opacity:.85">${sub}</div><h3>${title}</h3></div><div class="sb cvsb">${body}</div>`;
@@ -552,6 +554,21 @@ async function fichaSalon(code){
   sheet(c,f?nombreA(f.area):'Salón',`${/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':''}${code}${f?' · '+f.curso:''}`,
     `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
      <h4>Durante el día</h4>${dia.map(x=>`<p>${fmtHora(x.hora_inicio)} · <b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')||'<p class="pend">Sin actividades</p>'}`);
+}
+/* actividades en carpas (Hall, pisos, Zona verde, Coliseo, cancha): el avatar camina hasta la carpa, animación e información */
+async function fichaCarpa(id,pt){
+  if(busy) return; const f=DATA.find(x=>String(x.id)===String(id)); if(!f) return; const g=GEN, sc0=scene;
+  document.getElementById('sheet').classList.remove('open'); ROOMP=null;
+  if(!same(avPos,pt)){ busy=true; const v=[...svg._vb]; try{ await caminar([avPos,pt],CI().walk); placeAv(avPos,{dir:'b',flip:false});
+    const z=svg._vb; await anim(600,q=>{const e=ease(q); setVB(z.map((x,i)=>lerp(x,v[i],e)));}); FULL=v; } finally{ busy=false; } }
+  if(g!==GEN||scene!==sc0) return;
+  busy=true; try{ await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:f.salon,salon:f.salon,frase:f.frase}); } finally{ busy=false; }
+  if(g!==GEN||scene!==sc0) return;
+  const c=AREA_C[f.categoria]||'#5b6577', otros=enSalon(f.salon,NOW).filter(x=>x!==f);
+  sheet(c,nombreA(f.area),`${esc(f.salon)} · ${esc(f.curso)}`,
+    `<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}
+     <h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${esc(f.acompanante)||'—'}</p><h4>Apoyo</h4><p>${esc(f.apoyo)||'—'}</p>
+     ${otros.length?`<h4>También aquí ahora</h4>${otros.map(x=>`<p><b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')}`:''}`);
 }
 /* el avatar camina hasta el salón que se toca dentro de un edificio */
 let ROOMP=null;
