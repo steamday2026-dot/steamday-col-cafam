@@ -10,18 +10,32 @@ const esc=t=>t==null?'':String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 let DATA=[], ACT=[], NOW=480, AV=avatarNormal({}), CAM=null;
 const toMin=h=>{const[a,b]=h.split(':').map(Number);return a*60+b;};
 const cap=t=>t?t.charAt(0)+t.slice(1).toLowerCase():t;
+/* escala de los interiores (avatar, detalle de los salones y cámara) */
+/* Propuesta D (aprobada): mismo diseño, salones unas 2 veces más amplios frente al avatar */
+const CI=()=>Object.assign({av:.22,det:false,vw:136,walk:100,lbl:.44,follow:false},window.__CFGI||{});
+const KI=()=>CI().av/.5;   // factor de escala de los interiores frente al diseño original
+const titA=f=>f?((f.titulo&&window.tituloA)?window.tituloA(f.titulo):nombreA(f.area||'')):'';
 const fmtM=m=>fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));
 const rango=cs=>{const s=[...cs].sort();return s.length>1?s[0]+'–'+s[s.length-1]:s[0];};
 const nombreA=a=>a.replace('Ciencias Naturales. Actividades del Cambio Climático','Cambio climático').replace('Espacio de dirección de curso','Dirección de curso').replace('Construcción de Rompecabezas','Rompecabezas');
 
 /* ---------- datos por lugar ---------- */
 const activos=m=>ACT.filter(f=>toMin(f.hora_inicio)<=m&&m<toMin(f.hora_fin));
+/* nombres de lugar del Excel → forma única ("115 A"→"115A", "CANCHA DE FUTBOL"→"Cancha de fútbol"…) */
+const CAN_P=[20,102];
+function ns(v){ let t=String(v||'').trim().replace(/^[-–\s]+/,'').replace(/\s+/g,' '); const u=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(!t) return ''; if(/CRISTAL/.test(u)) return 'Aula de Cristal'; if(/CANCHA/.test(u)&&/FUTBOL/.test(u)) return 'Cancha de fútbol';
+  if(/^COLISEO/.test(u)) return 'Coliseo'; if(u==='HALL PRINCIPAL') return 'Hall Principal';
+  if(/^HALL/.test(u)){ if(/(^|\D)3(\D|$)/.test(u)) return 'Hall piso 3'; if(/(^|\D)2(\D|$)/.test(u)) return 'Hall piso 2'; }
+  if(/^\d+\s+[AB]$/i.test(t)) return t.replace(/\s+/g,'').toUpperCase();
+  return t; }
+const nrow=r=>r?Object.assign({},r,{salon:ns(r.salon)}):r;
 function enSalon(code,m){ return activos(m).filter(f=>f.salon===code); }
-function escDe(f){ const s=f.salon||''; if(s==='Coliseo') return 'coliseo'; if(s==='Hall Principal') return 'hall'; if(/verde/i.test(s)&&!/primaria/i.test(s)) return 'verde';
+function escDe(f){ const s=ns(f.salon); if(s==='Aula de Cristal') return 'b130'; if(s==='Cancha de fútbol') return 'cancha'; if(/^Hall piso [23]$/.test(s)) return 'bS'; if(s==='Coliseo') return 'coliseo'; if(s==='Hall Principal') return 'hall'; if(/verde/i.test(s)&&!/primaria/i.test(s)) return 'verde';
   if(/verde/i.test(s)&&/primaria/i.test(s)) return /2/.test(s)?'pV2':'pV1';
   if(/^AA/.test(s)){ const n=parseInt(s.slice(2)); return n<=103?'pAA1':(n<=112?'pAA2':'pAA3'); }
   if(/^AB/.test(s)) return 'pAB'; if(/^AC/.test(s)) return 'pAC'; const n=parseInt(s); if(n>=130&&n<200) return 'b130'; if(n>=110&&n<130) return 'hall'; return 'bS'; }
-const EXT={ coliseo:'Coliseo', hall:'Hall Principal', bS:'Bloque de salones (pisos 2 y 3)', b130:'Bloque 130', T:'Ala de Tecnología', verde:'Zona verde',
+const EXT={ coliseo:'Coliseo', hall:'Hall Principal', bS:'Bloque de salones (pisos 2 y 3)', b130:'Bloque 130', T:'Ala de Tecnología', verde:'Zona verde', cancha:'Cancha de fútbol',
   pAA1:'Primaria · AA 101–103', pAA2:'Primaria · AA 104–112', pAA3:'Primaria · AA 113–115', pAB:'Primaria · Bloque AB', pAC:'Primaria · Bloque AC',
   pV1:'Zona verde Primaria', pV2:'Zona verde Primaria 2', gym:'Gimnasio', pool:'Piscina' };
 const colorF=fs=>{ const st=fs.find(f=>f.categoria!=='gen'); return st?AREA_C[st.categoria]:(fs.length?'#8a94a8':null); };
@@ -254,6 +268,7 @@ function sceneExt(m){
   Object.entries(PB).forEach(([k,o])=>{ const l=o.lab||[0,0]; Lxy(k,o.c[0]+l[0],o.c[1]-o.h-16+l[1],pb[k],o.t); });
   Object.entries(PV).forEach(([k,o])=>{ const l=o.lab||[0,0]; Lxy(k,o.c[0]+l[0],o.c[1]-6+l[1],pv[k],o.t); });
   const nouse=(k,x,y,t)=>{ s+=tag(x,y,t,'',null,k)+`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:700;fill:#8a5aa0">No se usa este día</text>`; };
+  { const cf=por('cancha'); Lxy('cancha',61.7,40,cf,'Cancha de fútbol'); }
   nouse('pool',270,-36,'Piscina'); nouse('gym',122,-50,'Gimnasio');
   s+=tag(SALA.c[0]+48,SALA.c[1]+8,'Sala de profesores','',null,'sala')+tag(REST.c[0]+20,REST.c[1]-24,'Restaurante','',null,'rest');
   { const [x,y]=[61.7,74.6]; s+=`<text x="${x}" y="${y+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff;opacity:.9">CANCHA DE FÚTBOL</text>`; }
@@ -280,6 +295,7 @@ function carpa(i,j,col,txt,k=1){ const w=34*k, d=24*k, hp=22*k, hr=30*k; let s=b
 function decorEn(i,j,fs,k=1){ const st=fs.find(f=>f.categoria!=='gen'); if(!st) return ''; const [x,y]=P(i,j); return envDecor(st.categoria,x,y,k); }
 function persona(x,y,c){ return `<rect x="${x-1.4}" y="${y-5}" width="2.8" height="4.5" rx="1" fill="${c}"/><circle cx="${x}" cy="${y-6.6}" r="1.6" fill="#e8b48a"/>`; }
 function roomBox(i0,i1,j0,j1,code,m,h=20){
+  if(CI().det) return roomDet(i0,i1,j0,j1,code,m,h); h=h*(CI().hk||1);
   const fs=enSalon(code,m), c=colorF(fs), w=i1-i0, d=j1-j0;
   let s=flat(i0,i1,j0,j1,c?claro(c,.82):'url(#pTile)','#c9bfae');                          // piso
   s+=box(i0,i1,j0-3,j0,h,'#ece6da','#ddd5c6',{noShadow:1})+box(i0-3,i0,j0-3,j1,h,'#ece6da','#ddd5c6',{noShadow:1});   // muros del fondo
@@ -290,6 +306,47 @@ function roomBox(i0,i1,j0,j1,code,m,h=20){
   { const [x,y]=P(i0+w*.82,j0+d*.12); s+=`<rect x="${x-3}" y="${y-5}" width="6" height="4" fill="#8a6a44"/>`; }
   const [x,y]=P((i0+i1)/2,j1,-6);
   s+=`<g class="tap room" data-room="${code}"><rect x="${x-17}" y="${y-9}" width="34" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b2333">${code}</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
+  return s; }
+/* salón detallado: muros recortados, tablero, ventanas, puerta, pupitres con sillas y estudiantes */
+const PIEL=['#f1c9a5','#d9a477','#b07a4f','#8a5a3b','#f3d2b8'];
+function estudiante(i,j,c,n){ const [x,y]=P(i,j,3.2); return `<g><rect x="${(x-1.5).toFixed(1)}" y="${(y-4.2).toFixed(1)}" width="3" height="4.2" rx="1.2" fill="${c}"/><circle cx="${x.toFixed(1)}" cy="${(y-5.6).toFixed(1)}" r="1.55" fill="${PIEL[n%5]}"/><path d="M${(x-1.6).toFixed(1)},${(y-5.9).toFixed(1)} a1.6,1.5 0 0 1 3.2,0z" fill="${['#2b1d14','#5a3a22','#1b1b1b','#8a5a2b'][n%4]}"/></g>`; }
+function roomDet(i0,i1,j0,j1,code,m,h){
+  const fs=enSalon(code,m), c=colorF(fs), w=i1-i0, d=j1-j0; h=Math.max(h,20);
+  let s=flat(i0,i1,j0,j1,c?claro(c,.86):'url(#pTile)','#c9bfae');
+  s+=box(i0,i1,j0-2,j0,h,'#f1ece2','#ddd5c6',{noShadow:1})+box(i0-2,i0,j0-2,j1,h,'#e8e1d4','#ddd5c6',{noShadow:1});
+  if(c) s+=`<polygon points="${pts([P(i0,j0,h-1),P(i1,j0,h-1),P(i1,j0,h-3),P(i0,j0,h-3)])}" fill="${c}"/>`;
+  { const a=P(i0+w*.22,j0,h*.38),b=P(i0+w*.78,j0,h*.38); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${(b[1]-h*.36).toFixed(1)} ${a[0]},${(a[1]-h*.36).toFixed(1)}" fill="#2f5d4a" stroke="#8a6a44" stroke-width=".8"/>`; }
+  [[.12,.38],[.52,.78]].forEach(([u,v])=>{ const a=P(i0,j0+d*u,h*.42),b=P(i0,j0+d*v,h*.42); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${(b[1]-h*.34).toFixed(1)} ${a[0]},${(a[1]-h*.34).toFixed(1)}" fill="#bfe0f7" stroke="#7d8696" stroke-width=".6"/>`; });
+  s+=box(i0+w*.58,i0+w*.88,j0+3,j0+8,4.5,'#9a6b3f','#b98552',{noShadow:1});
+  let n=0; const cols=3, rows=3;
+  for(let r=0;r<rows;r++) for(let q=0;q<cols;q++){ const i=i0+w*.12+q*w*.29, j=j0+d*.34+r*d*.2;
+    s+=box(i,i+w*.18,j,j+d*.07,3.4,'#c99a62','#e0b984',{noShadow:1});
+    s+=box(i+w*.04,i+w*.14,j+d*.09,j+d*.13,2,'#5b6577','#7d8696',{noShadow:1});
+    if(c) s+=estudiante(i+w*.09,j+d*.11,c,n++); }
+  s+=box(i1-1.5,i1,j0,j1,h*.32,'#e8e1d4','#f3eee4',{noShadow:1});
+  s+=box(i0,i0+w*.55,j1-1.5,j1,h*.32,'#efe9dd','#f3eee4',{noShadow:1});
+  { const a=P(i0+w*.62,j1,0),b=P(i0+w*.9,j1,0); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${b[1]-1.5} ${a[0]},${a[1]-1.5}" fill="#8a5a3b"/>`; }
+  const [x,y]=P((i0+i1)/2,j1,-6);
+  s+=`<g class="tap room" data-room="${code}"><rect x="${x-15}" y="${y-8}" width="30" height="${fs.length?17:11}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:6.8px;font-weight:800;fill:#1b2333">${code}</text>${fs.length?`<text x="${x}" y="${y+7}" text-anchor="middle" style="font-size:6.2px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
+  return s; }
+/* Aula de Cristal: salón grande con muros de vidrio */
+function aulaCristal(i0,i1,j0,j1,m){ const code='Aula de Cristal', fs=enSalon(code,m), c=colorF(fs), h=18, w=i1-i0, d=j1-j0;
+  let s=flat(i0,i1,j0,j1,c?claro(c,.85):'#e8f6ff','#9fd0ee');
+  for(let r=0;r<3;r++) for(let q=0;q<3;q++){ const i=i0+w*.12+q*w*.29, j=j0+d*.22+r*d*.24; s+=box(i,i+w*.16,j,j+d*.1,3,'#c99a62','#dcb27c',{noShadow:1}); if(c) s+=box(i+w*.03,i+w*.1,j+d*.12,j+d*.2,2.5,c,claro(c,.35),{noShadow:1}); }
+  const A=P(i0,j0),B=P(i1,j0),C=P(i1,j1),D=P(i0,j1),u=p=>[p[0],p[1]-h];
+  const vidrio=(a,b,op)=>{ let g=`<polygon points="${pts([a,b,u(b),u(a)])}" fill="#bfe6fb" opacity="${op}" stroke="#7fbfe4" stroke-width="1"/>`;
+    for(let k=1;k<6;k++){ const x=a[0]+(b[0]-a[0])*k/6, y=a[1]+(b[1]-a[1])*k/6; g+=`<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y-h).toFixed(1)}" stroke="#ffffff" stroke-width=".9" opacity=".9"/>`; }
+    return g+`<line x1="${a[0]}" y1="${a[1]-h*.55}" x2="${b[0]}" y2="${b[1]-h*.55}" stroke="#ffffff" stroke-width=".7" opacity=".8"/>`; };
+  s=vidrio(A,B,.35)+vidrio(A,D,.35)+s+vidrio(D,C,.28)+vidrio(B,C,.28);
+  s+=`<polygon points="${pts([u(A),u(B),u(C),u(D)])}" fill="none" stroke="#7fbfe4" stroke-width="1.4"/>`;
+  { const g=[P(i0+w*.15,j0,h-2),P(i0+w*.45,j0,h-2)]; s+=`<line x1="${g[0][0]}" y1="${g[0][1]}" x2="${g[1][0]}" y2="${g[1][1]}" stroke="#fff" stroke-width="2" opacity=".9"/>`; }
+  const [x,y]=P((i0+i1)/2,j1,-6);
+  s+=`<g class="tap room" data-room="${code}"><rect x="${x-34}" y="${y-9}" width="68" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#7fbfe4'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b5e85">Aula de Cristal</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
+  return s; }
+/* Hall central de los pisos 2 y 3 */
+function hallPiso(n,m){ const code='Hall piso '+n, fs=enSalon(code,m), c=colorF(fs); let s=flat(66,166,190,250,c?claro(c,.82):'#f6f0e2','#d6ccb8');
+  if(fs.length){ fs.slice(0,4).forEach((f,k)=>{ s+=carpa(74+(k%2)*46,198+Math.floor(k/2)*26,AREA_C[f.categoria]||'#8a94a8',f.curso,.6); }); }
+  const [x,y]=P(116,250,-6); s+=`<g class="tap room" data-room="${code}"><rect x="${x-32}" y="${y-9}" width="64" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b2333">Hall piso ${n}</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
   return s; }
 function floorBase(){ return DEFS_INT+`<rect class="bgr" x="-600" y="-400" width="1600" height="1400" fill="#e9e4da"/>`; }
 /* bloque de primaria: salones abiertos en fila junto a un pasillo */
@@ -342,8 +399,7 @@ const INT={
       ['205','204','203','202','201','200'].forEach((c,k)=>s+=roomBox(140+k*40,176+k*40,115,160,c,m,18));   // derecha, desde el Hall
       ['206','207','208','209','210','211','212','213'].forEach((c,k)=>s+=roomBox(88-k*40-32,88-k*40+4,115,160,c,m,18)); // izquierda, desde el Hall
       s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
-      s+=decorEn(405,195,activos(m).filter(f=>/^2\d\d/.test(f.salon||'')));
-      const [hx,hy]=P(114,215); s+=`<text x="${hx}" y="${hy}" text-anchor="middle" style="font-size:7.5px;fill:#9a8f7a;font-weight:700">(debajo pasa el Hall)</text>`;
+      s+=decorEn(405,195,activos(m).filter(f=>/^2\d\d/.test(f.salon||'')))+hallPiso(2,m);
       return s; } },
   bS3:{ titulo:'Bloque de salones · Piso 3', pisos:['hall','bS2','bS3'], entry:[114,175], target:[200,175],
     draw(m){ CX=215;CY=40; let s=floorBase();
@@ -351,13 +407,14 @@ const INT={
       ['305','304','303','302','301','300'].forEach((c,k)=>s+=roomBox(140+k*40,176+k*40,115,160,c,m,18));   // derecha, desde el Hall
       ['306','307','308','309','310','311','312','313'].forEach((c,k)=>s+=roomBox(88-k*40-32,88-k*40+4,115,160,c,m,18)); // izquierda, desde el Hall
       s+=box(100,128,165,190,8,'#b9a98d','#d8ccb6',{noShadow:1}); const [ex,ey]=P(114,180,10); s+=`<g class="tap" data-go="hall"><rect x="${ex-26}" y="${ey-20}" width="52" height="14" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey-10}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">↓ Piso 1</text></g>`;
-      s+=decorEn(405,195,activos(m).filter(f=>/^3\d\d/.test(f.salon||'')));
+      s+=decorEn(405,195,activos(m).filter(f=>/^3\d\d/.test(f.salon||'')))+hallPiso(3,m);
       return s; } },
-  b130:{ titulo:'Bloque 130 · Salones 137–144', pisos:[], entry:[0,105], target:[170,105], salir:'hall',
+  b130:{ titulo:'Bloque 130 · Salones 131–144', pisos:[], entry:[0,105], target:[170,105], salir:'hall',
     draw(m){ CX=170;CY=40; let s=floorBase();
       s+=flat(-30,360,90,120,'#efe8db','#d6ccb8');
-      ['137','138','139','140','143','144'].forEach((c,k)=>s+=roomBox(10+k*42,46+k*42,45,90,c,m,20));
-      s+=decorEn(345,108,activos(m).filter(f=>escDe(f)==='b130'));
+      ['131','133','137','138','139','140','143','144'].forEach((c,k)=>s+=roomBox(10+k*42,46+k*42,45,90,c,m,20));
+      s+=flat(-30,360,120,142,'#efe8db','#d6ccb8')+aulaCristal(136,214,142,192,m);   // al frente de los salones 138 y 139
+      s+=decorEn(372,108,activos(m).filter(f=>escDe(f)==='b130'));
       const [ex,ey]=P(-20,105); s+=`<g class="tap" data-go="hall"><rect x="${ex-30}" y="${ey-8}" width="60" height="15" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">← Al Hall</text></g>`;
       return s; } },
   verde:{ titulo:'Zona verde', pisos:[], entry:[-10,170], target:[110,170], salir:'hall',
@@ -380,6 +437,19 @@ const INT={
       if(fs.length){ const [x,y]=P(300,230); s+=tag(x,y+30,nombreA(fs[0].area),`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,AREA_C[fs[0].categoria],''); }
       else { const [x,y]=P(150,110); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:9px;fill:#2f6b2f;font-weight:800">Sin cursos en este momento</text>`; }
       const [ex,ey]=P(-5,195); s+=`<g class="tap" data-go="hall"><rect x="${ex-30}" y="${ey-8}" width="60" height="15" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">← Al Hall</text></g>`;
+      return s; } },
+  cancha:{ titulo:'Cancha de fútbol', pisos:[], entry:[-14,130], target:[60,130], door:IJ(...CAN_P),
+    draw(m){ CX=190;CY=40; const W=220,H=150,MW=W/2,MH=H/2; let s=`<defs>${ENV_DEFS}</defs><rect class="bgr" x="-600" y="-400" width="1600" height="1400" fill="url(#pGrass)"/>`;
+      s+=flat(-6,W+6,-6,H+6,'#3f8f47')+flat(0,W,0,H,'#6fbf5e','#fff');
+      for(let k=0;k<10;k++) s+=flat(k*22,k*22+11,0,H,'#79c868');
+      s+=flat(0,W,0,H,'none','#fff')+flat(MW-.6,MW+.6,0,H,'#fff')+flat(0,40,MH-38,MH+38,'none','#fff')+flat(W-40,W,MH-38,MH+38,'none','#fff');
+      { const [x,y]=P(MW,MH); s+=`<ellipse cx="${x}" cy="${y}" rx="26" ry="15" fill="none" stroke="#fff" stroke-width="1.5"/>`; }
+      [[0,MH],[W,MH]].forEach(([i,j])=>{ const a=P(i,j-14),b=P(i,j+14); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${b[1]-12} ${a[0]},${a[1]-12}" fill="rgba(255,255,255,.35)" stroke="#fff" stroke-width="1.6"/>`; });
+      const fs=activos(m).filter(f=>escDe(f)==='cancha');
+      fs.slice(0,8).forEach((f,k)=>{ const i=24+(k%4)*52, j=22+Math.floor(k/4)*82; s+=carpa(i,j,AREA_C[f.categoria]||'#8a94a8',f.curso); });
+      if(fs.length){ s+=decorEn(MW,H-14,fs,1); const [x,y]=P(W,H); s+=tag(x,y+26,nombreA(fs[0].area),`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,colorF(fs),''); }
+      else { const [x,y]=P(MW,MH); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" style="font-size:8.5px;fill:#fff;font-weight:800">Sin cursos en este momento</text>`; }
+      const [ex,ey]=P(-12,150); s+=`<g class="tap" data-go="ext"><rect x="${ex-30}" y="${ey-8}" width="60" height="15" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">← Salida</text></g>`;
       return s; } },
   coliseo:{ titulo:'Coliseo', pisos:[], entry:[150,250], target:[150,170],
     draw(m){ CX=200;CY=20; let s=floorBase();
@@ -413,6 +483,7 @@ function fit(){ // ajusta la vista al alto del contenido; el ancho se recorre de
   if(w>x1-x0){ w=x1-x0; } h=Math.max(h,w/asp*0.72);
   const [fx,fy]=P(...avPos); let x=Math.max(x0,Math.min(x1-w,fx-w/2)); let y=y0+((y1-y0)-h)/2;
   if(scene!=='ext'&&w<190){ const k=190/w; w*=k; h*=k; x=(x0+x1)/2-w/2; y=(y0+y1)/2-h/2; BB=[Math.min(x0,x),Math.min(y0,y),Math.max(x1,x+w),Math.max(y1,y+h)]; }
+  if(scene!=='ext'&&CI().vw){ w=CI().vw; h=w/asp; x=Math.max(x0,Math.min(x1-w,fx-w/2)); y=Math.max(y0,Math.min(y1-h,fy-h*.5)); if(y1-y0<h) y=(y0+y1)/2-h/2; if(x1-x0<w) x=(x0+x1)/2-w/2; BB=[Math.min(x0,x),Math.min(y0,y),Math.max(x1,x+w),Math.max(y1,y+h)]; }
   if(scene==='ext'&&h>360){ h=360; w=Math.min(x1-x0,Math.max(h*asp,w*0.62)); x=Math.max(x0,Math.min(x1-w,fx-w/2)); y=Math.max(y0,Math.min(y1-h,fy-h*.62)); }
   FULL=[x,y,w,h]; setVB(FULL); }
 let drag=null;
@@ -428,7 +499,7 @@ const anim=(d,fn)=>new Promise(r=>{const t0=performance.now();const f=t=>{const 
 const ease=q=>q<.5?2*q*q:1-Math.pow(-2*q+2,2)/2, lerp=(a,b,q)=>a+(b-a)*q;
 let POSE={dir:'f',flip:false};
 function placeAv(ij,pose){ POSE=Object.assign({},POSE,pose||{}); const [x,y]=P(ij[0],ij[1]); const g=svg.querySelector('.av'); if(!g) return;
-  g.innerHTML=`<g transform="translate(${(x+2).toFixed(1)},${(y-(POSE.lift||0)).toFixed(1)}) scale(.5)">${avatarPose(AV,POSE)}</g>`; }
+  const k=scene==='ext'?.5:CI().av; g.innerHTML=`<g transform="translate(${(x+2*k/.5).toFixed(1)},${(y-(POSE.lift||0)*k/.5).toFixed(1)}) scale(${k})">${avatarPose(AV,POSE)}</g>`; }
 /* en reposo: parpadea, mira a los lados y respira */
 const T0=performance.now();
 setInterval(()=>{ if(!svg||busy||document.hidden||!box_.offsetParent) return; const t=(performance.now()-T0)/1000;
@@ -440,6 +511,7 @@ function render(){
   if(scene==='ext'){ CX=215;CY=60; svg.innerHTML=sceneExt(NOW); }
   else { svg.innerHTML=INT[scene].draw(NOW)+'<g class="av"></g>'; }
   { const extra=(CAM?camSVG():'')+(scene==='ext'?lugarSVG()+orgSVG():''); if(extra){ const gg=document.createElementNS('http://www.w3.org/2000/svg','g'); gg.setAttribute('class','ruta'); gg.innerHTML=extra; svg.querySelector('.av').before(gg); } }
+  if(scene!=='ext'&&CI().lbl&&CI().lbl!==1){ const L=CI().lbl; svg.querySelectorAll('.tap').forEach(n=>{ try{ const b=n.getBBox(), cx=b.x+b.width/2, cy=b.y+b.height/2; n.setAttribute('transform',`translate(${cx} ${cy}) scale(${L}) translate(${-cx} ${-cy})`); }catch(e){} }); }
   placeAv(avPos); bindTaps(); header(); strip();
 }
 function header(){
@@ -471,20 +543,47 @@ function fichaExt(k){
   const sh=sheet(c,'Ahora',EXT[k],`<h4>En este momento</h4>${Object.keys(grupos).length?Object.entries(grupos).map(([g,cs])=>`<p><b>${g}</b> · ${rango(cs)}</p>`).join(''):'<p class="pend">Sin cursos en este momento</p>'}<button class="btn alt2" id="ir">🧭 Ir con mi avatar</button>`);
   document.getElementById('ir').onclick=()=>{ sh.classList.remove('open'); irA(k); };
 }
-function fichaSalon(code){
+let GEN=0;   // cambia al salir o quitar: cancela una ficha pendiente
+async function fichaSalon(code){
+  if(busy) return; const g=GEN, sc0=scene; document.getElementById('sheet').classList.remove('open'); await irSalon(code); if(g!==GEN||scene!==sc0) return;
   const fs=enSalon(code,NOW), f=fs[0], c=colorF(fs)||'#5b6577';
+  if(f&&!busy){ busy=true; try{ if(g!==GEN) return; await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:(/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':'')+code,salon:code,frase:f.frase}); } finally{ busy=false; } }
   const dia=ACT.filter(x=>x.salon===code).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
-  sheet(c,f?nombreA(f.area):'Salón',`Salón ${code}${f?' · '+f.curso:''}`,
-    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p><h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
-     <h4>Durante el día</h4>${dia.map(x=>`<p>${fmtHora(x.hora_inicio)} · <b>${x.curso}</b> · ${nombreA(x.area)}</p>`).join('')||'<p class="pend">Sin actividades</p>'}`);
+  sheet(c,f?nombreA(f.area):'Salón',`${/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':''}${code}${f?' · '+f.curso:''}`,
+    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
+     <h4>Durante el día</h4>${dia.map(x=>`<p>${fmtHora(x.hora_inicio)} · <b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')||'<p class="pend">Sin actividades</p>'}`);
 }
+/* el avatar camina hasta el salón que se toca dentro de un edificio */
+let ROOMP=null;
+async function irSalon(code){
+  if(busy||scene==='ext'||CAM||!svg) return;
+  let legs; try{ legs=legsDestino({salon:code},'D1'); }catch(e){ return; }
+  const L=legs&&legs[legs.length-1]; if(!L) return;
+  const pts=L.pts||hallPts(L.a,L.b); if(L.scene!==scene||!pts||pts.length<2) return;
+  const room=pts[pts.length-1], attach=pts[pts.length-2];
+  if(same(avPos,room)) return;
+  const r=[avPos]; if(ROOMP&&ROOMP.scene===scene&&same(avPos,ROOMP.room)) r.push(ROOMP.attach);
+  const cur=r[r.length-1];
+  if(pts.length>=3){ const a=pts[pts.length-3]; if(Math.abs(a[1]-attach[1])<.5) r.push([cur[0],attach[1]]); else if(Math.abs(a[0]-attach[0])<.5) r.push([attach[0],cur[1]]); }
+  r.push(attach,room); const ruta=r.filter((p,i)=>!i||!same(p,r[i-1])); if(ruta.length<2) return;
+  busy=true; const v=[...svg._vb];
+  try{ await caminar(ruta,CI().walk); ROOMP={scene,attach,room}; placeAv(avPos,{dir:'b',flip:false}); if(CI().follow){ fit(); return; }
+    const t=[...v]; const z=svg._vb; await anim(650,q=>{const e=ease(q); setVB(z.map((x,i)=>lerp(x,t[i],e)));}); FULL=t; }
+  finally{ busy=false; } }
 
 /* recorridos exteriores hasta la puerta de cada edificio */
+let EXTK=null;   // lugar del exterior donde está el avatar (puerta del último edificio)
+const extDe=sc=>{ const I=INT[sc]; if(!I) return null; if(I.esc) return I.esc; if(sc==='coliseo'||sc==='cancha') return sc; return 'D1'; };
 function rutaExt(k){ const a=avPos;
+  { const desde=EXTK||(same(avPos,WX.inicio)?'D1':null);
+    if(desde && k!=='primaria'){ const vieneP=PB[desde]||PV[desde]||desde==='cancha'||desde==='sala';
+      const t=(PB[k]||PV[k]||k==='coliseo'||k==='cancha')?k:(vieneP?'D2':'D1');
+      const r=[a,...caminoExt(desde,t)]; return r.filter((p,i)=>!i||!same(p,r[i-1])); } }
   if(RUTAS_P[k]){ const base=[a,WX.plaza,...SENDERO.slice(1).map(p=>IJ(...p))]; let r=RUTAS_P[k].map(p=>IJ(...p));
 
     return [...base,...r,puerta(PB[k]||PV[k])]; }
   if(k==='coliseo') return [a,WX.plaza,WX.coliseo];
+  if(k==='cancha') return [a,...chainExt('cancha')];
   if(k==='primaria') return [a,WX.plaza,WX.primariaD,WX.primaria];
   return [a,WX.inicio];   // hall, bS y b130 se entra por el Hall
 }
@@ -502,22 +601,19 @@ async function caminar(lista,zoomW=170){
   placeAv(avPos,{walk:0});
 }
 async function fadeTo(txt,fn){ const fd=$c('cvFade'); fd.textContent=txt||''; fd.classList.add('on'); await anim(460,()=>{}); fn(); await anim(150,()=>{}); fd.classList.remove('on'); await anim(400,()=>{}); }
-async function irInterior(k,directo){
+async function irInterior(k,directo,row){
   if(busy) return; busy=true; document.getElementById('sheet').classList.remove('open');
   const sc=INT[k];
   await fadeTo(k==='bS2'||k==='bS3'?'Subiendo por la escalera…':(k==='b130'?'Cruzando el Hall…':(k==='verde'?'Saliendo a la Zona verde…':'Entrando…')),()=>{ scene=k; avPos=sc.entry; render(); fit(); });
-  await caminar([sc.entry,sc.target],230); await saludo();
-  const fs=activos(NOW).filter(f=>escDe(f)===(sc.esc||(k.startsWith('bS')?'bS':k))||(k==='hall'&&f.salon==='Hall Principal'));
-  const f=fs.find(x=>x.categoria!=='gen')||fs[0];
-  await mostrarLlegada(box_,{tipo:'actividad',cat:f?f.categoria:'gen',nombre:f?nombreA(f.titulo?cap(f.titulo):f.area):sc.titulo,lugar:sc.titulo,salon:sc.titulo.split('·')[0],frase:f&&f.frase});
+  await caminar([sc.entry,sc.target],CI().walk); await saludo();
   render(); const v=svg._vb; const F0=[...FULL]; fit(); const F1=[...FULL]; setVB(v); await anim(700,q=>{const e=ease(q); setVB(v.map((x,i)=>lerp(x,F1[i],e)));});
   busy=false;
 }
 async function irA(k){
   if(busy) return;
   if(k==='T'||k==='gym'||k==='pool') return;
-  busy=true; if(scene!=='ext'){ scene='ext'; avPos=WX.inicio; render(); fit(); }
-  await caminar(rutaExt(k));
+  busy=true; if(scene!=='ext'){ EXTK=extDe(scene); scene='ext'; avPos=EXTK?door(EXTK==='D1'?'hall':EXTK):WX.inicio; render(); fit(); }
+  await caminar(rutaExt(k)); EXTK=(PB[k]||PV[k]||k==='coliseo'||k==='cancha')?k:'D1';
   busy=false;
   if(k==='bS') return irInterior('bS2');
   if(k==='b130') return irInterior('b130');
@@ -526,21 +622,22 @@ async function irA(k){
   if(k==='pAC') return irInterior('pAC1');
   irInterior(k);
 }
-async function caminarA(k){ if(busy) return; busy=true; if(scene!=='ext'){ scene='ext'; avPos=WX.inicio; render(); fit(); }
-  const base=[avPos,WX.plaza,...SENDERO.slice(1).map(p=>IJ(...p)),...RUTAS_P[k].map(p=>IJ(...p)),IJ(...SALA.d)]; await caminar(base); await saludo(); const v=svg._vb; fit(); const F1=[...FULL]; setVB(v); await anim(700,q=>{const e=ease(q); setVB(v.map((x,i)=>lerp(x,F1[i],e)));}); busy=false; }
-async function salir(){ if(busy) return; busy=true; const d=scene!=='ext'&&INT[scene].door; await fadeTo('Saliendo…',()=>{ scene='ext'; avPos=(d||WX.inicio); render(); fit(); }); busy=false; }
+async function caminarA(k){ if(busy) return; busy=true; if(scene!=='ext'){ EXTK=extDe(scene); scene='ext'; avPos=EXTK?door(EXTK==='D1'?'hall':EXTK):WX.inicio; render(); fit(); }
+  const desde=EXTK||'D1', base=[avPos,...caminoExt(desde,'sala')]; await caminar(base.filter((p,i)=>!i||!same(p,base[i-1]))); EXTK='sala'; await saludo(); const v=svg._vb; fit(); const F1=[...FULL]; setVB(v); await anim(700,q=>{const e=ease(q); setVB(v.map((x,i)=>lerp(x,F1[i],e)));}); busy=false; }
+async function salir(){ GEN++; if(busy) return; busy=true; const d=scene!=='ext'&&INT[scene].door; if(scene!=='ext') EXTK=extDe(scene); await fadeTo('Saliendo…',()=>{ scene='ext'; avPos=(d||WX.inicio); render(); fit(); }); busy=false; }
 function flagPos(k){ let i,j,z;
   if(PB[k]){ const r=rect(PB[k]); i=(r[0]+r[1])/2; j=(r[2]+r[3])/2; z=PB[k].h; }
   else if(PV[k]){ const r=rect(PV[k]); i=(r[0]+r[1])/2; j=(r[2]+r[3])/2; z=0; }
-  else [i,j,z]=({hall:[182,300,16],bS:[160,172,36],b130:[215,-10,30],coliseo:[85,336,46],verde:[319,86,0]})[k]||[182,300,16];
+  else [i,j,z]=({hall:[182,300,16],bS:[160,172,36],b130:[215,-10,30],coliseo:[85,336,46],verde:[319,86,0],cancha:[...IJ(61.7,40),0]})[k]||[182,300,16];
   return P(i,j,z+4); }
-function door(k){ if(k==='coliseo') return WX.coliseo; if(PB[k]||PV[k]) return puerta(PB[k]||PV[k]); return WX.inicio; }
+function door(k){ if(k==='coliseo') return WX.coliseo; if(k==='cancha') return IJ(...CAN_P); if(PB[k]||PV[k]) return puerta(PB[k]||PV[k]); return WX.inicio; }
 const same=(a,b)=>Math.abs(a[0]-b[0])<.5&&Math.abs(a[1]-b[1])<.5;
-const intKey=f=>{ const k=escDe(f); if(k==='bS') return f.salon[0]==='3'?'bS3':'bS2'; if(k==='pAB'||k==='pAC') return k+(f.salon[2]==='2'?'2':'1'); return k; };
+const pisoDe=s=>(/^3|piso 3/.test(ns(s))?'3':'2');
+const intKey=f=>{ const k=escDe(f), s=ns(f.salon); if(k==='bS') return pisoDe(s)==='3'?'bS3':'bS2'; if(k==='pAB'||k==='pAC') return k+(s[2]==='2'?'2':'1'); return k; };
 function camSVG(){ if(!CAM) return ''; const L=CAM.legs[CAM.li]; if(!L) return ''; const pts=L.pts.map(p=>P(...p)); let s='';
   if(pts.length>1){ const d='M'+pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' L');
-    s+=`<path d="${d}" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/><path class="cam-path" pathLength="1" d="${d}" fill="none" stroke="#f2a900" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`; }
-  const pin=(p,col,txt,anim)=>`<g transform="translate(${p[0].toFixed(1)},${p[1].toFixed(1)}) scale(${scene==='ext'?1.6:1.05})"><ellipse rx="9" ry="4" fill="${col}" opacity=".3">${anim?'<animate attributeName="rx" values="6;13;6" dur="1.4s" repeatCount="indefinite"/>':''}</ellipse><path d="M0 0 c-5-6-7-9-7-12.5a7 7 0 0 1 14 0c0 3.5-2 6.5-7 12.5z" transform="translate(0,-2)" fill="${col}" stroke="#fff" stroke-width="1.5"/><circle cy="-14.5" r="2.6" fill="#fff"/><g transform="translate(0,-26)"><rect x="${-txt.length*2.6-6}" y="-8" width="${txt.length*5.2+12}" height="14" rx="7" fill="${col}"/><text y="2.5" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">${txt}</text></g></g>`;
+    s+=`<path d="${d}" fill="none" stroke="#fff" stroke-width="${scene==='ext'?9:9*KI()}" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/><path class="cam-path" pathLength="1" d="${d}" fill="none" stroke="#f2a900" stroke-width="${scene==='ext'?5:5*KI()}" stroke-linecap="round" stroke-linejoin="round"/>`; }
+  const pin=(p,col,txt,anim)=>`<g transform="translate(${p[0].toFixed(1)},${p[1].toFixed(1)}) scale(${scene==='ext'?1.6:1.05*KI()})"><ellipse rx="9" ry="4" fill="${col}" opacity=".3">${anim?'<animate attributeName="rx" values="6;13;6" dur="1.4s" repeatCount="indefinite"/>':''}</ellipse><path d="M0 0 c-5-6-7-9-7-12.5a7 7 0 0 1 14 0c0 3.5-2 6.5-7 12.5z" transform="translate(0,-2)" fill="${col}" stroke="#fff" stroke-width="1.5"/><circle cy="-14.5" r="2.6" fill="#fff"/><g transform="translate(0,-26)"><rect x="${-txt.length*2.6-6}" y="-8" width="${txt.length*5.2+12}" height="14" rx="7" fill="${col}"/><text y="2.5" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">${txt}</text></g></g>`;
   if(CAM.li===0) s+=pin(pts[0],'#5b6577',CAM.oTxt,false);
   if(CAM.li===CAM.legs.length-1) s+=pin(pts[pts.length-1],'#e5484d','Debes estar aquí',true);
   return s; }
@@ -548,33 +645,35 @@ function camSVG(){ if(!CAM) return ''; const L=CAM.legs[CAM.li]; if(!L) return '
 function puertaInt(i,j,t,lado){ const [x,y]=P(i,j); return `<g><rect x="${x-5}" y="${y-14}" width="10" height="14" rx="1.5" fill="#8a5a3b" stroke="#5b3a24"/><rect x="${x+(lado<0?-52:8)}" y="${y-22}" width="44" height="13" rx="6" fill="#173d7a"/><text x="${x+(lado<0?-30:30)}" y="${y-12.6}" text-anchor="middle" style="font-size:6.8px;font-weight:800;fill:#fff">${t}</text></g>`; }
 /* ===== planificador del recorrido: exterior + interiores ===== */
 const J2=[-78.9,70], D2E=[146,70];
-function chainExt(k){ const S=SENDERO.map(p=>IJ(...p)); if(k==='D1') return [WX.plaza,WX.inicio]; if(k==='coliseo') return [WX.plaza,WX.coliseo];
+function chainExt(k){ const S=SENDERO.map(p=>IJ(...p)); if(k==='D1') return [WX.plaza,WX.inicio]; if(k==='sala') return [WX.plaza,...S.slice(1,6),J2,S[6],S[7],...RUTAS_P.sala.map(p=>IJ(...p)),IJ(...SALA.d)]; if(k==='cancha') return [WX.plaza,...S.slice(1,6),IJ(...CAN_P)]; if(k==='coliseo') return [WX.plaza,WX.coliseo];
   const base=[WX.plaza,...S.slice(1,6),J2]; if(k==='D2') return [...base,D2E];
   return [...base,S[6],S[7],...(RUTAS_P[k]||[]).map(p=>IJ(...p)),puerta(PB[k]||PV[k])]; }
 function caminoExt(k1,k2){ if(k1===k2) return []; const a=chainExt(k1),b=chainExt(k2); let n=0; while(n<a.length&&n<b.length&&same(a[n],b[n])) n++; n=Math.max(n,1); return [...a.slice(n-1).reverse(),...b.slice(n)]; }
 const HN={D1:[[130,340],[130,352]],D2:[[130,70],[96,70]],D3:[[130,95],[164,95]],back:[[130,-15]],stairs:[[130,160],[114,160]],HP:[[130,250]]};
-function hallNode(n){ if(n.startsWith('R:')){ const c=n.slice(2), L=['116','117','118','119','120','121'], Rr=['115B','115A','114','113','112','111'];
+function hallNode(n){ if(n.startsWith('R:')){ const c=ns(n.slice(2)), L=['116','117','118','119','120','121'], Rr=['115B','115A','114','113','112','111'];
   const ci=L.includes(c)?42-48*L.indexOf(c):184+42*Math.max(0,Rr.indexOf(c)); return [[130,167],[ci,167],[ci,142]]; } return HN[n]; }
 function hallPts(a,b){ const r=[...hallNode(a).slice().reverse(),...hallNode(b)]; return r.filter((p,i)=>!i||!same(p,r[i-1])); }
-const grupo=f=>{ const k=escDe(f); if(k==='verde') return 'V'; if(k==='coliseo') return 'C'; if(['hall','bS','b130'].includes(k)) return 'H'; return 'P'; };
+const grupo=f=>{ const k=escDe(f); if(k==='verde') return 'V'; if(k==='coliseo') return 'C'; if(k==='cancha') return 'K'; if(['hall','bS','b130'].includes(k)) return 'H'; return 'P'; };
 const pisoPts=(code,derecha,izquierda)=>{ const r=derecha.indexOf(code); const ci=r>=0?158+40*r:74-40*Math.max(0,izquierda.indexOf(code)); return [[114,175],[ci,175],[ci,150]]; };
-function legsDestino(f,entrada){ const k=escDe(f), s=f.salon;
+function legsDestino(f,entrada){ const k=escDe(f), s=ns(f.salon);
+  if(k==='cancha') return [{scene:'cancha',pts:[[-14,130],[60,130]]}];
   if(k==='coliseo') return [{scene:'coliseo',pts:[[150,250],[150,170]]}];
   if(PB[k]){ const key=intKey(f), ix=Math.max(0,(INT[key].salones||[]).indexOf(s)), ci=28+42*ix; return [{scene:key,pts:[[0,105],[ci,105],[ci,80]]}]; }
   if(PV[k]) return [{scene:k,pts:[[-10,170],[110,170]]}];
   const H=n=>({scene:'hall',a:entrada,b:n});
   if(k==='verde') return [H('D3'),{scene:'verde',pts:[[-10,170],[110,170]]}];
-  if(k==='b130') return [H('back'),{scene:'b130',pts:[[0,105],[28+42*Math.max(0,['137','138','139','140','143','144'].indexOf(s)),105],[28+42*Math.max(0,['137','138','139','140','143','144'].indexOf(s)),80]]}];
+  if(k==='b130'){ if(s==='Aula de Cristal') return [H('back'),{scene:'b130',pts:[[0,105],[175,105],[175,148]]}]; const ci=28+42*Math.max(0,['131','133','137','138','139','140','143','144'].indexOf(s)); return [H('back'),{scene:'b130',pts:[[0,105],[ci,105],[ci,80]]}]; }
+  if(k==='bS'&&/^Hall piso/.test(s)){ const p3=pisoDe(s)==='3'; return [H('stairs'),{scene:p3?'bS3':'bS2',pts:[[114,175],[114,212]]}]; }
   if(k==='bS'){ const p3=s[0]==='3'; return [H('stairs'),{scene:p3?'bS3':'bS2',pts:p3?pisoPts(s,['305','304','303','302','301','300'],['306','307','308','309','310','311','312','313']):pisoPts(s,['205','204','203','202','201','200'],['206','207','208','209','210','211','212','213'])}]; }
   return [H(s==='Hall Principal'?'HP':'R:'+s)]; }
 const invertir=L=>L.scene==='hall'&&L.a?{scene:'hall',a:L.b,b:L.a}:{scene:L.scene,pts:L.pts.slice().reverse()};
 function planRuta(org,dst){ const fb=dst.f, gb=grupo(fb);
-  if(org&&org.f.salon===fb.salon){ const l=legsDestino(fb,'D1'), u=l[l.length-1]; const pts=u.pts||hallPts(u.a,u.b); return [{scene:u.scene,pts:[pts[pts.length-1]]}]; }
+  if(org&&ns(org.f.salon)===ns(fb.salon)){ const l=legsDestino(fb,'D1'), u=l[l.length-1]; const pts=u.pts||hallPts(u.a,u.b); return [{scene:u.scene,pts:[pts[pts.length-1]]}]; }
   let legs;
   const ga=org?grupo(org.f):'X';
   if(['H','V'].includes(ga)&&['H','V'].includes(gb)){ const o=legsDestino(org.f,'D1'), d=legsDestino(fb,'D1'), X=o[0].b, Y=d[0].b;
     legs=[...o.slice(1).reverse().map(invertir), ...(X!==Y?[{scene:'hall',a:X,b:Y}]:[]), ...d.slice(1)]; }
-  else { const salidaH=f=>f.salon==='Hall Principal'?'D1':(gb==='P'?'D2':'D1'), entradaH=f=>f.salon==='Hall Principal'?'D1':(ga==='P'?'D2':'D1');
+  else { const salidaH=f=>ns(f.salon)==='Hall Principal'?'D1':((gb==='P'||gb==='K')?'D2':'D1'), entradaH=f=>ns(f.salon)==='Hall Principal'?'D1':((ga==='P'||ga==='K')?'D2':'D1');
     const exitK=ga==='X'?'D1':['H','V'].includes(ga)?salidaH(org.f):ga==='C'?'coliseo':escDe(org.f);
     const entK=['H','V'].includes(gb)?entradaH(fb):gb==='C'?'coliseo':escDe(fb);
     const o=org?legsDestino(org.f,exitK).reverse().map(invertir):[];
@@ -582,16 +681,16 @@ function planRuta(org,dst){ const fb=dst.f, gb=grupo(fb);
   legs=legs.map(L=>L.a?{scene:'hall',pts:hallPts(L.a,L.b)}:L).filter(L=>L.pts.length>1);
   const m=[]; legs.forEach(L=>{ const u=m[m.length-1]; if(u&&u.scene===L.scene) u.pts=[...u.pts,...L.pts.slice(same(u.pts[u.pts.length-1],L.pts[0])?1:0)]; else m.push({...L}); });
   return m.length?m:[{scene:'ext',pts:[door(dst.k)]}]; }
-const MSG={ext:'Saliendo…',hall:'Por el Hall Principal…',bS2:'Subiendo al piso 2…',bS3:'Subiendo al piso 3…',b130:'Hacia el Bloque 130…',verde:'Saliendo a la Zona verde…',coliseo:'Entrando al Coliseo…'};
+const MSG={ext:'Saliendo…',hall:'Por el Hall Principal…',bS2:'Subiendo al piso 2…',bS3:'Subiendo al piso 3…',b130:'Hacia el Bloque 130…',verde:'Saliendo a la Zona verde…',coliseo:'Entrando al Coliseo…',cancha:'Hacia la cancha de fútbol…'};
 function encuadrar(l,f){ const ps=l.map(p=>P(...p)); const asp=box_.clientWidth/box_.clientHeight;
   let x0=Math.min(...ps.map(p=>p[0]))-40,x1=Math.max(...ps.map(p=>p[0]))+40,y0=Math.min(...ps.map(p=>p[1]))-55,y1=Math.max(...ps.map(p=>p[1]))+25;
-  let w=Math.max(scene==='ext'?170:300,x1-x0),h=y1-y0; if(w/h<asp) w=h*asp; else h=w/asp; h/=(f||0.85); w=h*asp; const cx=(x0+x1)/2; return [cx-w/2,scene==='ext'?y0-h*.04:(y0+y1)/2-h*.45,w,h]; }
+  let w=scene==='ext'?Math.max(170,x1-x0):Math.min(Math.max(300*KI(),x1-x0),Math.max(300*KI(),230)),h=y1-y0; if(w/h<asp) w=h*asp; else h=w/asp; h/=(f||0.85); w=h*asp; const cx=(x0+x1)/2; return [cx-w/2,scene==='ext'?y0-h*.04:(y0+y1)/2-h*.45,w,h]; }
 /* ---- lugar señalado (Programa → mapa) y organizador ---- */
 let LUGAR=null, ORGU=null, MARCANDO=null;
 const pinSVG=(x,y,col,t,anima)=>`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(1.6)"><ellipse rx="9" ry="4" fill="${col}" opacity=".3">${anima?'<animate attributeName="rx" values="6;14;6" dur="1.4s" repeatCount="indefinite"/>':''}</ellipse><path d="M0 0 c-5-6-7-9-7-12.5a7 7 0 0 1 14 0c0 3.5-2 6.5-7 12.5z" transform="translate(0,-2)" fill="${col}" stroke="#fff" stroke-width="1.5"/><circle cy="-14.5" r="2.6" fill="#fff"/><g transform="translate(0,-26)"><rect x="${-t.length*2.6-6}" y="-8" width="${t.length*5.2+12}" height="14" rx="7" fill="${col}"/><text y="2.5" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">${esc(t)}</text></g></g>`;
 function lugarSVG(){ if(!LUGAR) return ''; const [x,y]=flagPos(LUGAR.k); return pinSVG(x,y,'#e5484d',LUGAR.txt,true); }
 function orgSVG(){ if(!ORGU||CAM) return ''; const [x,y]=flagPos(ORGU.k); return `<g transform="translate(${x.toFixed(1)},${(y-4).toFixed(1)})"><rect x="-38" y="-14" width="76" height="13" rx="6.5" fill="#ff7a1a"/><text y="-4.5" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">📍 Estás aquí</text></g>`; }
-const LUGS=[['coliseo','Coliseo'],['hall','Hall Principal'],['b130','137'],['bS','203'],['verde','Zona verde'],['pAA1','AA101'],['pAA2','AA105'],['pAA3','AA113'],['pAB','AB103'],['pAC','AC102'],['pV1','Zona verde Primaria'],['pV2','Zona verde Primaria 2']];
+const LUGS=[['coliseo','Coliseo'],['hall','Hall Principal'],['b130','137'],['bS','203'],['verde','Zona verde'],['pAA1','AA101'],['pAA2','AA105'],['pAA3','AA113'],['pAB','AB103'],['pAC','AC102'],['pV1','Zona verde Primaria'],['pV2','Zona verde Primaria 2'],['cancha','Cancha de fútbol']];
 async function volarA(k){ const [x,y]=flagPos(k), v=svg._vb, w=230, h=w*box_.clientHeight/box_.clientWidth, t=[x-w/2,y-h*.5,w,h];
   await anim(750,q=>{const e=ease(q); setVB(v.map((a,i)=>lerp(a,t[i],e)));}); FULL=t; }
 function clicMarcar(e){ if(!MARCANDO||scene!=='ext') return; e.stopPropagation(); e.preventDefault();
@@ -600,7 +699,7 @@ function clicMarcar(e){ if(!MARCANDO||scene!=='ext') return; e.stopPropagation()
   ORGU={k:best[0],salon:best[1],nombre:EXT[best[0]]}; const cb=MARCANDO; MARCANDO=null; avPos=door(ORGU.k); render(); cb(ORGU); }
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-async function mostrarCamino(orgRow,dstRow,oTxt){ if(busy||!dstRow) return; busy=true;
+async function mostrarCamino(orgRow,dstRow,oTxt){ if(busy||!dstRow) return; busy=true; orgRow=nrow(orgRow); dstRow=nrow(dstRow);
   const mk=f=>f?{f,k:escDe(f)}:null, org=mk(orgRow), dst=mk(dstRow);
   const legs=planRuta(org,dst); NOW=toMin(dstRow.hora_inicio)+1;
   CAM={legs,li:0,oTxt:oTxt||(org?`Estabas aquí · ${org.f.salon}`:'Estás aquí · Entrada')};
@@ -609,7 +708,7 @@ async function mostrarCamino(orgRow,dstRow,oTxt){ if(busy||!dstRow) return; busy
       const entra=()=>{ scene=L.scene; avPos=L.pts[0]; render(); setVB(encuadrar(L.pts)); };
       if(i===0) entra(); else if(legs[i-1].scene!==L.scene) await fadeTo(MSG[L.scene]||'Entrando…',entra); else render();
       await wait(i===0?1300:800);
-      if(L.pts.length>1) await caminar(L.pts,L.scene==='ext'?200:260);
+      if(L.pts.length>1) await caminar(L.pts,L.scene==='ext'?200:Math.round(260*KI()));
       avPos=L.pts[L.pts.length-1]; }
     await saludo(); const last=legs[legs.length-1], v=svg._vb, t=encuadrar(last.pts,0.85);
     await anim(700,q=>{const e=ease(q); setVB(v.map((a,i)=>lerp(a,t[i],e)));}); FULL=t;
@@ -626,23 +725,25 @@ function montar(){
 function setNow(m){ NOW=m; const h=$c('cvHora'); if(h) h.value=m; const t=$c('cvHTxt'); if(t) t.textContent=fmtM(m); if(!busy&&svg) render(); }
 const API={
   manual:0,
-  setDatos(rows){ DATA=(rows||[]).map(r=>({...r,salon:r.salon||'',area:r.area||'',titulo:r.titulo||'',frase:r.frase||''})); ACT=DATA.filter(f=>f.tipo==='actividad'); },
+  setDatos(rows){ DATA=(rows||[]).map(r=>({...r,salon:ns(r.salon),area:r.area||'',titulo:r.titulo||'',frase:r.frase||''})); ACT=DATA.filter(f=>f.tipo==='actividad'); },
   setAvatar(av){ AV=avatarNormal(av||{}); if(svg) placeAv(avPos); },
   setHora(m){ setNow(Math.max(420,Math.min(900,m))); },
   ocupado(){ return busy; },
   /* vista Master: el colegio completo */
-  abrirMaster(){ montar(); CAM=null; scene='ext'; avPos=WX.inicio; render(); fit(); },
+  abrirMaster(){ montar(); CAM=null; EXTK=null; scene='ext'; avPos=WX.inicio; render(); fit(); },
   refrescar(){ if(svg&&!busy) render(); },
   /* vista docente: camino desde la estación anterior hasta la actual */
-  async camino(org,dst){ montar(); CAM=null; scene='ext'; avPos=org?door(escDe(org)):WX.inicio; render(); fit(); await mostrarCamino(org,dst); },
+  async camino(org,dst){ montar(); CAM=null; scene='ext'; avPos=org?door(escDe(org)):WX.inicio; org=nrow(org); dst=nrow(dst); render(); fit(); await mostrarCamino(org,dst); },
   zona(f){ return escDe(f); }, nombreZona(k){ return EXT[k]||k; },
   cerrar(){ CAM=null; LUGAR=null; scene='ext'; $c('sheet').classList.remove('open'); },
   /* Programa → mapa: señala el lugar de una actividad */
-  async lugar(row){ montar(); if(busy) return; CAM=null; const k=escDe(row); LUGAR={k,txt:'Aquí es · '+(row.salon||'')}; NOW=toMin(row.hora_inicio)+1; scene='ext';
+  async lugar(row){ montar(); if(busy) return; row=nrow(row); CAM=null; const k=escDe(row); LUGAR={k,txt:'Aquí es · '+(row.salon||'')}; NOW=toMin(row.hora_inicio)+1; scene='ext';
     if(ORGU) avPos=door(ORGU.k); render(); if(!svg._vb) fit(); await volarA(k); },
   /* entra al edificio de la actividad */
-  entrar(row){ LUGAR=null; NOW=toMin(row.hora_inicio)+1; irInterior(intKey(row),true); },
-  quitar(){ if(busy) return; CAM=null; LUGAR=null; scene='ext'; if(ORGU) avPos=door(ORGU.k); render(); },
+  async entrar(row){ row=nrow(row); LUGAR=null; NOW=toMin(row.hora_inicio)+1; const g=++GEN; await irInterior(intKey(row),true,row); if(g===GEN) await fichaSalon(row.salon); },
+  async quitar(){ GEN++; if(busy) return; const dentro=scene!=='ext'; CAM=null; LUGAR=null; ROOMP=null;
+    if(dentro){ const d=INT[scene]&&INT[scene].door; EXTK=ORGU?null:extDe(scene); busy=true; try{ await fadeTo('Saliendo…',()=>{ scene='ext'; avPos=ORGU?door(ORGU.k):(d||WX.inicio); render(); fit(); }); } finally{ busy=false; } }
+    else { scene='ext'; if(ORGU) avPos=door(ORGU.k); render(); fit(); } },
   /* organizador: ubicación tocando el mapa */
   marcar(cb){ montar(); if(scene!=='ext'){ scene='ext'; render(); fit(); } MARCANDO=cb||(()=>{}); },
   cancelarMarcar(){ MARCANDO=null; },
