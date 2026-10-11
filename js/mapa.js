@@ -170,7 +170,7 @@ const ARRIVE_CSS = `
   .abox .atag{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--c)}
   .abox svg{width:100%;height:auto;display:block;margin:4px 0}
   .abox h3{font-size:18px;margin:0}
-  .abox p{font-size:12.5px;color:var(--muted);margin:3px 0 8px;line-height:1.4}
+  .abox p{font-size:12.5px;max-height:7.2em;overflow:auto;color:var(--muted);margin:3px 0 8px;line-height:1.4}
   .abox .row2{display:flex;justify-content:space-between;align-items:center}
   .abox .bar{height:4px;background:#e2e6ee;border-radius:4px;flex:1;margin-right:10px;overflow:hidden}
   .abox .bar i{display:block;height:100%;background:var(--c);width:0}
@@ -215,14 +215,19 @@ const ARRIVE_CSS = `
 `;
 function mostrarLlegada(container, r){
   const t = r.tipo==='actividad' && TEMAS[r.cat] ? r.cat : null;
-  const frase1 = r.frase ? (r.frase.match(/^[^.!?]*[.!?]/)||[r.frase])[0] : '';
-  const T = t ? {...TEMAS[t], sub: (t==='tec'&&frase1)?frase1:TEMAS[t].sub}
+  // actividad del Excel: título (columna F) y frase (columna G); Matemáticas y Ciencias con animación propia
+  const A = window.ActSTEM, k = t && A ? A.clave(r) : null;
+  const tit = (r.titulo && window.tituloA) ? window.tituloA(r.titulo) : (r.titulo||'');
+  const frase = r.frase ? String(r.frase).trim() : '';
+  const T = t ? {...TEMAS[t], titulo: tit || (t==='tec'?TEMAS.tec.titulo:(r.nombre||TEMAS[t].titulo)), sub: frase || TEMAS[t].sub}
               : {titulo: r.nombre, sub: r.tipo==='pausa' ? '¡Momento de recargar energías!' : 'Llegaste a la siguiente estación.', col: r.tipo==='pausa'?'#e9a23b':'#173d7a', dur:2400};
+  if(t) T.dur = Math.max(5200, Math.min(9000, 2800 + (T.sub||'').length*26));
+  const dibujo = (k && t!=='tec' && A.tiene(k)) ? A.svg(k) : animSVG(t,r);
   let el=container.querySelector('.arrive');
   if(!el){ el=document.createElement('div'); el.className='arrive'; container.appendChild(el); }
   el.style.setProperty('--c',T.col);
   el.innerHTML=`<div class="abox"><div class="atag">Llegaste a · ${escHTML(r.tipo==='pausa'?r.area:(r.lugar||r.salon||''))}</div>
-    <svg viewBox="0 0 240 165">${animSVG(t,r)}</svg><h3>${escHTML(T.titulo)}</h3><p>${escHTML(T.sub)}</p>
+    <svg viewBox="0 0 240 165">${dibujo}</svg><h3>${escHTML(T.titulo)}</h3><p>${escHTML(T.sub)}</p>
     <div class="row2"><div class="bar"><i></i></div><button type="button">Continuar</button></div></div>`;
   requestAnimationFrame(()=>el.classList.add('on'));
   const bar=el.querySelector('.bar i'); bar.style.transition=`width ${T.dur}ms linear`; requestAnimationFrame(()=>requestAnimationFrame(()=>bar.style.width='100%'));
