@@ -49,7 +49,7 @@
         <button class="b2" id="admVolver">← Volver a la app</button></div>
       <div class="desk"><div class="tabs" id="admTabs">
         <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span>
-        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="config">Configuración</span></div>
+        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="copa">🏆 Copa STEM</span><span data-t="config">Configuración</span></div>
         <div class="tbody" id="admTab"></div></div>`;
     $('admVolver').onclick = async () => { show('s-main'); if(window.recargarApp) await window.recargarApp(); };
     $('admTabs').querySelectorAll('span').forEach(s => s.onclick = () => irTab(s.dataset.t));
@@ -57,7 +57,7 @@
   }
   function irTab(t){
     tab=t; $('admTabs').querySelectorAll('span').forEach(s=>s.classList.toggle('on', s.dataset.t===t));
-    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, config:tConfig}[t];
+    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, config:tConfig}[t];
     $('admTab').innerHTML='<p class="sm">Cargando…</p>'; f().catch(e=>{ $('admTab').innerHTML=`<div class="warnbox">Error: ${escHTML(e.message)}</div>`; });
   }
 
@@ -90,6 +90,55 @@
         const {data,error}=await sb().rpc('sd_importar_estudiantes',{p_filas:filas});
         if(error){ res.innerHTML=`<div class="warnbox">No se pudo guardar: ${escHTML(error.message)}</div>`; return; }
         aviso(`Lista cargada: ${data} estudiantes`,'ok'); const st=S(); if(st){ st.est=null; st.listaLocal=null; } tEstudiantes(); };
+    }catch(e){ res.innerHTML=`<div class="warnbox">${escHTML(e.message)}</div>`; }
+  }
+
+
+  /* ---------------- Copa STEM: banco de preguntas y ranking ---------------- */
+  async function tCopa(){
+    $('admTab').innerHTML='<p class="sm">Cargando…</p>';
+    const q=await sb().from('sd_preguntas').select('clave,actividad,area').limit(5000);
+    if(q.error){ $('admTab').innerHTML=`<div class="warnbox">La Copa STEM aún no está activa: ${escHTML(q.error.message)}.<br>Ejecuta el archivo <b>11-copa-stem.sql</b> en Supabase.</div>`; return; }
+    const cnt={}; (q.data||[]).forEach(r=>{ const k=(r.actividad||r.clave); cnt[k]=(cnt[k]||0)+1; });
+    const rk=await sb().rpc('sd_copa_admin'); const R=rk.data||[];
+    $('admTab').innerHTML=`
+      <h3 style="margin-bottom:8px">Banco de preguntas</h3>
+      <p>Carga el Excel <b>banco-preguntas-copa-stem.xlsx</b> diligenciado (hoja «Preguntas»). Al cargarlo se <b>reemplaza</b> el banco (las preguntas ya respondidas se conservan).</p>
+      <p class="sm">Preguntas cargadas: <b>${(q.data||[]).length}</b>${Object.keys(cnt).length?' · '+Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${escHTML(k)} (${v})`).join(', '):''}</p>
+      <div class="drop" id="dropQ">Arrastra aquí el Excel de preguntas o <b>toca para elegir el archivo</b></div><input type="file" id="fxQ" accept=".xlsx,.xls" hidden><div id="qRes"></div>
+      <h3 style="margin:26px 0 8px">Ranking completo</h3>
+      ${R.length?`<button class="b1" id="cpXls" style="margin-bottom:10px">⬇ Descargar ranking (Excel/CSV)</button>
+      <table class="t"><tr><th>#</th><th>Docente</th><th>Puntos</th><th>Encuestas</th><th>Aciertos</th><th>Preguntas respondidas</th><th>Puntos por rapidez</th></tr>
+      ${R.map((r,i)=>`<tr${i<3?' style="background:#fff7dc;font-weight:700"':''}><td>${i<3?['🥇','🥈','🥉'][i]:i+1}</td><td>${escHTML(r.nombre||'')}</td><td><b>${r.puntos}</b></td><td>${r.encuestas}</td><td>${r.aciertos}</td><td>${r.respondidas}</td><td>${r.rapidez}</td></tr>`).join('')}</table>`:'<p class="sm">Aún nadie suma puntos.</p>'}`;
+    const drop=$('dropQ'), fx=$('fxQ'); drop.onclick=()=>fx.click(); fx.onchange=()=>{ if(fx.files[0]) leerPreg(fx.files[0]); };
+    drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('over'); }; drop.ondragleave=()=>drop.classList.remove('over');
+    drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) leerPreg(e.dataTransfer.files[0]); };
+    if($('cpXls')) $('cpXls').onclick=()=>{ const L=[['Puesto','Docente','Correo','Puntos','Encuestas','Aciertos','Preguntas respondidas','Puntos por rapidez']].concat(R.map((r,i)=>[i+1,r.nombre,r.correo,r.puntos,r.encuestas,r.aciertos,r.respondidas,r.rapidez]));
+      descargar('copa-stem-ranking.csv', L.map(f=>f.map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(';')).join('\n')); };
+  }
+  async function leerPreg(file){
+    const res=$('qRes'); res.innerHTML='<p class="sm">Leyendo…</p>';
+    try{
+      await cargarXLSX(); const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      const ws=wb.Sheets['Preguntas']||wb.Sheets[wb.SheetNames.find(n=>/pregunt/i.test(n))||wb.SheetNames[0]];
+      const M=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); const norm=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
+      const hi=M.findIndex(r=>r.some(c=>norm(c)==='pregunta')); if(hi<0) throw new Error('No se encontró la fila de encabezados (columna «Pregunta»).');
+      const H=M[hi].map(norm), col=k=>H.findIndex(h=>h.startsWith(k));
+      const ci={area:col('area'),act:col('actividad'),p:col('pregunta'),a:col('opcion a'),b:col('opcion b'),c:col('opcion c'),d:col('opcion d'),ok:col('respuesta'),au:col('registrada')};
+      const filas=[], malas=[];
+      M.slice(hi+1).forEach((r,i)=>{ const g=k=>ci[k]>=0?String(r[ci[k]]||'').trim():''; if(!g('p')&&!g('act')) return;
+        const f={area:g('area'),actividad:g('act'),pregunta:g('p'),a:g('a'),b:g('b'),c:g('c'),d:g('d'),correcta:g('ok').toUpperCase().slice(0,1),autor:g('au')};
+        const ok=f.pregunta&&f.a&&f.b&&'ABCD'.includes(f.correcta)&&f.correcta&&(f.correcta!=='C'||f.c)&&(f.correcta!=='D'||f.d)&&f.actividad;
+        if(!ok){ malas.push(hi+2+i); return; }
+        f.clave=/^general/i.test(f.area)||/^general/i.test(f.actividad)?'general':(window.copaClave?copaClave({titulo:f.actividad,categoria:/tecno/i.test(f.area)?'tec':''}):norm(f.actividad));
+        filas.push(f); });
+      if(!filas.length) throw new Error('No se encontraron preguntas completas.');
+      const por={}; filas.forEach(f=>por[f.actividad]=(por[f.actividad]||0)+1);
+      res.innerHTML=`<div class="okbox">Se leyeron <b>${filas.length}</b> preguntas: ${Object.entries(por).map(([k,v])=>`${escHTML(k)} (${v})`).join(', ')}.${malas.length?`<br>Se omitieron ${malas.length} filas incompletas (filas ${malas.slice(0,12).join(', ')}${malas.length>12?'…':''}).`:''}</div><button class="b1" id="qOk">Cargar estas preguntas</button>`;
+      $('qOk').onclick=async()=>{ $('qOk').disabled=true; $('qOk').textContent='Guardando…';
+        const {data,error}=await sb().rpc('sd_copa_importar',{p_filas:filas});
+        if(error){ res.innerHTML=`<div class="warnbox">No se pudo guardar: ${escHTML(error.message)}</div>`; return; }
+        aviso(`Banco cargado: ${data} preguntas`,'ok'); tCopa(); };
     }catch(e){ res.innerHTML=`<div class="warnbox">${escHTML(e.message)}</div>`; }
   }
 
