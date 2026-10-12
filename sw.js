@@ -4,7 +4,7 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v19';
+const CACHE = 'steam-v20';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js', 'js/encuestas.js',
@@ -23,6 +23,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // Los videos no pasan por aquí: el navegador los pide por partes y se descargan directo.
+  if (/\.(mp4|webm|mov|m4a|mp3)$/i.test(url.pathname) || e.request.headers.has('range')) return;
   e.respondWith(
     fetch(e.request).then(r => {
       if (r.ok) { const copia = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copia)); }
