@@ -314,6 +314,7 @@ function principal(){
   pintarRuta(true); pintarBanner(); irPanel(S.modo==='org'?'vivo':'ruta');
   clearInterval(S.timer); S.timer=setInterval(tick,15000); tick();
   suscribirTiempoReal();
+  if(window.copaIniciar) copaIniciar();
 }
 function irPanel(p){
   S.panel=p;
@@ -756,7 +757,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}</div></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span></div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -766,6 +767,7 @@ async function pintarAlertas(){
   document.querySelectorAll('#aAnt [data-m]').forEach(e=>e.onclick=()=>save({anticipacion_min:+e.dataset.m}));
   $('aProbar').onclick=()=>sonarTono(prefs().tono);
   $('aVideo').onclick=()=>pantallaVideo(true);
+  $('aDiag').onclick=()=>{ window._diag=true; pintarDiag(); };
   if($('aTuto')) $('aTuto').onclick=()=>pantallaTutorial(true);
   if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
   $('aSalir').onclick=async()=>{ if(S.vistaComo) return salirVista(); await S.sb.auth.signOut(); location.reload(); };
@@ -891,6 +893,7 @@ window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
+const VERSION_APP='25';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
@@ -918,5 +921,5 @@ function pintarDiag(){ let d=document.getElementById('diag'); if(!d){ d=document
   const t=document.createElement('div'); t.style.cssText='position:fixed;top:0;height:env(safe-area-inset-top);bottom:auto'; document.body.appendChild(t); const sa=t.offsetHeight; t.remove();
   const s=document.querySelector('.screen:not([hidden])'), r=s?s.getBoundingClientRect():{top:0,height:0};
   d.textContent=`STEM Day · diagnóstico (toca para cerrar)\nversión: ${(document.querySelector('script[src*="app.js"]')||{}).src||''}\nmodo: ${matchMedia('(display-mode: standalone)').matches||navigator.standalone?'instalada':'navegador'}\npantalla: ${screen.width}x${screen.height}  ventana: ${innerWidth}x${innerHeight}\nvisual: ${VV?Math.round(VV.width)+'x'+Math.round(VV.height)+' desde '+Math.round(VV.offsetTop):'-'}\nscrollY: ${scrollY}  zona segura arriba: ${sa}px\npantalla actual: top ${Math.round(r.top)} alto ${Math.round(r.height)}\nalto app: ${getComputedStyle(document.documentElement).getPropertyValue('--app-h')}`; }
-(function(){ let n=0,t0=0; document.addEventListener('click',e=>{ if(!e.target.closest('#mTit,.mtop h2,#s-login .emblem')) return; const now=Date.now(); n=now-t0<600?n+1:1; t0=now; if(n>=5){ n=0; window._diag=true; pintarDiag(); } }); })();
+(function(){ let n=0,t0=0; document.addEventListener('pointerup',e=>{ if(!e.target.closest('#mTit,.mtop h2,#s-login .emblem')) return; const now=Date.now(); n=now-t0<600?n+1:1; t0=now; if(n>=5){ n=0; window._diag=true; pintarDiag(); } }); })();
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();   // espera a que carguen todos los scripts (encuestas.js, admin.js)
