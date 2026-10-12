@@ -92,7 +92,7 @@ async function continuar(){
   definirModo();
   if(!S.perfil.video_visto) return pantallaVideo();
   if(S.modo==='docente' && !S.perfil.aviso_cursos_visto) return pantallaRol();
-  if(S.modo==='master' && !S.perfil.tutorial_visto) return pantallaTutorial();
+  if(!S.perfil.tutorial_visto && tutorialURL()) return pantallaTutorial();
   if(!S.perfil.avatar) return pantallaAvatar();
   if(!LS.get('steam_permiso_'+S.perfil.id,false)) return pantallaPermiso();
   principal();
@@ -126,6 +126,10 @@ function videoHTML(url){
   if(m) return `<iframe src="https://www.youtube.com/embed/${m[1]}?rel=0&playsinline=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>`;
   m=url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
   if(m) return `<iframe src="https://drive.google.com/file/d/${m[1]}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  // si existen las dos versiones (…-vertical.mp4 / …-horizontal.mp4), en pantallas anchas se usa la horizontal
+  const ancho=window.matchMedia('(orientation: landscape) and (min-width: 900px)').matches;
+  if(ancho&&/-vertical\.mp4(\?|$)/i.test(url)){ url=url.replace(/-vertical\.mp4/i,'-horizontal.mp4'); setTimeout(()=>{ const b=$('vBox'); if(b) b.style.aspectRatio='16/9'; },0); }
+  else setTimeout(()=>{ const b=$('vBox'); if(b) b.style.aspectRatio=''; },0);
   return `<video src="${escHTML(url)}" controls playsinline preload="metadata"></video>`;
 }
 function textosVideo(k,t,p){ $('vKick').textContent=k; $('vTit').textContent=t; $('vTxt').textContent=p; }
@@ -138,9 +142,11 @@ function pantallaVideo(desdeMenu){
 }
 
 /* video tutorial (perfil Master): reemplaza la antigua pregunta de experiencia */
+/* un tutorial por perfil: docente, organizador y master/administrador */
+function tutorialURL(){ const c=S.config||{}; if(S.modo==='docente') return c.video_tutorial_docente||null; if(S.modo==='org') return c.video_tutorial_org||null; return c.video_tutorial_url||null; }
 function pantallaTutorial(desdeMenu){
   show('s-video'); textosVideo('Tutorial','Así se usa la app STEM Day','Aprende a recorrer el Colegio vivo, entrar a los edificios y ver qué pasa en cada lugar. Puedes verlo de nuevo desde Alertas → Más.');
-  $('vBox').innerHTML=S.config.video_tutorial_url?videoHTML(S.config.video_tutorial_url):'<div class="vempty">El video tutorial estará disponible muy pronto.</div>';
+  $('vBox').innerHTML=tutorialURL()?videoHTML(tutorialURL()):'<div class="vempty">El video tutorial estará disponible muy pronto.</div>';
   const v=$('vBox').querySelector('video'); if(v) v.onended=()=>$('vSeguir').click();
   const fin=async()=>{ $('vBox').innerHTML=''; if(desdeMenu){ show('s-main'); return; } await guardarPerfil({tutorial_visto:true}); continuar(); };
   $('vSeguir').onclick=fin; $('vSaltar').onclick=fin;
@@ -732,7 +738,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${S.modo==='master'?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}<span class="chip" id="aSalir">Cerrar sesión</span></div></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}<span class="chip" id="aSalir">Cerrar sesión</span></div></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
