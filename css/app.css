@@ -472,3 +472,8 @@ body.kb .screen .pad{padding-bottom:24px}
 .cit .n{width:22px;font-weight:800;color:var(--muted);text-align:center}.cit .nm{flex:1;font-weight:700;font-size:14px}.cit .p{font-weight:800;color:var(--brand)}.cit.me{background:#fff7dc;border:1.5px solid #f2c94c}
 .ctoast{position:absolute;left:12px;right:12px;top:calc(10px + var(--safe-top));z-index:60;background:#1b2333;color:#fff;border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:13px;transform:translateY(-140%);transition:transform .5s cubic-bezier(.2,1.3,.3,1);cursor:pointer}
 .ctoast.on{transform:none}.ctoast div div{opacity:.8;font-size:12px;margin-top:2px}
+
+/* v26 · iPhone instalado: más aire arriba (la barra de estado ahora difumina el contenido que pasa por debajo) */
+html.ios-pwa .mtop{padding-top:calc(22px + var(--safe-top))}
+html.ios-pwa .cwhd,html.ios-pwa .cpodbg{padding-top:calc(26px + var(--safe-top))}
+html.ios-pwa .vcomo{padding-top:calc(16px + var(--safe-top))}
