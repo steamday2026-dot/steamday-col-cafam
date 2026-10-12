@@ -886,4 +886,9 @@ async function abrirVerComo(){
 }
 
 window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=>{ await cargarDatos(); definirModo(); pintarRuta(true); };
+/* iPhone: al cerrar el teclado o girar la pantalla, la vista puede quedar corrida hacia arriba. Se devuelve a su sitio. */
+function reubicarVista(){ if(window.scrollY||window.scrollX||document.documentElement.scrollTop||document.body.scrollTop){ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; } }
+['focusout','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(reubicarVista,80)));
+if(window.visualViewport) visualViewport.addEventListener('resize',()=>setTimeout(reubicarVista,80));
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(reubicarVista,80); });
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();   // espera a que carguen todos los scripts (encuestas.js, admin.js)
