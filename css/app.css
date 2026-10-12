@@ -5,10 +5,12 @@
   --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+/* iPhone instalada: el documento nunca se desplaza (evita que la app quede corrida hacia arriba tras usar el teclado) */
+body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);overscroll-behavior:none}
 button{font-family:inherit;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:15px}
+input,select,textarea{font-family:inherit;font-size:16px}   /* 16px evita el zoom automático de iPhone al escribir */
 [hidden]{display:none !important}
 .sm{font-size:12px;color:var(--muted)}
 .pend{color:#9aa3b5;font-style:italic}
@@ -413,3 +415,6 @@ table.t td input{width:100%;min-width:90px;padding:6px 8px;border:1px solid var(
 .vcit b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vcit small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vcit span{font-size:12px;font-weight:700;color:var(--brand);flex:none}
+
+/* v22 · en celulares todos los campos con 16px para que iPhone no haga zoom al escribir */
+@media (max-width:820px){input,select,textarea{font-size:16px !important}}
