@@ -252,11 +252,13 @@
       <div class="field" style="margin-bottom:12px"><label>Fecha del evento</label><input id="cfF" type="date" value="${escHTML(c.fecha_evento||'2026-10-23')}"></div>
       <div class="field" style="margin-bottom:12px"><label>Video de bienvenida (enlace de YouTube, Google Drive o archivo .mp4)</label><input id="cfV" value="${escHTML(c.video_url||'')}" placeholder="https://youtu.be/..."></div>
       <div class="field" style="margin-bottom:12px"><label>Video tutorial para usuarios Master (enlace de YouTube, Google Drive o archivo .mp4)</label><input id="cfT" value="${escHTML(c.video_tutorial_url||'')}" placeholder="https://youtu.be/..."></div>
+      <div class="field" style="margin-bottom:12px"><label>Video tutorial para docentes (archivo .mp4 o enlace)</label><input id="cfTD" value="${escHTML(c.video_tutorial_docente||'')}" placeholder="https://…/Videos/tutorial-docentes-vertical.mp4"></div>
+      <div class="field" style="margin-bottom:12px"><label>Video tutorial para organizadores (archivo .mp4 o enlace)</label><input id="cfTO" value="${escHTML(c.video_tutorial_org||'')}" placeholder="https://…/Videos/tutorial-organizadores-vertical.mp4"></div>
       <div class="field" style="margin-bottom:12px"><label>Minutos de anticipación por defecto para los avisos</label><select id="cfA">${[5,10,15].map(m=>`<option ${c.anticipacion_min===m?'selected':''}>${m}</option>`).join('')}</select></div>
       <button class="b1" id="cfG">Guardar configuración</button>
       <div class="okbox" style="margin-top:16px"><b>Probar la app como si fuera el día del evento:</b> abre la app con <code>?simular=2026-10-23T08:55</code> al final de la dirección (cambia la hora a tu gusto). Así ves avanzar el avatar y saltar las alertas sin esperar al 23 de octubre.</div>`;
     $('cfG').onclick=async()=>{
-      const campos={ fecha_evento:$('cfF').value, video_url:$('cfV').value.trim()||null, video_tutorial_url:$('cfT').value.trim()||null, anticipacion_min:+$('cfA').value, actualizado_en:new Date().toISOString() };
+      const campos={ fecha_evento:$('cfF').value, video_url:$('cfV').value.trim()||null, video_tutorial_url:$('cfT').value.trim()||null, video_tutorial_docente:$('cfTD').value.trim()||null, video_tutorial_org:$('cfTO').value.trim()||null, anticipacion_min:+$('cfA').value, actualizado_en:new Date().toISOString() };
       const { error } = await sb().from('sd_config').update(campos).eq('id',1);
       if(error) return aviso('No se pudo guardar: '+error.message,'bad');
       Object.assign(S().config,campos); aviso('Configuración guardada','ok');
