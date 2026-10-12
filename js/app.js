@@ -893,7 +893,7 @@ window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='25';
+const VERSION_APP='26';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
@@ -906,7 +906,13 @@ function ajustarAlto(){
     const s=document.querySelector('.screen:not([hidden])'); if(s) s.style.transform=`translateY(${Math.round(VV.offsetTop)}px)`;
     const a=document.activeElement; setTimeout(()=>{ try{ a.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} },60);
   } else {
-    document.documentElement.style.setProperty('--app-h',window.innerHeight+'px');
+    // iPhone instalado (iOS reciente): la ventana mide la pantalla menos la barra de estado, pero se dibuja desde arriba,
+    // y queda un espacio vacío abajo. Se usa el alto real de la pantalla.
+    const vert=window.innerHeight>=window.innerWidth, alto=vert?Math.max(screen.height,screen.width):Math.min(screen.height,screen.width);
+    const inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+    const falta=alto-window.innerHeight, iosPwa=inst&&/iP(hone|od|ad)/.test(navigator.userAgent)&&falta>20&&falta<80;
+    document.documentElement.classList.toggle('ios-pwa',!!iosPwa);
+    document.documentElement.style.setProperty('--app-h',(iosPwa?alto:window.innerHeight)+'px');
     document.querySelectorAll('.screen').forEach(s=>s.style.transform='');
     reubicarVista();
   }
@@ -920,6 +926,6 @@ ajustarAlto();
 function pintarDiag(){ let d=document.getElementById('diag'); if(!d){ d=document.createElement('div'); d.id='diag'; d.onclick=()=>{ window._diag=false; d.remove(); }; document.body.appendChild(d); }
   const t=document.createElement('div'); t.style.cssText='position:fixed;top:0;height:env(safe-area-inset-top);bottom:auto'; document.body.appendChild(t); const sa=t.offsetHeight; t.remove();
   const s=document.querySelector('.screen:not([hidden])'), r=s?s.getBoundingClientRect():{top:0,height:0};
-  d.textContent=`STEM Day · diagnóstico (toca para cerrar)\nversión: ${(document.querySelector('script[src*="app.js"]')||{}).src||''}\nmodo: ${matchMedia('(display-mode: standalone)').matches||navigator.standalone?'instalada':'navegador'}\npantalla: ${screen.width}x${screen.height}  ventana: ${innerWidth}x${innerHeight}\nvisual: ${VV?Math.round(VV.width)+'x'+Math.round(VV.height)+' desde '+Math.round(VV.offsetTop):'-'}\nscrollY: ${scrollY}  zona segura arriba: ${sa}px\npantalla actual: top ${Math.round(r.top)} alto ${Math.round(r.height)}\nalto app: ${getComputedStyle(document.documentElement).getPropertyValue('--app-h')}`; }
+  d.textContent=`STEM Day · diagnóstico (toca para cerrar)\nversión: ${(document.querySelector('script[src*="app.js"]')||{}).src||''}\nmodo: ${matchMedia('(display-mode: standalone)').matches||navigator.standalone?'instalada':'navegador'}\npantalla: ${screen.width}x${screen.height}  ventana: ${innerWidth}x${innerHeight}\nvisual: ${VV?Math.round(VV.width)+'x'+Math.round(VV.height)+' desde '+Math.round(VV.offsetTop):'-'}\nscrollY: ${scrollY}  zona segura arriba: ${sa}px\npantalla actual: top ${Math.round(r.top)} alto ${Math.round(r.height)}\nalto app: ${getComputedStyle(document.documentElement).getPropertyValue('--app-h')}\najuste iPhone: ${document.documentElement.classList.contains('ios-pwa')?'activo':'no'}`; }
 (function(){ let n=0,t0=0; document.addEventListener('pointerup',e=>{ if(!e.target.closest('#mTit,.mtop h2,#s-login .emblem')) return; const now=Date.now(); n=now-t0<600?n+1:1; t0=now; if(n>=5){ n=0; window._diag=true; pintarDiag(); } }); })();
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();   // espera a que carguen todos los scripts (encuestas.js, admin.js)
