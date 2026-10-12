@@ -887,8 +887,36 @@ async function abrirVerComo(){
 
 window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=>{ await cargarDatos(); definirModo(); pintarRuta(true); };
 /* iPhone: al cerrar el teclado o girar la pantalla, la vista puede quedar corrida hacia arriba. Se devuelve a su sitio. */
-function reubicarVista(){ if(window.scrollY||window.scrollX||document.documentElement.scrollTop||document.body.scrollTop){ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; } }
-['focusout','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(reubicarVista,80)));
-if(window.visualViewport) visualViewport.addEventListener('resize',()=>setTimeout(reubicarVista,80));
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(reubicarVista,80); });
+/* iPhone instalada (v23):
+   - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
+   - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
+   - Al cerrar el teclado, todo vuelve a su sitio. */
+const VV=window.visualViewport;
+function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
+function reubicarVista(){
+  if(window.scrollY||document.documentElement.scrollTop||document.body.scrollTop){ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; }
+}
+function ajustarAlto(){
+  const kb = VV && enCampo() && (window.innerHeight-VV.height)>120;
+  document.body.classList.toggle('kb',!!kb);
+  if(kb){ document.documentElement.style.setProperty('--app-h',Math.round(VV.height)+'px');
+    const s=document.querySelector('.screen:not([hidden])'); if(s) s.style.transform=`translateY(${Math.round(VV.offsetTop)}px)`;
+    const a=document.activeElement; setTimeout(()=>{ try{ a.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} },60);
+  } else {
+    document.documentElement.style.setProperty('--app-h',window.innerHeight+'px');
+    document.querySelectorAll('.screen').forEach(s=>s.style.transform='');
+    reubicarVista();
+  }
+  if(window._diag) pintarDiag();
+}
+['resize','orientationchange','pageshow','focusin','focusout'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(ajustarAlto,ev==='focusout'?250:90)));
+if(VV){ VV.addEventListener('resize',()=>setTimeout(ajustarAlto,60)); VV.addEventListener('scroll',()=>{ if(!enCampo()) reubicarVista(); }); }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(ajustarAlto,150); });
+ajustarAlto();
+/* Diagnóstico de pantalla: tocar 5 veces seguidas el título de arriba */
+function pintarDiag(){ let d=document.getElementById('diag'); if(!d){ d=document.createElement('div'); d.id='diag'; d.onclick=()=>{ window._diag=false; d.remove(); }; document.body.appendChild(d); }
+  const t=document.createElement('div'); t.style.cssText='position:fixed;top:0;height:env(safe-area-inset-top);bottom:auto'; document.body.appendChild(t); const sa=t.offsetHeight; t.remove();
+  const s=document.querySelector('.screen:not([hidden])'), r=s?s.getBoundingClientRect():{top:0,height:0};
+  d.textContent=`STEM Day · diagnóstico (toca para cerrar)\nversión: ${(document.querySelector('script[src*="app.js"]')||{}).src||''}\nmodo: ${matchMedia('(display-mode: standalone)').matches||navigator.standalone?'instalada':'navegador'}\npantalla: ${screen.width}x${screen.height}  ventana: ${innerWidth}x${innerHeight}\nvisual: ${VV?Math.round(VV.width)+'x'+Math.round(VV.height)+' desde '+Math.round(VV.offsetTop):'-'}\nscrollY: ${scrollY}  zona segura arriba: ${sa}px\npantalla actual: top ${Math.round(r.top)} alto ${Math.round(r.height)}\nalto app: ${getComputedStyle(document.documentElement).getPropertyValue('--app-h')}`; }
+(function(){ let n=0,t0=0; document.addEventListener('click',e=>{ if(!e.target.closest('#mTit,.mtop h2,#s-login .emblem')) return; const now=Date.now(); n=now-t0<600?n+1:1; t0=now; if(n>=5){ n=0; window._diag=true; pintarDiag(); } }); })();
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();   // espera a que carguen todos los scripts (encuestas.js, admin.js)
