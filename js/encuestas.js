@@ -98,7 +98,7 @@ function abrirEncuesta(s){
       area:s.area||'', categoria:s.categoria||s.cat||'', titulo:s.titulo||'', salon:s.salon||'', respuestas:R, actualizado_en:new Date().toISOString() };
     const r=await S.sb.from('sd_encuestas').upsert(fila,{onConflict:'perfil_id,curso,hora_inicio'});
     if(r.error){ b.disabled=false; b.textContent='Enviar encuesta'; return toast('No se pudo guardar: '+r.error.message,'bad',5000); }
-    (S.encMias=S.encMias||{})[encClave(curso,s.hora_inicio)]=R; w.hidden=true; w.innerHTML=''; toast('¡Gracias! Encuesta guardada.','ok'); revisarEncuestas(true);
+    (S.encMias=S.encMias||{})[encClave(curso,s.hora_inicio)]=R; w.hidden=true; w.innerHTML=''; toast('¡Gracias! Encuesta guardada.','ok'); revisarEncuestas(true); if(window.copaTrasEncuesta) copaTrasEncuesta(s,curso,R);
   };
 }
 
