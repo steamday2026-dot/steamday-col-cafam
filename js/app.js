@@ -130,7 +130,16 @@ function videoHTML(url){
   const ancho=window.matchMedia('(orientation: landscape) and (min-width: 900px)').matches;
   if(ancho&&/-vertical\.mp4(\?|$)/i.test(url)){ url=url.replace(/-vertical\.mp4/i,'-horizontal.mp4'); setTimeout(()=>{ const b=$('vBox'); if(b) b.style.aspectRatio='16/9'; },0); }
   else setTimeout(()=>{ const b=$('vBox'); if(b) b.style.aspectRatio=''; },0);
-  return `<video src="${escHTML(url)}" controls playsinline preload="metadata"></video>`;
+  const alt=/-horizontal\.mp4/i.test(url)?url.replace(/-horizontal\.mp4/i,'-vertical.mp4'):'';
+  return `<video src="${escHTML(url)}" data-alt="${escHTML(alt)}" controls playsinline preload="metadata" onerror="videoFallo(this)"></video>`;
+}
+// Si la versión horizontal no carga, se intenta la vertical; si tampoco, se avisa.
+function videoFallo(v){
+  if(!v||v.dataset.fallo) return;
+  const alt=v.dataset.alt;
+  if(alt){ v.dataset.alt=''; v.removeAttribute('src'); v.innerHTML=''; v.src=alt; const b=$('vBox'); if(b) b.style.aspectRatio=''; v.load(); return; }
+  v.dataset.fallo='1';
+  const b=v.parentNode; if(b) b.innerHTML='<div class="vempty">No se pudo cargar el video. Revisa tu conexión e inténtalo de nuevo más tarde.</div>';
 }
 function textosVideo(k,t,p){ $('vKick').textContent=k; $('vTit').textContent=t; $('vTxt').textContent=p; }
 function pantallaVideo(desdeMenu){
