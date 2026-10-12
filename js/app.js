@@ -44,6 +44,7 @@ async function boot(){
   }
   S.sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true } });
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  protegerVista();
   const { data:{ session } } = await S.sb.auth.getSession();
   if(!session) return pantallaLogin();
   S.user=session.user; await continuar();
@@ -85,8 +86,11 @@ async function cargarDatos(){
 }
 
 async function continuar(){
-  try{ await cargarPerfil(); }catch(e){ return errorFatal('No fue posible leer tu perfil. '+e.message); }
-  if(!S.perfil){ return errorFatal('Tu cuenta aún no está habilitada para el STEM Day. Escribe al coordinador de Tecnología.', true); }
+  if(!S.vistaComo){
+    try{ await cargarPerfil(); }catch(e){ return errorFatal('No fue posible leer tu perfil. '+e.message); }
+    if(!S.perfil){ return errorFatal('Tu cuenta aún no está habilitada para el STEM Day. Escribe al coordinador de Tecnología.', true); }
+    if(S.perfil.rol==='admin' && S.perfil.confirmado){ const vc=vistaGuardada(); if(vc) await entrarVista(vc); }
+  }
   if(!S.perfil.confirmado) return pantallaClave();
   try{ await cargarDatos(); }catch(e){ return errorFatal('No fue posible cargar la programación. '+e.message); }
   definirModo();
@@ -94,7 +98,7 @@ async function continuar(){
   if(S.modo==='docente' && !S.perfil.aviso_cursos_visto) return pantallaRol();
   if(!S.perfil.tutorial_visto && tutorialURL()) return pantallaTutorial();
   if(!S.perfil.avatar) return pantallaAvatar();
-  if(!LS.get('steam_permiso_'+S.perfil.id,false)) return pantallaPermiso();
+  if(!S.vistaComo && !LS.get('steam_permiso_'+S.perfil.id,false)) return pantallaPermiso();
   principal();
 }
 function errorFatal(msg, salir){
@@ -103,6 +107,7 @@ function errorFatal(msg, salir){
   $('fx').onclick = async()=>{ if(salir){ await S.sb.auth.signOut(); } location.reload(); };
 }
 async function guardarPerfil(campos){
+  if(S.vistaComo){ Object.assign(S.perfil,campos); avisoVista(); return true; }
   const { error } = await S.sb.from('sd_perfiles').update(campos).eq('id',S.perfil.id);
   if(error){ toast('No se pudo guardar: '+error.message,'bad',4000); return false; }
   Object.assign(S.perfil,campos); return true;
@@ -258,6 +263,7 @@ function pantallaPermiso(){
 /* ---------------- avisos con la app cerrada (Web Push) ---------------- */
 function b64ToU8(s){ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); }
 async function activarAvisos(){
+  if(S.vistaComo){ avisoVista(); return false; }
   desbloquearAudio();
   if(!('Notification' in window)){ toast(esIOS?'En iPhone, agrega la app a la pantalla de inicio para recibir avisos.':'Este navegador no permite avisos.','bad',5000); return false; }
   const p=await Notification.requestPermission();
@@ -275,6 +281,7 @@ async function activarAvisos(){
   }catch(e){ toast('Avisos dentro de la app activos. Los avisos con la app cerrada no se pudieron activar: '+e.message,'bad',6000); return false; }
 }
 async function desactivarPush(){
+  if(S.vistaComo) return;
   try{ const reg=await navigator.serviceWorker.ready, sub=await reg.pushManager.getSubscription();
     if(sub){ await S.sb.from('sd_push').delete().eq('endpoint',sub.endpoint); await sub.unsubscribe(); } }catch(e){}
 }
@@ -283,6 +290,8 @@ async function desactivarPush(){
 function principal(){
   show('s-main');
   $('btnAdmin').hidden = S.perfil.rol!=='admin';
+  $('btnVer').hidden = !(S.perfil.rol==='admin' || S.vistaComo); $('btnVer').onclick=abrirVerComo;
+  pintarFranjaVista();
   $('btnHelp').hidden = S.modo!=='docente';
   $('btnAdmin').onclick=()=>{ if(typeof window.abrirAdmin==='function') window.abrirAdmin(); else toast('No se cargó el panel de administración (js/admin.js). Recarga la página con Ctrl + F5.','bad',6000); };
   $('btnHelp').onclick=abrirAyuda;
@@ -300,7 +309,7 @@ function principal(){
   if(!S.mapa) S.mapa=new MapaSteam($('mapa'),{ onTap:abrirParada, onArrive:i=>{ if(S.modo==='docente') LS.set('steam_last_'+S.curso,i); else { S.masterIdx=i; pintarLista(i); pintarTarjeta(i); } } });
   S.mapa.setAvatar(S.perfil.avatar);
   if(S.modo==='docente' && !S.cursos.length) setTimeout(()=>{ toast('Elige tu grado y curso para ver tu ruta.','',4000); abrirAyuda(); },600);
-  $('btnColegio').onclick=abrirCamino; $('cvVolver').onclick=cerrarCamino; $('btnEnc').onclick=listaPendientes; $('btnEnc').hidden=true;
+  $('btnColegio').onclick=abrirCamino; $('cvVolver').onclick=cerrarCamino; $('btnEnc').onclick=()=>listaPendientes(); $('btnEnc').hidden=true;
   $('cvAhora').onclick=()=>{ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); };
   pintarRuta(true); pintarBanner(); irPanel(S.modo==='org'?'vivo':'ruta');
   clearInterval(S.timer); S.timer=setInterval(tick,15000); tick();
@@ -747,7 +756,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}<span class="chip" id="aSalir">Cerrar sesión</span></div></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}</div></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -759,7 +768,7 @@ async function pintarAlertas(){
   $('aVideo').onclick=()=>pantallaVideo(true);
   if($('aTuto')) $('aTuto').onclick=()=>pantallaTutorial(true);
   if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
-  $('aSalir').onclick=async()=>{ await S.sb.auth.signOut(); location.reload(); };
+  $('aSalir').onclick=async()=>{ if(S.vistaComo) return salirVista(); await S.sb.auth.signOut(); location.reload(); };
 }
 function revisarAlertas(){
   if(S.modo!=='docente'||!S.cursos.length) return;
@@ -816,5 +825,65 @@ function suscribirTiempoReal(){
     .subscribe();
 }
 
+/* ---------------- administrador · "Ver como" otro perfil ----------------
+   El administrador entra a la interfaz de un docente, organizador o master sin cerrar su sesión.
+   Es solo para mirar: mientras dure la vista no se guarda ningún cambio en la base de datos. */
+const VC_KEY='steam_vercomo';
+function vistaGuardada(){ try{ return sessionStorage.getItem(VC_KEY); }catch(e){ return null; } }
+function protegerVista(){
+  const from=S.sb.from.bind(S.sb), MSG='Estás en modo vista: los cambios no se guardan.';
+  const bloqueo=()=>{ const r={data:null,error:{message:MSG}}; const p=new Proxy(function(){},{ get(_,k){ if(k==='then') return (a,b)=>Promise.resolve(r).then(a,b); return ()=>p; } }); return p; };
+  S.sb.from=t=>{ const q=from(t); if(!S.vistaComo) return q;
+    return new Proxy(q,{ get(o,k){ if(['insert','update','upsert','delete'].includes(k)) return bloqueo; const v=o[k]; return typeof v==='function'?v.bind(o):v; } }); };
+}
+function avisoVista(){ setTimeout(()=>toast('👁 Modo vista: este cambio no se guarda.','',3000),60); }
+async function entrarVista(id){
+  const { data, error } = await S.sb.from('sd_perfiles').select('*').eq('id',id).maybeSingle();
+  if(error||!data){ try{ sessionStorage.removeItem(VC_KEY); }catch(e){} return; }
+  S.real=S.perfil; S.vistaComo=true;
+  S.perfil={ ...data, confirmado:true, video_visto:true, tutorial_visto:true, aviso_cursos_visto:true,
+    avatar: data.avatar||S.real.avatar, experiencia: data.experiencia||(data.rol==='master'?'tec':null) };
+}
+function salirVista(){ try{ sessionStorage.removeItem(VC_KEY); }catch(e){} location.reload(); }
+function irVista(id){ try{ sessionStorage.setItem(VC_KEY,id); }catch(e){ return toast('Este navegador no permite cambiar de vista.','bad'); } location.reload(); }
+const VC_ROL={ docente:'Docente', organizador:'Organizador', master:'Master', admin:'Administrador' };
+function pintarFranjaVista(){
+  const f=$('vcomo'); if(!f) return;
+  if(!S.vistaComo){ f.hidden=true; return; }
+  f.hidden=false;
+  f.innerHTML=`<span class="ojo">👁</span><div><small>Estás viendo la app como</small><b>${escHTML(VC_ROL[S.perfil.rol]||S.perfil.rol)} · ${escHTML(S.perfil.nombre||'')}</b></div><button id="vcCambiar">Cambiar</button><button id="vcSalir" class="fin">Salir</button>`;
+  $('vcCambiar').onclick=abrirVerComo; $('vcSalir').onclick=salirVista;
+}
+async function abrirVerComo(){
+  const m=$('vcModal'); m.hidden=false;
+  m.innerHTML=`<div class="vcbox"><div class="vchead"><div><b>Ver la app como…</b><small>Elige un perfil para ver su interfaz. Solo para revisar: no se guarda ningún cambio.</small></div><button class="vcx" id="vcX">✕</button></div>
+    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['organizador','Organizadores'],['master','Master']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
+    <input id="vcBus" class="vcbus" placeholder="Buscar por nombre o curso…" autocomplete="off">
+    <div class="vclist" id="vcList"><p class="sm" style="padding:14px">Cargando perfiles…</p></div>
+    ${S.vistaComo?'<button class="btn" id="vcMio">Volver a mi perfil de administrador</button>':''}</div>`;
+  m.onclick=e=>{ if(e.target===m) m.hidden=true; }; $('vcX').onclick=()=>m.hidden=true;
+  if($('vcMio')) $('vcMio').onclick=salirVista;
+  if(!S._vcLista){
+    const { data, error } = await S.sb.from('sd_perfiles').select('id,nombre,nombre_n,rol,experiencia,cursos_manual').neq('rol','admin').order('nombre');
+    if(error){ $('vcList').innerHTML=`<p class="sm" style="padding:14px">No se pudieron leer los perfiles: ${escHTML(error.message)}</p>`; return; }
+    const ac={}, ap={};
+    S.prog.forEach(r=>{ if(r.tipo!=='actividad') return; if(r.acompanante_n) (ac[r.acompanante_n]=ac[r.acompanante_n]||new Set()).add(r.curso); if(r.apoyo_n) (ap[r.apoyo_n]=ap[r.apoyo_n]||new Set()).add(r.curso); });
+    S._vcLista=(data||[]).map(p=>{ let det='';
+      if(p.rol==='docente'){ const a=[...(ac[p.nombre_n]||[])].sort(), b=[...(ap[p.nombre_n]||[])].sort();
+        det = p.cursos_manual&&p.cursos_manual.length ? 'Cursos: '+p.cursos_manual.join(', ') : a.length ? 'Acompaña '+a.join(', ')+(b.length?' · apoya '+b.join(', '):'') : b.length ? 'Apoya '+b.join(', ') : 'Sin curso en la programación'; }
+      else if(p.rol==='master') det='Experiencia: '+(AREA_N[p.experiencia]||'sin elegir');
+      else det='Organización del evento';
+      return { ...p, det }; });
+  }
+  let rol='docente';
+  const pintar=()=>{ const q=($('vcBus').value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const l=S._vcLista.filter(p=>p.rol===rol && (!q || ((p.nombre||'')+' '+p.det).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q)));
+    $('vcList').innerHTML = l.length ? l.slice(0,200).map(p=>`<div class="vcit ${S.vistaComo&&S.perfil.id===p.id?'on':''}" data-id="${p.id}"><i>${escHTML((p.nombre||'?').trim()[0]||'?')}</i><div><b>${escHTML(p.nombre||'Sin nombre')}</b><small>${escHTML(p.det)}</small></div><span>Ver ›</span></div>`).join('')
+      : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':'organizadores'} ${q?'con esa búsqueda':'registrados'}.</p>`;
+    $('vcList').querySelectorAll('.vcit').forEach(e=>e.onclick=()=>irVista(e.dataset.id)); };
+  $('vcTabs').querySelectorAll('span').forEach(t=>t.onclick=()=>{ rol=t.dataset.r; $('vcTabs').querySelectorAll('span').forEach(x=>x.classList.toggle('on',x===t)); pintar(); });
+  $('vcBus').oninput=pintar; pintar();
+}
+
 window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=>{ await cargarDatos(); definirModo(); pintarRuta(true); };
-boot();
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();   // espera a que carguen todos los scripts (encuestas.js, admin.js)
