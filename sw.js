@@ -4,10 +4,10 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v27';
+const CACHE = 'steam-v28';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
-  'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js', 'js/encuestas.js', 'js/copa.js', 'sonidos/correcta.mp3', 'sonidos/incorrecta.mp3', 'sonidos/puntos.mp3', 'sonidos/podio.mp3', 'sonidos/aviso.mp3',
+  'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/lider.js','js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/admin.js', 'js/encuestas.js', 'js/copa.js', 'sonidos/correcta.mp3', 'sonidos/incorrecta.mp3', 'sonidos/puntos.mp3', 'sonidos/podio.mp3', 'sonidos/aviso.mp3',
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'
 ];
 
