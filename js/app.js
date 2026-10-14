@@ -84,7 +84,17 @@ async function cargarDatos(){
   S.prog=(p.data||[]).map(r=>({...r, hora_inicio:hhmm(r.hora_inicio), hora_fin:hhmm(r.hora_fin)}));
   if(window.completarProgramacion) window.completarProgramacion(S.prog);   // título/frase/área del Excel (columnas F y G)
   S.avisos=a.data||[];
+  await cargarLideres();
 }
+/* ---------------- v28 · líderes de estación ---------------- */
+async function cargarLideres(){
+  try{ const r=await S.sb.rpc('sd_lideres_publico'); S.lid={}; (r.data||[]).forEach(l=>S.lid[l.id]=l); }catch(e){ S.lid={}; }
+}
+/* líderes de una fila de la programación (o de una parada de la ruta) */
+function lideresDe(r){ if(!r||r.tipo==='pausa'||!Array.isArray(r.lideres)||!S.lid) return [];
+  const area=['tec','mat','cie'].includes(r.categoria||r.cat)?(r.categoria||r.cat):'cie';
+  return r.lideres.map(id=>S.lid[id]).filter(Boolean).map(l=>({...l,area})); }
+const lidSalKey=i=>{ const f=S.stops[i]; return 'steam_lidsal_'+(S.curso||'')+'_'+(f?f.h:i); };
 
 async function continuar(){
   if(!S.vistaComo){
@@ -158,7 +168,7 @@ function pantallaVideo(desdeMenu){
 
 /* video tutorial (perfil Master): reemplaza la antigua pregunta de experiencia */
 /* un tutorial por perfil: docente, organizador y master/administrador */
-function tutorialURL(){ const c=S.config||{}; if(S.modo==='docente') return c.video_tutorial_docente||null; if(S.modo==='org') return c.video_tutorial_org||null; return c.video_tutorial_url||null; }
+function tutorialURL(){ const c=S.config||{}; if(S.modo==='docente') return c.video_tutorial_docente||null; if(S.modo==='lider') return c.video_tutorial_lider||null; if(S.modo==='org') return c.video_tutorial_org||null; return c.video_tutorial_url||null; }
 function pantallaTutorial(desdeMenu){
   show('s-video'); textosVideo('Tutorial','Así se usa la app STEM Day','Aprende a recorrer el Colegio vivo, entrar a los edificios y ver qué pasa en cada lugar. Puedes verlo de nuevo desde Alertas → Más.');
   $('vBox').innerHTML=tutorialURL()?videoHTML(tutorialURL()):'<div class="vempty">El video tutorial estará disponible muy pronto.</div>';
@@ -177,6 +187,7 @@ function cursosDelExcel(){
 function definirModo(){
   const rol=S.perfil.rol;
   if(rol==='organizador'){ S.modo='org'; return; }
+  if(rol==='lider'){ S.modo='lider'; S.cursos=[]; return; }
   if(rol==='master'||rol==='admin'){ S.modo='master'; S.area=S.perfil.experiencia||'tec'; S.nivel=LS.get('steam_nivel','Primaria'); S.masterIdx=LS.get('steam_midx_'+S.area+S.nivel,0); return; }
   S.modo='docente';
   const ex=cursosDelExcel();
@@ -247,7 +258,11 @@ function montarEditor(contId){
   ['avFirst','avMain'].forEach(id=>{ if(id!==contId) $(id).innerHTML=''; });
   const c=$(contId); c.innerHTML=''; c.appendChild($('tplAvatar').content.cloneNode(true));
   const prev=c.querySelector('.avPrev');
-  S.avTmp=avatarEditor(c, S.perfil.avatar, av=>{ S.avTmp=av; prev.innerHTML=avatarSVG(av); });
+  const esLid=S.perfil.rol==='lider';
+  if(esLid){ prev.setAttribute('viewBox','-54 -128 108 142'); }
+  const dib=av=>esLid&&av.lid?liderSVG(av,av.lid,{},performance.now()/1000):avatarSVG(av);
+  S.avTmp=avatarEditor(c, S.perfil.avatar, av=>{ S.avTmp=av; prev.innerHTML=dib(av); });
+  if(esLid){ editorLider(c,S.avTmp,()=>prev.innerHTML=dib(S.avTmp)); prev.innerHTML=dib(S.avTmp); }
 }
 function pantallaAvatar(){
   if(S.modo==='org'&&!S.perfil.avatar) S.perfil.avatar={gender:0,skin:1,hair:0,hairC:0,style:2,top:0,bot:5,shoe:1,head:1,face:0,extra:[1,2]};
@@ -287,6 +302,8 @@ async function desactivarPush(){
     if(sub){ await S.sb.from('sd_push').delete().eq('endpoint',sub.endpoint); await sub.unsubscribe(); } }catch(e){}
 }
 
+/* íconos del menú inferior (Lucide, licencia ISC) */
+const NAV_IC={"route": "<circle cx=\"6\" cy=\"19\" r=\"3\" /> <path d=\"M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15\" /> <circle cx=\"18\" cy=\"5\" r=\"3\" />", "school": "<path d=\"M14 22v-4a2 2 0 1 0-4 0v4\" /> <path d=\"m18 10 3.447 1.724a1 1 0 0 1 .553.894V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7.382a1 1 0 0 1 .553-.894L6 10\" /> <path d=\"M18 5v17\" /> <path d=\"m4 6 7.106-3.553a2 2 0 0 1 1.788 0L20 6\" /> <path d=\"M6 5v17\" /> <circle cx=\"12\" cy=\"9\" r=\"2\" />", "calendar-days": "<path d=\"M8 2v4\" /> <path d=\"M16 2v4\" /> <rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /> <path d=\"M3 10h18\" /> <path d=\"M8 14h.01\" /> <path d=\"M12 14h.01\" /> <path d=\"M16 14h.01\" /> <path d=\"M8 18h.01\" /> <path d=\"M12 18h.01\" /> <path d=\"M16 18h.01\" />", "notebook-pen": "<path d=\"M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4\" /> <path d=\"M2 6h4\" /> <path d=\"M2 10h4\" /> <path d=\"M2 14h4\" /> <path d=\"M2 18h4\" /> <path d=\"M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z\" />", "list-checks": "<path d=\"m3 17 2 2 4-4\" /> <path d=\"m3 7 2 2 4-4\" /> <path d=\"M13 6h8\" /> <path d=\"M13 12h8\" /> <path d=\"M13 18h8\" />", "smile": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M8 14s1.5 2 4 2 4-2 4-2\" /> <line x1=\"9\" x2=\"9.01\" y1=\"9\" y2=\"9\" /> <line x1=\"15\" x2=\"15.01\" y1=\"9\" y2=\"9\" />", "bell": "<path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\" /> <path d=\"M10.3 21a1.94 1.94 0 0 0 3.4 0\" />", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /> <path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\" /> <path d=\"M12 11h4\" /> <path d=\"M12 16h4\" /> <path d=\"M8 11h.01\" /> <path d=\"M8 16h.01\" />", "chart-column": "<path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /> <path d=\"M18 17V9\" /> <path d=\"M13 17V5\" /> <path d=\"M8 17v-3\" />", "message-circle": "<path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\" />", "ellipsis": "<circle cx=\"12\" cy=\"12\" r=\"1\" /> <circle cx=\"19\" cy=\"12\" r=\"1\" /> <circle cx=\"5\" cy=\"12\" r=\"1\" />", "radio": "<path d=\"M4.9 19.1C1 15.2 1 8.8 4.9 4.9\" /> <path d=\"M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" /> <path d=\"M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5\" /> <path d=\"M19.1 4.9C23 8.8 23 15.1 19.1 19\" />", "map": "<path d=\"M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z\" /> <path d=\"M15 5.764v15\" /> <path d=\"M9 3.236v15\" />", "flag": "<path d=\"M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z\" /> <line x1=\"4\" x2=\"4\" y1=\"22\" y2=\"15\" />", "rotate-cw": "<path d=\"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8\" /> <path d=\"M21 3v5h-5\" />"};
 /* ---------------- pantalla principal ---------------- */
 function principal(){
   show('s-main');
@@ -297,34 +314,42 @@ function principal(){
   $('btnAdmin').onclick=()=>{ if(typeof window.abrirAdmin==='function') window.abrirAdmin(); else toast('No se cargó el panel de administración (js/admin.js). Recarga la página con Ctrl + F5.','bad',6000); };
   $('btnHelp').onclick=abrirAyuda;
   $('btnVista').onclick=()=>{ S.vista=S.vista==='mapa'?'lista':'mapa'; $('btnVista').textContent=S.vista==='mapa'?'☰':'🗺'; pintarRuta(false); };
-  const NAVS={ docente:[['ruta','◉','Mi ruta'],['programa','☰','Programa'],['lista','✓','Lista'],['avatar','☺','Avatar'],['alertas','🔔','Alertas']],
-    master:[['ruta','◉','Colegio'],['programa','☰','Programa'],['asis','📋','Asistencia'],['avatar','☺','Avatar'],['alertas','🔔','Alertas']],
-    org:[['vivo','⏱','En vivo'],['ruta','⌖','Mapa'],['programa','☰','Programa'],['chat','💬','Chat'],['asis','📋','Asistencia'],['alertas','⋯','Más']] };
-  NAVS.admin=[['ruta','◉','Colegio'],['programa','☰','Programa'],['asis','📋','Asistencia'],['enc','📊','Encuestas'],['chat','💬','Chat'],['alertas','⋯','Más']];
+  const NAVS={ docente:[['ruta','route','Mi ruta'],['programa','calendar-days','Programa'],['lista','list-checks','Lista'],['avatar','smile','Avatar'],['alertas','bell','Alertas']],
+    master:[['ruta','school','Colegio'],['agenda','notebook-pen','Mi agenda'],['programa','calendar-days','Programa'],['asis','clipboard-list','Asistencia'],['alertas','ellipsis','Más']],
+    lider:[['estacion','flag','Mi estación'],['rot','rotate-cw','Rotaciones'],['programa','calendar-days','Programa'],['avatar','smile','Avatar'],['alertas','ellipsis','Más']],
+    org:[['vivo','radio','En vivo'],['ruta','map','Mapa'],['programa','calendar-days','Programa'],['chat','message-circle','Chat'],['asis','clipboard-list','Asistencia'],['alertas','ellipsis','Más']] };
+  NAVS.admin=[['ruta','school','Colegio'],['programa','calendar-days','Programa'],['asis','clipboard-list','Asistencia'],['enc','chart-column','Encuestas'],['chat','message-circle','Chat'],['alertas','ellipsis','Más']];
   const nv=S.perfil.rol==='admin'?NAVS.admin:NAVS[S.modo];
-  $('nav').innerHTML=nv.map(([k,i,t])=>`<span data-p="${k}"><i>${i}</i>${t}</span>`).join('');
-  $('nav').classList.toggle('n6',nv.length>5);
+  $('nav').innerHTML=nv.map(([k,i,t])=>`<span data-p="${k}"><i class="ic"><svg viewBox="0 0 24 24">${NAV_IC[i]}</svg></i>${t}</span>`).join('');
+  $('nav').classList.toggle('n6',nv.length>5); $('nav').classList.toggle('lid',S.modo==='lider');
   document.querySelectorAll('#nav span').forEach(n=>n.onclick=()=>irPanel(n.dataset.p));
   $('btnUbic').onclick=marcarUbicacion; $('btnQuitar').onclick=()=>{ ColegioVivo.quitar(); actualizarBotonesCV(); cerrarSheet(); };
   document.querySelectorAll('#gtabs span').forEach(t=>t.onclick=()=>{ document.querySelectorAll('#gtabs span').forEach(x=>x.classList.toggle('on',x===t)); pintarPrograma(t.dataset.n); });
-  if(!S.mapa) S.mapa=new MapaSteam($('mapa'),{ onTap:abrirParada, onArrive:i=>{ if(S.modo==='docente') LS.set('steam_last_'+S.curso,i); else { S.masterIdx=i; pintarLista(i); pintarTarjeta(i); } } });
+  if(!S.mapa) S.mapa=new MapaSteam($('mapa'),{ onTap:abrirParada, onArrive:i=>{ if(S.modo==='docente') LS.set('steam_last_'+S.curso,i); else { S.masterIdx=i; pintarLista(i); pintarTarjeta(i); } },
+    // v28: el líder de la estación sale a saludar al docente (solo en la ruta del docente)
+    lideres:i=>{ if(S.modo!=='docente') return null; const L=lideresDe(S.stops[i]); return L.length?{list:L,quien:'profe '+firstName(S.perfil.nombre),curso:S.curso}:null; },
+    saludado:i=>LS.get(lidSalKey(i),false), guardarSaludo:i=>LS.set(lidSalKey(i),true) });
   S.mapa.setAvatar(S.perfil.avatar);
   if(S.modo==='docente' && !S.cursos.length) setTimeout(()=>{ toast('Elige tu grado y curso para ver tu ruta.','',4000); abrirAyuda(); },600);
   $('btnColegio').onclick=abrirCamino; $('cvVolver').onclick=cerrarCamino; $('btnEnc').onclick=()=>listaPendientes(); $('btnEnc').hidden=true;
   $('cvAhora').onclick=()=>{ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); };
-  pintarRuta(true); pintarBanner(); irPanel(S.modo==='org'?'vivo':'ruta');
+  $('s-main').classList.toggle('lid',S.modo==='lider');
+  ColegioVivo.setLideres(f=>lideresDe(f));
+  if(S.modo==='lider'||S.perfil.rol==='admin'||S.modo==='master'||S.modo==='org') cargarLlegadas();
+  if(S.modo==='master'||S.perfil.rol==='admin') cargarAgenda();
+  pintarRuta(true); pintarBanner(); irPanel(S.modo==='org'?'vivo':S.modo==='lider'?'estacion':'ruta');
   clearInterval(S.timer); S.timer=setInterval(tick,15000); tick();
   suscribirTiempoReal();
   if(window.copaIniciar) copaIniciar();
 }
 function irPanel(p){
   S.panel=p;
-  ['ruta','programa','avatar','alertas','lista','asis','vivo','chat','enc'].forEach(x=>$('p-'+x).hidden=x!==p);
+  ['ruta','programa','avatar','alertas','lista','asis','vivo','chat','enc','estacion','rot','agenda'].forEach(x=>$('p-'+x).hidden=x!==p);
   document.querySelectorAll('#nav span').forEach(n=>n.classList.toggle('on',n.dataset.p===p));
   $('btnVista').hidden=p!=='ruta'||S.modo!=='docente';
   cerrarSheet();
   if(p==='programa') pintarPrograma(document.querySelector('#gtabs span.on').dataset.n);
-  if(p==='avatar'){ montarEditor('avMain'); $('avGuardar2').onclick=async()=>{ if(await guardarPerfil({avatar:S.avTmp})){ S.mapa.setAvatar(S.avTmp); ColegioVivo.setAvatar(S.avTmp); toast('Avatar guardado','ok'); } }; }
+  if(p==='avatar'){ montarEditor('avMain'); $('avGuardar2').onclick=async()=>{ if(await guardarPerfil({avatar:S.avTmp})){ S.mapa.setAvatar(S.avTmp); ColegioVivo.setAvatar(S.avTmp); if(S.lid&&S.lid[S.perfil.id]) S.lid[S.perfil.id].avatar=S.avTmp; toast('Avatar guardado','ok'); } }; }
   else $('avMain').innerHTML='';
   if(p==='alertas') pintarAlertas();
   if(p==='lista') pintarLista2();
@@ -333,6 +358,9 @@ function irPanel(p){
   if(p==='chat') abrirChat();
   if(p==='enc') pintarEncuestas();
   if(p==='ruta') pintarRuta(false);
+  if(p==='estacion') pintarEstacion();
+  if(p==='rot') pintarRotaciones();
+  if(p==='agenda') pintarAgenda();
 }
 
 function mapaVisible(){ return !$('s-main').hidden && S.panel==='ruta' && S.vista==='mapa' && !$('mapa').hidden; }
@@ -360,6 +388,7 @@ function pintarChips(){
 /* rehacer=true: vuelve a dibujar el mapa; si no, solo actualiza textos */
 function pintarRuta(rehacer){
   const nom=escHTML(firstName(S.perfil.nombre));
+  if(S.modo==='lider'){ $('mHola').innerHTML=`Hola, ${nom} · Líder de estación`; $('mTit').textContent='Mi estación'; $('chips').hidden=true; $('btnColegio').hidden=true; return; }
   const esM=S.modo==='master'||S.modo==='org';
   $('p-ruta').classList.toggle('esMaster',esM);
   if(esM){   // Master: Colegio vivo
@@ -441,6 +470,8 @@ function pintarLista(idx){
 /* Master: la hora del mapa sigue el reloj el día del evento */
 function horaMaster(){ const a=ahora(); return a.fecha===S.config.fecha_evento&&a.min>=420&&a.min<=900 ? a.min : 515; }
 function tick(){
+  if(S.modo==='lider'){ if(!document.hidden){ if(S.panel==='estacion') pintarEstacion(); if(S.panel==='rot') pintarRotaciones(); } revisarAlertasLider(); return; }
+  if(S.modo==='master'||S.perfil.rol==='admin') tickAgenda();
   if(S.modo==='org'&&S.panel==='vivo'&&!document.hidden&&document.activeElement.id!=='vBus') pintarVivo();
   if(S.modo==='master'||S.modo==='org'){ if(S.panel==='ruta'&&!ColegioVivo.ocupado()&&(!ColegioVivo.manual||Date.now()-ColegioVivo.manual>180000)){ ColegioVivo.manual=0; ColegioVivo.setHora(horaMaster()); } revisarAlertas(); return; }
   if(!S.stops.length||S.modo!=='docente') { revisarAlertas(); return; }
@@ -474,7 +505,7 @@ function cerrarCamino(){ if(ColegioVivo.ocupado()) return toast('Espera a que el
 /* ---------------- detalle de parada ---------------- */
 const P = t => t ? escHTML(t) : '<span class="pend">Información pendiente</span>';
 function abrirParada(i){
-  const f=S.stops[i]; if(!f) return; const col=colorDe(f); let body='';
+  const f=S.stops[i]; if(!f) return; const col=colorDe(f); let body=''; const lidL=S.modo==='docente'?lideresDe(f):[];
   if(S.modo==='master'){
     body=`<div class="facts"><div class="fact"><small>Hora</small><div>${fmtHora(f.h)} – ${fmtHora(f.f)}</div></div><div class="fact"><small>Lugar</small><div>${escHTML(f.lugar)}</div></div>
       <div class="fact" style="grid-column:1/-1"><small>Docente a cargo</small><div>${P(f.docente_cargo)}</div></div></div>
@@ -490,7 +521,9 @@ function abrirParada(i){
       ${f.tipo==='pausa'?'':`<div class="fact"><small>Docente a cargo</small><div>${P(f.docente_cargo)}</div></div><div class="fact"><small>Curso</small><div>${escHTML(S.curso)}</div></div>`}</div>
       ${f.tipo==='pausa'?'':`<div class="sec"><h3>Actividad</h3><p>${P(f.titulo&&titA(f.titulo))}</p></div><div class="sec"><h3>Propósito</h3><p>${P(f.frase)}</p></div>
       <div class="sec"><h3>Docentes del curso</h3><p>Acompañante: ${escHTML(f.acompanante||'—')}<br>Apoyo: ${escHTML(f.apoyo||'—')}</p></div>`}
+      ${lidL.length?`<div class="lidsec"><h3>⭐ ${LS.get(lidSalKey(i),false)?'Te recibió':'Te recibirá'}${lidL.length>1?'n':''}</h3><div class="ls">${lidL.map(l=>`<div class="li">${lidMini(l,24)}${escHTML(lidNombre(l.nombre))}</div>`).join('')}</div></div>`:''}
       ${!futura&&f.tipo!=='pausa'?`<div style="padding:0 16px"><button class="btn ghost" id="verAnim">Ver la animación de llegada</button></div>`:''}
+      ${f.tipo!=='pausa'&&f.salon?`<div style="padding:8px 16px 0"><button class="btn" id="verSalon" style="background:#c2410c">🏫 Entrar y ver el salón</button></div>`:''}
       ${evaluable(f)&&terminada(f)?`<div style="padding:8px 16px 0"><button class="btn" id="evalAct">📝 ${S.encMias&&S.encMias[encClave(S.curso,f.hora_inicio)]?'Ver o corregir mi encuesta':'Evaluar esta actividad'}</button></div>`:''}`;
   }
   const sh=$('sheet');
@@ -498,11 +531,18 @@ function abrirParada(i){
     <h3>${escHTML(f.nombre)}</h3><span class="tag2">${escHTML(f.area||'')}</span></div><div class="sb">${body}</div>`;
   sh.classList.add('open'); $('shX').onclick=cerrarSheet;
   if($('irAqui')) $('irAqui').onclick=async()=>{ cerrarSheet(); if(S.vista!=='mapa'){ S.vista='mapa'; $('btnVista').textContent='☰'; pintarRuta(false);} S.masterIdx=i; LS.set('steam_midx_'+S.area+S.nivel,i); await S.mapa.goTo(i); pintarLista(i); pintarTarjeta(i); };
-  if($('verAnim')) $('verAnim').onclick=()=>{ cerrarSheet(); mostrarLlegada($('p-ruta'),f); };
+  if($('verAnim')) $('verAnim').onclick=()=>{ cerrarSheet(); mostrarLlegada($('p-ruta'),f,lidL); };
+  if($('verSalon')) $('verSalon').onclick=()=>{ cerrarSheet(); entrarSalonDocente(f); };
   if($('evalAct')) $('evalAct').onclick=()=>{ cerrarSheet(); abrirEncuesta({...f,curso:S.curso}); };
 }
 function cerrarSheet(){ $('sheet').classList.remove('open'); }
 
+/* docente: abre el Colegio vivo dentro del edificio de su estación (ahí está el líder) */
+async function entrarSalonDocente(f){
+  if(ColegioVivo.ocupado()) return; const cv=$('cv'); cv.hidden=false; cv.classList.add('camino'); $('cvVolver').hidden=false;
+  ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar); ColegioVivo.cerrar();
+  await ColegioVivo.entrar({...f,hora_inicio:f.h||f.hora_inicio,hora_fin:f.f||f.hora_fin});
+}
 /* ---------------- ayuda: elegir grado y curso ---------------- */
 function abrirAyuda(){
   const G={}; S.prog.filter(r=>r.tipo==='actividad').forEach(r=>{ (G[r.grado]=G[r.grado]||new Set()).add(r.curso); });
@@ -530,6 +570,7 @@ function abrirAyuda(){
 /* ================= Programa → mapa ================= */
 async function verEnMapa(rs){
   if(!rs||!rs.length) return; const f=(S.modo==='docente'&&rs.find(r=>S.cursos.includes(r.curso)))||rs[0];
+  if(S.modo==='lider') return fichaActividad(rs,f);   // el líder no usa el mapa del colegio
   ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar);
   if(S.modo==='docente'){ irPanel('ruta'); const cv=$('cv'); cv.hidden=false; cv.classList.add('camino'); $('cvVolver').hidden=false; }
   else irPanel('ruta');
@@ -544,9 +585,10 @@ function fichaActividad(rs,f,abrir=true){
     <div class="sb"><div class="facts"><div class="fact"><small>Salón</small><div>${P(f.salon)}</div></div><div class="fact"><small>Docente a cargo</small><div>${P(f.docente_cargo)}</div></div></div>
     <div class="sec"><h3>Cursos</h3></div>${rs.map(r=>`<div class="rot"><b>${escHTML(r.curso)}</b><span>Salón ${escHTML(r.salon||'—')}<br>${escHTML(r.acompanante||'')}</span></div>`).join('')}
     ${f.frase?`<div class="sec"><h3>Propósito</h3><p>${escHTML(f.frase)}</p></div>`:''}
-    <div style="padding:8px 16px">${S.modo==='org'?'<button class="btn alt" id="fCam">🧭 Ver recorrido desde donde estoy</button><div style="height:8px"></div>':''}<button class="btn" id="fEnt">🚪 Entrar y ver el salón</button></div></div>`;
+    ${lideresDe(f).length?`<div class="lidsec"><h3>⭐ Líder${lideresDe(f).length>1?'es':''} de estación</h3><div class="ls">${lideresDe(f).map(l=>`<div class="li">${lidMini(l,24)}${escHTML(lidNombre(l.nombre))}</div>`).join('')}</div></div>`:''}
+    <div style="padding:8px 16px" ${S.modo==='lider'?'hidden':''}>${S.modo==='org'?'<button class="btn alt" id="fCam">🧭 Ver recorrido desde donde estoy</button><div style="height:8px"></div>':''}<button class="btn" id="fEnt">🚪 Entrar y ver el salón</button></div></div>`;
   if(abrir) sh.classList.add('open'); $('shX').onclick=cerrarSheet;
-  $('fEnt').onclick=()=>{ cerrarSheet(); ColegioVivo.entrar(f); actualizarBotonesCV(); };
+  $('fEnt').onclick=()=>{ cerrarSheet(); if(S.modo==='docente') return entrarSalonDocente(f); ColegioVivo.entrar(f); actualizarBotonesCV(); };
   if($('fCam')) $('fCam').onclick=async()=>{ cerrarSheet();
     if(!ColegioVivo.ubicacion()){ S.pend={rs,f}; marcarUbicacion(); return; }
     await ColegioVivo.recorrido(f); actualizarBotonesCV(); };
@@ -619,6 +661,14 @@ async function guardarLista(){
   const pend=L.filas.filter(x=>!x.v).length;
   toast(pend?`Guardado. Faltan ${pend} por marcar.`:'Llamado a lista guardado ✓','ok',3500); dibujarLista('');
 }
+/* ---- v28: llegadas confirmadas por los líderes en la rotación actual ---- */
+function llegadasHTML(){
+  const m=minAhora(); if(m<0||m>=9999) return '';
+  const act=S.prog.filter(r=>r.tipo==='actividad'&&(r.lideres||[]).length&&toMin(r.hora_inicio)<=m&&m<toMin(r.hora_fin)); if(!act.length) return '';
+  const ok=act.filter(r=>S.llegadas&&S.llegadas[r.curso+'|'+r.hora_inicio]), pend=act.filter(r=>!ok.includes(r)).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
+  return `<div class="llcard"><div class="k">🚩 Llegadas a las estaciones · ahora</div><b>${ok.length} de ${act.length}</b> grupos confirmados por los líderes
+    ${pend.length?`<div class="llp">${pend.slice(0,30).map(r=>`<span title="${escHTML(r.salon||'')}">${escHTML(r.curso)} → ${escHTML(r.salon||'')}${m-toMin(r.hora_inicio)>=5?' ⚠':''}</span>`).join('')}</div><small>⚠ = lleva 5 minutos o más sin confirmar</small>`:'<div class="sm">✓ Todos los grupos llegaron.</div>'}</div>`;
+}
 /* ---- resumen: administración, Master y organizadores ---- */
 async function pintarAsis(grado){
   const el=$('asisPz'); if(grado!==undefined) S.asisGrado=grado; grado=S.asisGrado||'Todos';
@@ -630,7 +680,7 @@ async function pintarAsis(grado){
   const grados=[...new Set(S.est.map(x=>x.grado))].sort((a,b)=>og(a)-og(b)||String(a).localeCompare(b)), cs=cursos.filter(c=>grado==='Todos'||GR[c]===grado);
   const cuenta=c=>{ const r={A:0,N:0,T:0,P:0,S:0,n:0}; S.est.forEach(x=>{ if(x.curso!==c) return; r.n++; const a=S.asis[x.id]; a?r[a.estado]++:r.S++; }); return r; };
   const tot={A:0,N:0,T:0,P:0,S:0}; const rs=cs.map(c=>{ const r=cuenta(c); for(const k in tot) tot[k]+=r[k]; return [c,r]; });
-  let h=`<h3>Asistencia · dirección de grupo</h3><div class="sub">Se actualiza en tiempo real a medida que los docentes guardan su lista.</div>`;
+  let h=llegadasHTML()+`<h3>Asistencia · dirección de grupo</h3><div class="sub">Se actualiza en tiempo real a medida que los docentes guardan su lista.</div>`;
   if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
   h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
     <div class="leg">⚪ Sin marcar: <b>${tot.S}</b> · Cursos: <b>${cs.length}</b></div>
@@ -723,7 +773,7 @@ function pintarPrograma(nv){
     h+=`<tr><td class="h">${fmtHora(fr.hora_inicio)}</td>`;
     if(pausa) h+=`<td class="p" colspan="${grados.length}">${escHTML(pausa.area)}</td>`;
     else grados.forEach(g=>{ const rs=filas.filter(f=>f.grado===g&&f.hora_inicio===fr.hora_inicio);
-      const mine=S.modo==='docente'&&rs.some(r=>S.cursos.includes(r.curso));
+      const mine=(S.modo==='docente'&&rs.some(r=>S.cursos.includes(r.curso)))||(S.modo==='lider'&&rs.some(r=>(r.lideres||[]).includes(S.perfil.id)));
       h+= rs.length ? `<td class="c ${mine?'mine':''}" style="background:${AREA_C[rs[0].categoria]}" data-g="${escHTML(g)}" data-h="${fr.hora_inicio}" data-n="${escHTML(nv)}">${escHTML((()=>{ const tt=[...new Set(rs.map(r=>r.titulo).filter(Boolean))]; return tt.length===1?titA(tt[0]):short(rs[0].area); })())}<small>${escHTML(lugarDe(rs.map(r=>r.salon)))}</small></td>` : '<td></td>'; });
     h+='</tr>';
   });
@@ -757,8 +807,10 @@ async function pintarAlertas(){
     <button class="b2" style="width:100%;margin-bottom:6px" id="aProbar">▶ Probar sonido</button>
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
-    ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
+    ${S.modo==='lider'?`<div class="opt"><h4>Próximas llegadas a tu estación</h4>${(()=>{ const pl=proximasLider(); return pl.length?pl.slice(0,6).map(x=>{ const m=toMin(x.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>Llega${x.rs.length>1?'n':''} ${escHTML(x.rs.map(r=>r.curso).join(', '))}</b><small>${fmtHora(x.h)} · ${escHTML(x.rs.map(r=>r.salon).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}</small></div></div>`; }).join(''):'<p class="sm">No hay más rotaciones por hoy.</p>'; })()}</div>`:''}
+    ${S.modo==='master'&&S.agenda&&S.agenda.length?`<div class="opt"><h4>Avisos de tu agenda</h4><p class="sm">Te avisaremos ${p.anticipacion_min} minutos antes de cada bloque de tu agenda.</p></div>`:''}
+    ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:S.modo==='lider'?'':'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.modo==='master'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.modo==='lider'?'<span class="chip" id="aApoyo">💬 Pedir apoyo</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -772,9 +824,11 @@ async function pintarAlertas(){
   if($('aEns')) $('aEns').onclick=abrirEnsayo;
   if($('aTuto')) $('aTuto').onclick=()=>pantallaTutorial(true);
   if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
+  if($('aApoyo')) $('aApoyo').onclick=pedirApoyo;
   $('aSalir').onclick=async()=>{ if(S.vistaComo) return salirVista(); await S.sb.auth.signOut(); location.reload(); };
 }
 function revisarAlertas(){
+  if(S.modo==='master') return revisarAlertasAgenda();
   if(S.modo!=='docente'||!S.cursos.length) return;
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
   const p=prefs(), hechas=LS.get('steam_alertadas_'+a.fecha,[]);
@@ -785,7 +839,7 @@ const _cola=[];
 function lanzarAlerta(s, faltan){
   const p=prefs();
   if(document.hidden && 'Notification' in window && Notification.permission==='granted')
-    navigator.serviceWorker.ready.then(r=>r.showNotification(`En ${faltan} min: ${s.nombre}`,{ body:`📍 ${s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir')} · ${fmtHora(s.h)}`, tag:'steam-'+(s.tipo==='pausa'?'pausa-'+s.nivel:s.cursoA)+'-'+s.h, icon:'icon-192.png', badge:'icon-192.png' })).catch(()=>{});
+    navigator.serviceWorker.ready.then(r=>r.showNotification(`En ${faltan} min: ${s.nombre}`,{ body:`📍 ${s.tipo==='pausa'?s.area:s.tipo==='agenda'?(s.salon||''):'Salón '+(s.salon||'por definir')} · ${fmtHora(s.h)}`, tag:'steam-'+(s.tipo==='pausa'?'pausa-'+s.nivel:s.cursoA)+'-'+s.h, icon:'icon-192.png', badge:'icon-192.png' })).catch(()=>{});
   const vacia=!_cola.length;
   _cola.push({s, hasta:toMin(s.h)});
   if(vacia){ if(p.sonido) sonarTono(p.tono); if(p.vibracion && navigator.vibrate) navigator.vibrate([300,150,300,150,600]); mostrarSiguienteAlerta(); }
@@ -794,12 +848,63 @@ function mostrarSiguienteAlerta(){
   if(!_cola.length){ $('modalBox').innerHTML=''; return; }
   const {s, hasta}=_cola[0], faltan=Math.max(1, hasta-ahora().min), col=colorDe(s);
   $('modalBox').innerHTML=`<div class="modal"><div class="mbox"><div class="bell">🔔</div>
-    <div class="k" style="color:${col}">En ${faltan} minutos${s.tipo==='pausa'?'':' · '+escHTML(AREA_N[s.cat])}${S.cursos.length>1&&s.tipo!=='pausa'?' · Curso '+escHTML(s.cursoA):''}</div>
+    <div class="k" style="color:${col}">En ${faltan} minutos${s.tipo==='pausa'?'':s.tipo==='agenda'?' · Tu agenda':' · '+escHTML(AREA_N[s.cat]||'')}${S.cursos.length>1&&s.tipo!=='pausa'?' · Curso '+escHTML(s.cursoA):''}</div>
     <h3>${escHTML(s.nombre)}</h3><div class="mi"><span>🕘</span>${fmtHora(s.h)} – ${fmtHora(s.f)}</div>
-    ${s.tipo==='pausa'?'':`<div class="mi"><span>📍</span>Salón ${P(s.salon)}</div><div class="mi"><span>👤</span>${P(s.docente_cargo)}</div>`}
+    ${s.tipo==='pausa'?'':s.tipo==='agenda'?`<div class="mi"><span>📍</span>${escHTML(s.salon||'')}</div>`:`<div class="mi"><span>📍</span>Salón ${P(s.salon)}</div><div class="mi"><span>👤</span>${P(s.docente_cargo)}</div>`}
     ${s.frase?`<p>${escHTML(s.frase)}</p>`:'<p></p>'}
     <button class="btn" id="mOk">${_cola.length>1?'Siguiente aviso ('+(_cola.length-1)+')':'Entendido'}</button></div></div>`;
   $('mOk').onclick=()=>{ _cola.shift(); mostrarSiguienteAlerta(); };
+}
+
+/* ================= v28 · Agenda Master ================= */
+const lugarTxt=x=>/^\d/.test(String(x||''))?'Salón '+x:String(x||'');
+const AG_TIPOS={sup:['Supervisar','#173d7a'],acom:['Acompañar actividad','#1f9d6b'],fijo:['Punto fijo','#c2410c'],reu:['Reunión','#7b4bd6'],lib:['Libre','#8a94a8']};
+async function cargarAgenda(aviso){
+  try{
+    const r=await S.sb.from('sd_agenda').select('*').order('hora_inicio');
+    if(r.error) return;
+    const antes=JSON.stringify((S.agenda||[]).map(b=>[b.id,b.hora_inicio,b.hora_fin,b.lugar,b.tarea,b.tipo]));
+    S.agendaTodo=(r.data||[]).map(b=>({...b,hora_inicio:hhmm(b.hora_inicio),hora_fin:hhmm(b.hora_fin)}));
+    S.agenda=S.agendaTodo.filter(b=>b.perfil_id===S.perfil.id);
+    if(aviso&&S.modo==='master'&&!S.vistaComo&&antes!==JSON.stringify(S.agenda.map(b=>[b.id,b.hora_inicio,b.hora_fin,b.lugar,b.tarea,b.tipo]))){
+      const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('🔄 Tu agenda cambió. Revísala en «Mi agenda».','',6000); }
+    if(S.perfil.rol==='admin'&&!S.agNombres){ const q=await S.sb.from('sd_perfiles').select('id,nombre').in('rol',['master','admin']); S.agNombres={}; (q.data||[]).forEach(x=>S.agNombres[x.id]=lidNom(x.nombre)); }
+    if(S.panel==='agenda') pintarAgenda(); tickAgenda();
+  }catch(e){}
+}
+function bloqueAhora(){ const m=minAhora(), L=S.agenda||[]; return { cur:L.find(b=>toMin(b.hora_inicio)<=m&&m<toMin(b.hora_fin)), nxt:L.find(b=>toMin(b.hora_inicio)>m) }; }
+function pintarAgenda(){
+  const el=$('agPz'), L=S.agenda||[], m=minAhora();
+  let h=`<h3>Mi agenda del STEM Day</h3><div class="sub">Lo que te asignó el administrador: dónde debes estar y qué debes hacer. Si algo cambia, te llegará un aviso.</div>`;
+  if(!L.length){ el.innerHTML=h+'<div class="alertbox" style="margin-top:8px">Aún no tienes bloques en tu agenda. El administrador los asignará desde Administración → Agenda Master.<br><br>Mientras tanto, la programación general está en «Programa».</div>'; return; }
+  L.forEach(b=>{ const t=AG_TIPOS[b.tipo]||AG_TIPOS.sup, est=toMin(b.hora_fin)<=m?'ok':toMin(b.hora_inicio)<=m?'now':'nx';
+    h+=`<div class="agb ${est}" style="--c:${t[1]}" data-id="${b.id}"><div class="h">${fmtHora(b.hora_inicio)}<small>a ${fmtHora(b.hora_fin)}</small></div><i></i><div class="c"><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}${b.tarea?' · '+escHTML(b.tarea):''}</small></div><span class="st">${est==='ok'?'✓':est==='now'?'● Ahora':'Próximo'}</span></div>`; });
+  h+=`<p class="sm" style="margin-top:10px">Toca un bloque para ver el lugar en el mapa del colegio.</p>`;
+  el.innerHTML=h;
+  el.querySelectorAll('.agb').forEach(x=>x.onclick=()=>{ const b=L.find(z=>String(z.id)===x.dataset.id); if(b) irLugarAgenda(b); });
+}
+async function irLugarAgenda(b){ irPanel('ruta'); try{ await ColegioVivo.lugar({salon:b.lugar,hora_inicio:b.hora_inicio,tipo:'actividad'}); }catch(e){} actualizarBotonesCV(); }
+/* tarjeta «Ahora debes estar en» sobre el Colegio vivo (Master) y pines para el administrador */
+function tickAgenda(){
+  const card=$('agCard');
+  if(card&&S.modo==='master'&&S.perfil.rol!=='admin'){
+    const {cur,nxt}=bloqueAhora(), b=cur||nxt;
+    if(!b||S.agMin){ card.hidden=!b; card.className='agcard'+(b?' min':''); card.innerHTML=b?`📍 ${cur?'Ahora':fmtHora(b.hora_inicio)}: ${escHTML(lugarTxt(b.lugar))}`:''; card.onclick=()=>{ S.agMin=false; tickAgenda(); }; }
+    else { const t=AG_TIPOS[b.tipo]||AG_TIPOS.sup; card.hidden=false; card.className='agcard'; card.style.setProperty('--c',t[1]); card.onclick=null;
+      card.innerHTML=`<span class="x" id="agX">✕</span><div class="k">📍 ${cur?'Ahora debes estar en':'Tu siguiente bloque'} · ${fmtHora(b.hora_inicio)} a ${fmtHora(b.hora_fin)}</div><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}${b.tarea?' · '+escHTML(b.tarea):''}</small><button id="agIr">🧭 Ver en el mapa</button>`;
+      $('agX').onclick=e=>{ e.stopPropagation(); S.agMin=true; tickAgenda(); }; $('agIr').onclick=e=>{ e.stopPropagation(); irLugarAgenda(b); }; }
+  } else if(card) card.hidden=true;
+  if(S.perfil.rol==='admin'&&S.agendaTodo&&typeof ColegioVivo!=='undefined'){
+    const m=horaMaster(), nom=S.agNombres||{};
+    ColegioVivo.setPins(S.agendaTodo.filter(b=>toMin(b.hora_inicio)<=m&&m<toMin(b.hora_fin)).map(b=>({lugar:b.lugar,nombre:nom[b.perfil_id]||'Master'})));
+  }
+}
+function revisarAlertasAgenda(){
+  const a=ahora(); if(a.fecha!==S.config.fecha_evento||!S.agenda) return;
+  const p=prefs(), hechas=LS.get('steam_agalert_'+a.fecha,[]);
+  S.agenda.forEach(b=>{ if(b.avisar===false) return; const ini=toMin(b.hora_inicio), k=b.id+'|'+b.hora_inicio+'|'+b.lugar;
+    if(a.min>=ini-p.anticipacion_min&&a.min<ini&&!hechas.includes(k)){ hechas.push(k); LS.set('steam_agalert_'+a.fecha,hechas);
+      lanzarAlerta({tipo:'agenda',nombre:b.tarea||lugarTxt(b.lugar),h:b.hora_inicio,f:b.hora_fin,salon:lugarTxt(b.lugar),cat:'gen',frase:(AG_TIPOS[b.tipo]||AG_TIPOS.sup)[0]+(b.tarea?' · '+b.tarea:'')}, ini-a.min); } });
 }
 
 /* ---------------- avisos generales ---------------- */
@@ -823,6 +928,8 @@ function suscribirTiempoReal(){
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_asistencia'},()=>{ S.asisSucia=true; if(S.panel==='asis') { clearTimeout(S._asT); S._asT=setTimeout(pintarAsis,800); } })
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_estudiantes'},()=>{ S.est=null; S.asisSucia=true; })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_chat'},payload=>nuevoMensaje(payload.new))
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_llegadas'},()=>{ clearTimeout(S._llT); S._llT=setTimeout(async()=>{ await cargarLlegadas(); if(S.panel==='estacion') pintarEstacion(); if(S.panel==='asis') pintarAsis(); },700); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_agenda'},()=>{ clearTimeout(S._agT); S._agT=setTimeout(()=>cargarAgenda(true),900); })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_avisos'},async payload=>{
       S.avisos.unshift(payload.new); pintarBanner();
       if(avisosMios().some(a=>a.id===payload.new.id)){ const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('📣 '+payload.new.titulo,'',5000); } })
@@ -866,7 +973,7 @@ async function entrarVista(id){
 }
 function salirVista(){ try{ sessionStorage.removeItem(VC_KEY); }catch(e){} location.reload(); }
 function irVista(id){ try{ sessionStorage.setItem(VC_KEY,id); }catch(e){ return toast('Este navegador no permite cambiar de vista.','bad'); } location.reload(); }
-const VC_ROL={ docente:'Docente', organizador:'Organizador', master:'Master', admin:'Administrador' };
+const VC_ROL={ docente:'Docente', organizador:'Organizador', master:'Master', admin:'Administrador', lider:'Líder de estación' };
 function pintarFranjaVista(){
   const f=$('vcomo'); if(!f) return;
   if(!S.vistaComo){ f.hidden=true; return; }
@@ -877,7 +984,7 @@ function pintarFranjaVista(){
 async function abrirVerComo(){
   const m=$('vcModal'); m.hidden=false;
   m.innerHTML=`<div class="vcbox"><div class="vchead"><div><b>Ver la app como…</b><small>Elige un perfil para ver su interfaz. Solo para revisar: no se guarda ningún cambio.</small></div><button class="vcx" id="vcX">✕</button></div>
-    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['organizador','Organizadores'],['master','Master']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
+    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['lider','Líderes'],['organizador','Org.'],['master','Master']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
     <input id="vcBus" class="vcbus" placeholder="Buscar por nombre o curso…" autocomplete="off">
     <div class="vclist" id="vcList"><p class="sm" style="padding:14px">Cargando perfiles…</p></div>
     ${S.vistaComo?'<button class="btn" id="vcMio">Volver a mi perfil de administrador</button>':''}</div>`;
@@ -892,6 +999,7 @@ async function abrirVerComo(){
       if(p.rol==='docente'){ const a=[...(ac[p.nombre_n]||[])].sort(), b=[...(ap[p.nombre_n]||[])].sort();
         det = p.cursos_manual&&p.cursos_manual.length ? 'Cursos: '+p.cursos_manual.join(', ') : a.length ? 'Acompaña '+a.join(', ')+(b.length?' · apoya '+b.join(', '):'') : b.length ? 'Apoya '+b.join(', ') : 'Sin curso en la programación'; }
       else if(p.rol==='master') det='Experiencia: '+(AREA_N[p.experiencia]||'sin elegir');
+      else if(p.rol==='lider'){ const fs=S.prog.filter(r=>(r.lideres||[]).includes(p.id)); det=fs.length?'Lidera '+[...new Set(fs.map(r=>r.titulo?titA(r.titulo):r.area))].join(', ')+' · '+[...new Set(fs.map(r=>r.salon))].join(', '):'Sin estación asignada'; }
       else det='Organización del evento';
       return { ...p, det }; });
   }
@@ -899,19 +1007,20 @@ async function abrirVerComo(){
   const pintar=()=>{ const q=($('vcBus').value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const l=S._vcLista.filter(p=>p.rol===rol && (!q || ((p.nombre||'')+' '+p.det).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q)));
     $('vcList').innerHTML = l.length ? l.slice(0,200).map(p=>`<div class="vcit ${S.vistaComo&&S.perfil.id===p.id?'on':''}" data-id="${p.id}"><i>${escHTML((p.nombre||'?').trim()[0]||'?')}</i><div><b>${escHTML(p.nombre||'Sin nombre')}</b><small>${escHTML(p.det)}</small></div><span>Ver ›</span></div>`).join('')
-      : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':'organizadores'} ${q?'con esa búsqueda':'registrados'}.</p>`;
+      : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':rol==='lider'?'líderes de estación':'organizadores'} ${q?'con esa búsqueda':'registrados'}.</p>`;
     $('vcList').querySelectorAll('.vcit').forEach(e=>e.onclick=()=>irVista(e.dataset.id)); };
   $('vcTabs').querySelectorAll('span').forEach(t=>t.onclick=()=>{ rol=t.dataset.r; $('vcTabs').querySelectorAll('span').forEach(x=>x.classList.toggle('on',x===t)); pintar(); });
   $('vcBus').oninput=pintar; pintar();
 }
 
 window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=>{ await cargarDatos(); definirModo(); pintarRuta(true); };
+window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSucio=true; };
 /* iPhone: al cerrar el teclado o girar la pantalla, la vista puede quedar corrida hacia arriba. Se devuelve a su sitio. */
 /* iPhone instalada (v23):
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='27';
+const VERSION_APP='28';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
