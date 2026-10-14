@@ -48,7 +48,7 @@
       <div class="top"><div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEM Day · Administración</b><small>${escHTML(S().perfil.nombre)}</small></div></div>
         <button class="b2" id="admVolver">← Volver a la app</button></div>
       <div class="desk"><div class="tabs" id="admTabs">
-        <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span>
+        <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span><span data-t="lideres">⭐ Líderes</span><span data-t="agenda">📅 Agenda Master</span>
         <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="copa">🏆 Copa STEM</span><span data-t="config">Configuración</span></div>
         <div class="tbody" id="admTab"></div></div>`;
     $('admVolver').onclick = async () => { show('s-main'); if(window.recargarApp) await window.recargarApp(); };
@@ -57,7 +57,7 @@
   }
   function irTab(t){
     tab=t; $('admTabs').querySelectorAll('span').forEach(s=>s.classList.toggle('on', s.dataset.t===t));
-    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, config:tConfig}[t];
+    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, lideres:tLideres, agenda:tAgenda, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, config:tConfig}[t];
     $('admTab').innerHTML='<p class="sm">Cargando…</p>'; f().catch(e=>{ $('admTab').innerHTML=`<div class="warnbox">Error: ${escHTML(e.message)}</div>`; });
   }
 
@@ -183,7 +183,9 @@
         acompanante:f.acompanante, apoyo:f.apoyo, fila:f.fila }));
       const { data, error } = await sb().rpc('sd_importar', { p_filas:filas, p_directorio:lectura.directorio, p_archivo:lectura.archivo });
       if(error){ res.insertAdjacentHTML('beforeend',`<div class="warnbox">No se pudo actualizar: ${escHTML(error.message)}</div>`); $('impSi').disabled=false; $('impSi').textContent='Actualizar toda la app'; return; }
-      aviso(`Programación actualizada: ${data.filas} filas, ${data.docentes} docentes.`,'ok'); lectura=null; tImportar();
+      aviso(`Programación actualizada: ${data.filas} filas, ${data.docentes} docentes.`,'ok'); lectura=null;
+      try{ if(window.recargarDatos) await window.recargarDatos(); const n=await aplicarLideres(); if(n!=null) aviso(`Programación actualizada y líderes asignados (${n} filas con cambios).`,'ok'); }catch(e){ aviso('La programación se cargó, pero no se pudieron asignar los líderes: '+e.message,'bad'); }
+      tImportar();
     };
   }
 
@@ -216,6 +218,7 @@
       b.disabled=false;
       if(error) return aviso('No se pudo guardar: '+error.message,'bad');
       Object.assign(r,cambios); aviso('Cambio guardado','ok');
+      if('docente_cargo' in cambios||'salon' in cambios) aplicarLideres().catch(()=>{});
     });
   }
 
@@ -240,16 +243,18 @@
       <div class="stat"><div><b>${(perf||[]).length}</b><span>cuentas creadas</span></div><div><b>${sinCuenta.length}</b><span>personas sin cuenta</span></div>
         <div><b>${(perf||[]).filter(p=>p.confirmado).length}</b><span>ya ingresaron</span></div><div><b>${(perf||[]).filter(p=>p.avatar).length}</b><span>crearon su avatar</span></div></div>
       ${sinCorreo.length?`<div class="warnbox"><b>Docentes sin correo en el directorio (no se les puede crear cuenta):</b><ul>${sinCorreo.map(d=>`<li>${escHTML(d.nombre)}</li>`).join('')}</ul></div>`:''}
-      <div class="tools"><button class="b1" id="uCsv">Descargar lista para crear cuentas (${sinCuenta.length})</button>
-        <span class="sm">Usa este archivo con el script <b>scripts/crear-cuentas.mjs</b> (ver LEEME).</span></div>
+      <div class="tools"><button class="b1" id="uCrear">⭐ Crear cuentas faltantes</button><button class="b2" id="uCsv">Descargar lista (${sinCuenta.length})</button>
+        <span class="sm">Crea las cuentas de docentes y líderes que aún no tienen, con la contraseña temporal <b>0000</b> (al entrar, la app les pide crear la suya).</span></div>
       <h4 style="margin:14px 0 6px">Usuarios Master</h4>
       <div class="twrap"><table class="t"><tr><th>Nombre</th><th>Cargo</th><th>Correo</th><th>Cuenta</th><th>Experiencia elegida</th></tr>
         ${[ {nombre:ADMIN[0],correo:ADMIN[1],cargo:ADMIN[2]}, ...MASTERS.map(m=>({nombre:m[0],correo:m[1],cargo:m[2]}))].map(m=>{ const p=porCorreo.get(m.correo.toLowerCase());
           return `<tr><td><b>${escHTML(m.nombre)}</b></td><td>${escHTML(m.cargo)}</td><td class="sm">${escHTML(m.correo)}</td><td>${p?(p.confirmado?'✓ Activa':'Creada, sin ingresar'):'<span class="pend">Sin cuenta</span>'}</td><td>${p&&p.experiencia?expN[p.experiencia]:'—'}</td></tr>`; }).join('')}</table></div>
+      ${(perf||[]).filter(p=>p.rol==='lider').length?`<h4 style="margin:18px 0 6px">Líderes de estación</h4><div class="twrap"><table class="t"><tr><th>Nombre</th><th>Correo</th><th>Cuenta</th><th>Avatar</th></tr>${(perf||[]).filter(p=>p.rol==='lider').map(p=>`<tr><td>${escHTML(p.nombre)}</td><td class="sm">${escHTML(p.correo)}</td><td>${p.confirmado?'✓ Activa':'Creada, sin ingresar'}</td><td>${p.avatar?'✓':'—'}</td></tr>`).join('')}</table></div>`:''}
       <h4 style="margin:18px 0 6px">Docentes</h4>
       <div class="twrap"><table class="t"><tr><th>Nombre</th><th>Correo</th><th>Cuenta</th><th>Avatar</th></tr>
         ${docentes.map(d=>{ const p=d.correo&&porCorreo.get(d.correo.toLowerCase());
           return `<tr><td>${escHTML(d.nombre)}</td><td class="sm">${escHTML(d.correo||'—')}</td><td>${p?(p.confirmado?'✓ Activa':'Creada, sin ingresar'):'<span class="pend">Sin cuenta</span>'}</td><td>${p&&p.avatar?'✓':'—'}</td></tr>`; }).join('')}</table></div>`;
+    $('uCrear').onclick=async()=>{ $('uCrear').disabled=true; $('uCrear').textContent='Creando…'; try{ await crearCuentasFaltantes(); }catch(e){ aviso('No se pudieron crear: '+e.message,'bad'); } tUsuarios(); };
     $('uCsv').onclick=()=>{
       if(!sinCuenta.length) return aviso('Todas las personas ya tienen cuenta.','ok');
       descargar('cuentas.csv', 'nombre,correo,rol\n'+sinCuenta.map(u=>[u.nombre,u.correo,u.rol].map(csvCell).join(',')).join('\n'));
@@ -313,6 +318,183 @@
       Object.assign(S().config,campos); aviso('Configuración guardada','ok');
     };
   }
+
+
+  /* =================== v28 · Líderes de estación =================== */
+  const nrm=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const actKey=r=>nrm(r.titulo||r.area);
+  const salKey=s0=>nrm(s0).replace(/[^a-z0-9]/g,'');
+  const lev=(a,b)=>{ if(Math.abs(a.length-b.length)>1) return 9; const d=Array.from({length:a.length+1},(_,i)=>[i]); for(let j=1;j<=b.length;j++) d[0][j]=j;
+    for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)); return d[a.length][b.length]; };
+  function buscarPersona(nombre,dir){ const tk=nrm(nombre).replace(/[^a-z ]/g,' ').split(' ').filter(t=>t.length>1); if(!tk.length) return null;
+    const ok=d=>{ const dt=nrm(d.nombre).replace(/[^a-z ]/g,' ').split(' '); return tk.every(t=>dt.some(x=>x===t||(t.length>4&&lev(x,t)<=1))); };
+    const c=dir.filter(ok); return c.length===1?c[0]:null; }
+  let LD=null; const LDX=new Set();   // datos para la pestaña: directorio, perfiles, manuales · actividades desplegadas
+  async function datosLideres(forzar){
+    if(LD&&!forzar) return LD;
+    const [d,p,m]=await Promise.all([ sb().from('sd_directorio').select('correo,nombre'), sb().from('sd_perfiles').select('id,correo,nombre,rol,confirmado,avatar'), sb().from('sd_lideres').select('*').order('id') ]);
+    if(m.error) throw new Error('Falta ejecutar el archivo 14-lideres-y-agenda.sql en Supabase ('+m.error.message+')');
+    LD={dir:d.data||[], perf:p.data||[], man:m.data||[]}; return LD;
+  }
+  /* quién dirige cada fila: asignación manual (gana) o la columna «Docente a cargo» del Excel */
+  function calcularLideres(D){
+    const porCorreo=new Map(D.perf.map(p=>[String(p.correo).toLowerCase(),p]));
+    const res=new Map();
+    S().prog.filter(r=>r.tipo==='actividad').forEach(r=>{
+      const ak=actKey(r), sk=salKey(r.salon);
+      let man=D.man.filter(x=>x.actividad===ak&&x.salon===sk); if(!man.length) man=D.man.filter(x=>x.actividad===ak&&x.salon==='*');
+      let personas=[], pend=[], fuente='';
+      if(man.length){ fuente='manual'; personas=man.map(x=>({correo:x.correo.toLowerCase(),nombre:x.nombre})); }
+      else { const dc=String(r.docente_cargo||'').trim();
+        if(dc&&!/director de curso|docentes del/i.test(dc)){ fuente='excel';
+          dc.split(/\s*-\s*/).map(x=>x.trim()).filter(Boolean).forEach(n=>{ const d=buscarPersona(n,D.dir); if(d) personas.push({correo:d.correo.toLowerCase(),nombre:d.nombre}); else pend.push(n); }); }
+        else if(/docentes del/i.test(dc)) pend.push(dc); }
+      const ids=[]; personas.forEach(x=>{ const p=porCorreo.get(x.correo); x.perfil=p||null; if(p&&p.rol==='lider') ids.push(p.id); });
+      res.set(r.id,{r,ak,sk,fuente,personas,pend,ids});
+    });
+    return res;
+  }
+  async function aplicarLideres(){
+    const D=await datosLideres(true), R=calcularLideres(D);
+    const pay=[...R.values()].map(x=>({id:x.r.id,lideres:x.ids}));
+    const {data,error}=await sb().rpc('sd_set_lideres',{p:pay}); if(error) throw error;
+    R.forEach(x=>{ x.r.lideres=x.ids; });
+    if(window.recargarDatos){ try{ await window.recargarDatos(); }catch(e){} }
+    return data;
+  }
+  window.aplicarLideres=aplicarLideres;
+  async function crearCuentasFaltantes(){
+    const D=await datosLideres(true), R=calcularLideres(D), lista=new Map(), porCorreo=new Map(D.perf.map(p=>[String(p.correo).toLowerCase(),p]));
+    R.forEach(x=>x.personas.forEach(pp=>{ const p=porCorreo.get(pp.correo); if(!p||p.rol==='docente') lista.set(pp.correo,{nombre:pp.nombre,correo:pp.correo,rol:'lider'}); }));
+    const prog=S().prog, nombres=new Map(); prog.filter(r=>r.tipo==='actividad').forEach(r=>[r.acompanante,r.apoyo].forEach(n=>{ if(n) nombres.set(SteamExcel.norm(n),n); }));
+    const dirN=(D.dir||[]).map(d=>({...d,n:SteamExcel.norm(d.nombre)}));
+    nombres.forEach((n,k)=>{ const d=dirN.find(x=>x.n===k)||dirN.find(x=>x.n.startsWith(k)); if(!d) return; const c=d.correo.toLowerCase(); if(!porCorreo.has(c)&&!lista.has(c)) lista.set(c,{nombre:d.nombre.replace(/\s+\d.*$|\s+TR°.*$/,''),correo:c,rol:'docente'}); });
+    if(!lista.size){ aviso('Todas las personas ya tienen cuenta.','ok'); return; }
+    const {data,error}=await sb().rpc('sd_crear_cuentas',{p_lista:[...lista.values()]}); if(error) throw error;
+    const n=await aplicarLideres();
+    aviso(`Cuentas creadas: ${data.creadas} · pasaron a líder: ${data.roles}. Contraseña temporal: 0000.`,'ok');
+    return data;
+  }
+  async function tLideres(){
+    const D=await datosLideres(true), R=calcularLideres(D), porCorreo=new Map(D.perf.map(p=>[String(p.correo).toLowerCase(),p]));
+    const G={}; R.forEach(x=>{ const g=(G[x.ak]=G[x.ak]||{r:x.r,lugares:{}}); const l=(g.lugares[x.sk]=g.lugares[x.sk]||{salon:x.r.salon||'—',filas:[],x}); l.filas.push(x); });
+    const gente=new Map(); R.forEach(x=>x.personas.forEach(p=>gente.set(p.correo,p)));
+    const sinCuenta=[...gente.values()].filter(p=>!porCorreo.get(p.correo)), aConv=[...gente.values()].filter(p=>{ const q=porCorreo.get(p.correo); return q&&q.rol==='docente'; });
+    const lugares=Object.values(G).reduce((n,g)=>n+Object.keys(g.lugares).length,0), conL=Object.values(G).reduce((n,g)=>n+Object.values(g.lugares).filter(l=>l.filas.some(f=>f.personas.length)).length,0);
+    const chip=p=>{ const q=porCorreo.get(p.correo); const st=!q?'<i class="pend">sin cuenta</i>':q.rol==='docente'?'<i class="pend">cuenta de docente</i>':q.rol!=='lider'?`<i class="pend">${escHTML(q.rol)}</i>`:'';
+      return `<span class="lch">${escHTML(p.nombre)} ${st}</span>`; };
+    let h=`<div class="stat"><div><b>${conL} / ${lugares}</b><span>lugares con líder</span></div><div><b>${gente.size}</b><span>líderes</span></div><div><b>${sinCuenta.length}</b><span>sin cuenta</span></div><div><b>${aConv.length}</b><span>con cuenta de docente</span></div></div>
+      <div class="tools"><button class="b1" id="lCrear" ${sinCuenta.length+aConv.length?'':'disabled'}>⭐ Crear cuentas faltantes (${sinCuenta.length+aConv.length})</button><button class="b2" id="lAplicar">Actualizar la app</button>
+      <span class="sm">Los líderes salen de la columna «Docente a cargo» del Excel. Lo que asignes aquí a mano <b>gana</b> sobre el Excel y <b>no se borra</b> al volver a cargarlo.</span></div>`;
+    Object.entries(G).sort((a,b)=>String(a[1].r.titulo||a[1].r.area).localeCompare(b[1].r.titulo||b[1].r.area,'es')).forEach(([ak,g])=>{
+      const col=AREA_C[g.r.categoria]||AREA_C.gen;
+      const LUG=Object.entries(g.lugares), muchos=LUG.length>6, abierto=LDX.has(ak);
+      h+=`<div class="lgrp" style="--c:${col}"><h4>${escHTML(g.r.titulo?titA(g.r.titulo):g.r.area)} <small>${escHTML(g.r.area||'')} · ${LUG.length} lugar${LUG.length>1?'es':''}</small></h4>`;
+      if(muchos){ const conL=LUG.filter(([,l])=>l.filas.some(f=>f.personas.length)).length;
+        h+=`<div class="lrow2"><div class="lsal"><b>Todos los lugares</b><small>${LUG.length} lugares · ${conL} con líder</small></div><div class="lppl"><span class="sm">${conL?'':'Sin líder en ningún lugar. '}Puedes asignar líderes a todos a la vez o abrir la lista.</span></div>
+          <div class="lbtn"><button class="b2" data-asig="${escHTML(ak)}|*">Asignar a todos</button><button class="b2" data-ver="${escHTML(ak)}">${abierto?'Ocultar':'Ver'} lugares</button></div></div>`; }
+      LUG.forEach(([sk,l])=>{ if(muchos&&!abierto) return; const x=l.x, per=new Map(); l.filas.forEach(f=>f.personas.forEach(p=>per.set(p.correo,p))); const pend=[...new Set(l.filas.flatMap(f=>f.pend))];
+        const man=l.filas.some(f=>f.fuente==='manual');
+        h+=`<div class="lrow2"><div class="lsal"><b>${escHTML(l.salon)}</b><small>${l.filas.length} grupo${l.filas.length>1?'s':''}</small></div>
+          <div class="lppl">${[...per.values()].map(chip).join('')||'<span class="pend">Sin líder</span>'}${pend.length?`<span class="lpend">Excel: ${escHTML(pend.join(', '))}${pend.some(p=>/docentes del/i.test(p))?'':' (no está en el directorio)'}</span>`:''}${man?'<span class="lman">✋ asignado a mano</span>':''}</div>
+          <div class="lbtn"><button class="b2" data-asig="${escHTML(ak)}|${escHTML(sk)}">Asignar</button>${man?`<button class="b2" data-ex="${escHTML(ak)}|${escHTML(sk)}" title="Quitar la asignación manual">Volver al Excel</button>`:''}</div></div>`; });
+      h+='</div>'; });
+    $('admTab').innerHTML=h;
+    $('lCrear').onclick=async()=>{ $('lCrear').disabled=true; $('lCrear').textContent='Creando cuentas…'; try{ await crearCuentasFaltantes(); }catch(e){ aviso('No se pudieron crear: '+e.message,'bad'); } tLideres(); };
+    $('lAplicar').onclick=async()=>{ $('lAplicar').disabled=true; try{ const n=await aplicarLideres(); aviso(`App actualizada (${n} filas con cambios)`,'ok'); }catch(e){ aviso('Error: '+e.message,'bad'); } tLideres(); };
+    $('admTab').querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{ const [ak,sk]=b.dataset.ex.split('|');
+      const ids=D.man.filter(x=>x.actividad===ak&&(x.salon===sk||x.salon==='*')).map(x=>x.id); if(!ids.length) return;
+      if(!confirm('¿Quitar la asignación manual y volver a lo que dice el Excel?')) return;
+      const {error}=await sb().from('sd_lideres').delete().in('id',ids); if(error) return aviso(error.message,'bad'); await aplicarLideres(); tLideres(); });
+    $('admTab').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{ const k=b.dataset.ver; LDX.has(k)?LDX.delete(k):LDX.add(k); tLideres(); });
+    $('admTab').querySelectorAll('[data-asig]').forEach(b=>b.onclick=()=>{ const [ak,sk]=b.dataset.asig.split('|'); asignarModal(ak,sk,G[ak],D,R); });
+  }
+  function asignarModal(ak,sk,g,D,R){
+    const todosSk=sk==='*', l=todosSk?{salon:'todos los lugares',filas:Object.values(g.lugares).flatMap(x=>x.filas)}:g.lugares[sk], actuales=new Map(); if(!todosSk) l.filas.forEach(f=>f.personas.forEach(p=>actuales.set(p.correo,p)));
+    const sel=new Map(actuales), base=new Map(); D.dir.forEach(d=>base.set(d.correo.toLowerCase(),{correo:d.correo.toLowerCase(),nombre:d.nombre}));
+    D.perf.filter(p=>!['admin'].includes(p.rol)).forEach(p=>{ const c=String(p.correo).toLowerCase(); if(!base.has(c)) base.set(c,{correo:c,nombre:p.nombre}); });
+    const todos=[...base.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')), nLug=Object.keys(g.lugares).length;
+    const m=document.createElement('div'); m.className='admmodal'; document.body.appendChild(m);
+    const pinta=q=>{ q=nrm(q||''); const lista=todos.filter(p=>!q||nrm(p.nombre+' '+p.correo).includes(q)).slice(0,80);
+      m.innerHTML=`<div class="amb"><h3>Asignar líderes</h3><p class="sm">${escHTML(g.r.titulo?titA(g.r.titulo):g.r.area)} · <b>${escHTML(l.salon)}</b></p>
+        <div class="asel">${[...sel.values()].map(p=>`<span class="lch on" data-q="${escHTML(p.correo)}">✕ ${escHTML(p.nombre)}</span>`).join('')||'<span class="pend">Nadie seleccionado</span>'}</div>
+        <input id="asB" placeholder="Buscar docente por nombre o correo…" value="${escHTML(q)}">
+        <div class="alist">${lista.map(p=>`<label><input type="checkbox" data-c="${escHTML(p.correo)}" ${sel.has(p.correo)?'checked':''}> ${escHTML(p.nombre)} <small>${escHTML(p.correo)}</small></label>`).join('')}</div>
+        ${nLug>1&&!todosSk?`<div class="ascope"><label><input type="radio" name="asA" value="uno" checked> Solo en ${escHTML(l.salon)}</label><label><input type="radio" name="asA" value="todos"> En los ${nLug} lugares de esta actividad</label></div>`:''}
+        <div class="abtn"><button class="b2" id="asX">Cancelar</button><button class="b1" id="asOk">Guardar</button></div></div>`;
+      const b=m.querySelector('#asB'); b.oninput=()=>{ const v=b.value; pinta(v); const nb=m.querySelector('#asB'); nb.focus(); nb.setSelectionRange(v.length,v.length); };
+      m.querySelectorAll('[data-c]').forEach(c=>c.onchange=()=>{ const p=base.get(c.dataset.c); if(c.checked) sel.set(p.correo,p); else sel.delete(p.correo); pinta(m.querySelector('#asB').value); });
+      m.querySelectorAll('.asel [data-q]').forEach(c=>c.onclick=()=>{ sel.delete(c.dataset.q); pinta(m.querySelector('#asB').value); });
+      m.querySelector('#asX').onclick=()=>m.remove();
+      m.querySelector('#asOk').onclick=async()=>{ const todosL=todosSk||(m.querySelector('input[name=asA][value=todos]')&&m.querySelector('input[name=asA][value=todos]').checked), salon=todosL?'*':sk;
+        m.querySelector('#asOk').disabled=true;
+        let q1=sb().from('sd_lideres').delete().eq('actividad',ak); q1=todosL?q1:q1.eq('salon',sk); const r1=await q1; if(r1.error){ aviso(r1.error.message,'bad'); return; }
+        if(sel.size){ const r2=await sb().from('sd_lideres').insert([...sel.values()].map(p=>({actividad:ak,salon,correo:p.correo,nombre:p.nombre}))); if(r2.error){ aviso(r2.error.message,'bad'); return; } }
+        m.remove(); try{ await aplicarLideres(); }catch(e){} aviso('Líderes guardados','ok'); tLideres(); }; };
+    pinta('');
+  }
+
+  /* =================== v28 · Agenda Master =================== */
+  const TIPOS={sup:['Supervisar','#173d7a'],acom:['Acompañar actividad','#1f9d6b'],fijo:['Punto fijo','#c2410c'],reu:['Reunión','#7b4bd6'],lib:['Libre','#8a94a8']};
+  const H0=6.5, H1=15;
+  const hm=v=>{ const h=Math.floor(v), m=Math.round((v-h)*60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); };
+  const aNum=t=>{ const [a,b]=String(t).slice(0,5).split(':').map(Number); return a+b/60; };
+  let AGS=null, agSel=null;
+  async function tAgenda(){
+    const [p,a]=await Promise.all([ sb().from('sd_perfiles').select('id,nombre,rol').in('rol',['master']).order('nombre'), sb().from('sd_agenda').select('*').order('hora_inicio') ]);
+    if(a.error) throw new Error('Falta ejecutar el archivo 14-lideres-y-agenda.sql en Supabase ('+a.error.message+')');
+    AGS={m:p.data||[], b:(a.data||[]).map(x=>({...x,hora_inicio:String(x.hora_inicio).slice(0,5),hora_fin:String(x.hora_fin).slice(0,5)}))};
+    pintarAgendaAdm();
+  }
+  function lugaresAg(){ const s=new Set(S().prog.filter(r=>r.tipo==='actividad'&&r.salon).map(r=>String(r.salon).replace(/^[-\s]+|[-\s]+$/g,'')));
+    ['Portería principal','Entrada 2','Hall Principal','Coliseo','Cancha de fútbol','Zona verde','Rectoría','Sala de profesores','Restaurante','Bloque 130','Sede Primaria'].forEach(x=>s.add(x)); return [...s].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})); }
+  function pintarAgendaAdm(){
+    const M=AGS.m, B=AGS.b, W=H1-H0, nom=id=>((M.find(x=>x.id===id)||{}).nombre||'');
+    if(agSel&&agSel.id&&!B.find(b=>b.id===agSel.id)) agSel=null;
+    const f=agSel||{perfil_id:(M[0]||{}).id,hora_inicio:'08:00',hora_fin:'09:00',lugar:'',tarea:'',tipo:'sup',avisar:true};
+    const blk=b=>`<div class="ablk ${agSel&&agSel.id===b.id?'sel':''}" data-id="${b.id}" style="left:${((aNum(b.hora_inicio)-H0)/W*100).toFixed(2)}%;width:calc(${((aNum(b.hora_fin)-aNum(b.hora_inicio))/W*100).toFixed(2)}% - 3px);background:${(TIPOS[b.tipo]||TIPOS.sup)[1]}" title="${escHTML(b.lugar+' · '+(b.tarea||''))}"><b>${escHTML(b.lugar)}</b>${escHTML(b.tarea||'')}</div>`;
+    $('admTab').innerHTML=`<div class="aglay"><div class="agmain">
+      <div class="tools"><div class="aleg">${Object.values(TIPOS).map(t=>`<span><i style="background:${t[1]}"></i>${t[0]}</span>`).join('')}</div><button class="b1" id="agNuevo">+ Nuevo bloque</button><button class="b2" id="agXls">⬇ Descargar agenda</button></div>
+      ${M.length?`<div class="agantt"><div class="agh"><div>Master</div><div class="agt">${Array.from({length:Math.ceil(W)},(_,i)=>`<span>${fmtHora(hm(H0+i))}</span>`).join('')}</div></div>
+      ${M.map(m=>`<div class="agr"><div class="agn"><b>${escHTML(m.nombre)}</b><small>${B.filter(b=>b.perfil_id===m.id).length} bloques</small></div><div class="agt rel" data-p="${m.id}">${B.filter(b=>b.perfil_id===m.id).map(blk).join('')}</div></div>`).join('')}</div>`:'<div class="warnbox">No hay usuarios Master registrados.</div>'}
+      <p class="sm">Toca un bloque para editarlo o un espacio vacío de una fila para crear uno nuevo. Los cambios llegan de inmediato al celular de esa persona, con un aviso.</p></div>
+      <div class="agform"><h4>${agSel&&agSel.id?'Editar bloque':'Nuevo bloque'}</h4>
+        <label>Persona</label><select id="agP">${M.map(m=>`<option value="${m.id}" ${m.id===f.perfil_id?'selected':''}>${escHTML(m.nombre)}</option>`).join('')}</select>
+        <div class="two"><div><label>Desde</label><input type="time" id="agD" value="${f.hora_inicio}" min="06:00" max="16:00"></div><div><label>Hasta</label><input type="time" id="agH" value="${f.hora_fin}" min="06:00" max="16:00"></div></div>
+        <label>Lugar</label><input id="agL" list="agLs" value="${escHTML(f.lugar)}" placeholder="Ej. Coliseo, 144, Portería principal"><datalist id="agLs">${lugaresAg().map(x=>`<option value="${escHTML(x)}">`).join('')}</datalist>
+        <label>Qué debe hacer</label><textarea id="agT" rows="3" maxlength="300" placeholder="Ej. Verificar que los grupos lleguen a tiempo y apoyar al líder de la estación">${escHTML(f.tarea||'')}</textarea>
+        <label>Tipo</label><div class="agtipos">${Object.entries(TIPOS).map(([k,t])=>`<span data-k="${k}" class="${k===f.tipo?'on':''}" style="--c:${t[1]}">${t[0]}</span>`).join('')}</div>
+        <label class="chk"><input type="checkbox" id="agA" ${f.avisar!==false?'checked':''}> Avisarle antes de este bloque</label>
+        <div id="agErr" class="warnbox" hidden></div>
+        <div class="agbtns"><button class="b1" id="agG">Guardar</button>${agSel&&agSel.id?'<button class="b2" id="agDup">Duplicar para…</button><button class="b2 del" id="agDel">Eliminar</button>':''}</div></div></div>`;
+    let tipo=f.tipo;
+    $('admTab').querySelectorAll('.agtipos span').forEach(x=>x.onclick=()=>{ tipo=x.dataset.k; $('admTab').querySelectorAll('.agtipos span').forEach(y=>y.classList.toggle('on',y===x)); });
+    $('admTab').querySelectorAll('.ablk').forEach(x=>x.onclick=e=>{ e.stopPropagation(); agSel={...B.find(b=>String(b.id)===x.dataset.id)}; pintarAgendaAdm(); });
+    $('admTab').querySelectorAll('.agt.rel').forEach(x=>x.onclick=e=>{ const r=x.getBoundingClientRect(), h=H0+(e.clientX-r.left)/r.width*W, h0=Math.floor(h*4)/4; agSel={perfil_id:x.dataset.p,hora_inicio:hm(h0),hora_fin:hm(Math.min(H1,h0+1)),lugar:'',tarea:'',tipo:'sup',avisar:true}; pintarAgendaAdm(); });
+    $('agNuevo').onclick=()=>{ agSel=null; pintarAgendaAdm(); };
+    $('agXls').onclick=descargarAgenda;
+    $('agG').onclick=async()=>{ const d={perfil_id:$('agP').value,hora_inicio:$('agD').value,hora_fin:$('agH').value,lugar:$('agL').value.trim(),tarea:$('agT').value.trim()||null,tipo,avisar:$('agA').checked};
+      const err=m=>{ $('agErr').hidden=false; $('agErr').textContent=m; };
+      if(!d.lugar) return err('Escribe el lugar.'); if(!d.hora_inicio||!d.hora_fin||d.hora_fin<=d.hora_inicio) return err('La hora final debe ser mayor que la inicial.');
+      const cruce=B.find(b=>b.perfil_id===d.perfil_id&&(!agSel||b.id!==agSel.id)&&b.hora_inicio<d.hora_fin&&d.hora_inicio<b.hora_fin);
+      if(cruce&&!confirm(`Se cruza con otro bloque de ${nom(d.perfil_id)} (${fmtHora(cruce.hora_inicio)}–${fmtHora(cruce.hora_fin)} · ${cruce.lugar}). ¿Guardar de todas formas?`)) return;
+      const q=agSel&&agSel.id?sb().from('sd_agenda').update(d).eq('id',agSel.id).select().single():sb().from('sd_agenda').insert(d).select().single();
+      const {data,error}=await q; if(error) return err('No se pudo guardar: '+error.message);
+      aviso('Bloque guardado','ok'); agSel={...data,hora_inicio:String(data.hora_inicio).slice(0,5),hora_fin:String(data.hora_fin).slice(0,5)}; await tAgenda(); };
+    if($('agDel')) $('agDel').onclick=async()=>{ if(!confirm('¿Eliminar este bloque?')) return; const {error}=await sb().from('sd_agenda').delete().eq('id',agSel.id); if(error) return aviso(error.message,'bad'); agSel=null; aviso('Bloque eliminado','ok'); await tAgenda(); };
+    if($('agDup')) $('agDup').onclick=()=>{ const m=document.createElement('div'); m.className='admmodal'; document.body.appendChild(m);
+      m.innerHTML=`<div class="amb"><h3>Duplicar para…</h3><p class="sm">${fmtHora(agSel.hora_inicio)}–${fmtHora(agSel.hora_fin)} · ${escHTML(agSel.lugar)}${agSel.tarea?' · '+escHTML(agSel.tarea):''}</p>
+        <div class="alist">${M.filter(x=>x.id!==agSel.perfil_id).map(x=>`<label><input type="checkbox" value="${x.id}"> ${escHTML(x.nombre)}</label>`).join('')}</div>
+        <div class="abtn"><button class="b2" id="duT">Todos</button><button class="b2" id="duX">Cancelar</button><button class="b1" id="duOk">Duplicar</button></div></div>`;
+      m.querySelector('#duT').onclick=()=>m.querySelectorAll('input').forEach(i=>i.checked=true); m.querySelector('#duX').onclick=()=>m.remove();
+      m.querySelector('#duOk').onclick=async()=>{ const ids=[...m.querySelectorAll('input:checked')].map(i=>i.value); if(!ids.length) return m.remove();
+        const {error}=await sb().from('sd_agenda').insert(ids.map(id=>({perfil_id:id,hora_inicio:agSel.hora_inicio,hora_fin:agSel.hora_fin,lugar:agSel.lugar,tarea:agSel.tarea,tipo:agSel.tipo,avisar:agSel.avisar}))); m.remove();
+        if(error) return aviso(error.message,'bad'); aviso(`Bloque copiado a ${ids.length} persona${ids.length>1?'s':''}`,'ok'); await tAgenda(); }; };
+  }
+  async function descargarAgenda(){ try{ await cargarXLSX(); const nom=id=>((AGS.m.find(x=>x.id===id)||{}).nombre||'');
+      const filas=AGS.b.slice().sort((a,b)=>nom(a.perfil_id).localeCompare(nom(b.perfil_id),'es')||a.hora_inicio.localeCompare(b.hora_inicio)).map(b=>({Master:nom(b.perfil_id),Desde:b.hora_inicio,Hasta:b.hora_fin,Lugar:b.lugar,'Qué debe hacer':b.tarea||'',Tipo:(TIPOS[b.tipo]||TIPOS.sup)[0],Aviso:b.avisar?'Sí':'No'}));
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filas),'Agenda Master'); XLSX.writeFile(wb,'agenda-master-steam-day.xlsx');
+    }catch(e){ aviso('No se pudo generar: '+e.message,'bad'); } }
 
   window.abrirAdmin = abrir;
 })();
