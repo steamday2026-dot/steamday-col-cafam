@@ -174,6 +174,11 @@ const ARRIVE_CSS = `
   .abox .row2{display:flex;justify-content:space-between;align-items:center}
   .abox .bar{height:4px;background:#e2e6ee;border-radius:4px;flex:1;margin-right:10px;overflow:hidden}
   .abox .bar i{display:block;height:100%;background:var(--c);width:0}
+  .abox .lidstrip{display:flex;align-items:center;gap:6px;background:#fff7ef;border:1.5px solid #f3c39b;border-radius:12px;padding:4px 8px;margin:6px 0 4px;font-size:12px;text-align:left;color:#7c2d12;line-height:1.3}
+  .abox .lidstrip b{color:#9a3412}.abox .lidstrip svg{flex:none;width:28px;height:32px;margin:0}
+  .lidbub{position:absolute;left:10px;right:10px;top:10px;z-index:6;background:#fff;border:2px solid #c2410c;border-radius:16px;padding:8px 10px;display:flex;gap:8px;align-items:center;font-size:12px;color:#33415c;line-height:1.35;box-shadow:0 8px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .3s}
+  .lidbub b{color:#9a3412;font-size:13px}.lidbub .mas{display:inline-block;margin-top:3px;background:#c2410c;color:#fff;border-radius:8px;padding:1px 7px;font-size:10.5px;font-weight:800}
+  .lidbub svg{flex:none;width:32px;height:36px}
   .abox button{border:0;background:var(--c);color:#fff;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
   .a-shake{animation:shake .14s linear 8}
   @keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-3px,1px)}75%{transform:translate(3px,-1px)}}
@@ -213,7 +218,16 @@ const ARRIVE_CSS = `
   .a-flag{transform-box:view-box;transform-origin:100px 50px;animation:wave 1s ease-in-out infinite alternate}
   @keyframes wave{to{transform:skewY(-6deg) scaleX(.94)}}
 `;
-function mostrarLlegada(container, r){
+
+/* ---------- v28 · Líder de estación en la ruta del docente ---------- */
+const lidCorto=n=>{ const p=String(n||'').trim().split(/\s+/); return p.length>=3?p[2]:(p[0]||''); };
+const lidNombre=n=>{ const p=String(n||'').trim().split(/\s+/); return p.length>=3?p[2]+' '+p[0]:String(n||''); };
+function lidMini(l,w){ w=w||28; return `<svg viewBox="-36 -112 72 124" style="width:${w}px;height:${Math.round(w*1.15)}px">${lidDibujo(l,{},1)}</svg>`; }
+/* dibuja un líder: con sus piezas si ya diseñó su avatar; si no, con capa e insignia del color de su área */
+function lidDibujo(l,pose,t){ if(typeof liderSVG!=='function') return avatarPose((l&&l.avatar)||{},pose||{});
+  const av=(l&&l.avatar)||{}, L=av.lid||{area:l&&l.area||'cie',atu:1,est:true,efe:[]}; return liderSVG(av,L,pose||{},t||0); }
+function lidFranja(L){ return `<div class="lidstrip">${L.slice(0,3).map(l=>lidMini(l,26)).join('')}<div>Te recibe${L.length>1?'n':''}: <b>⭐ ${L.length>1?L.length+' líderes de estación':escHTML(lidNombre(L[0].nombre))}</b>${L.length>1?'<br>'+escHTML(L.slice(0,3).map(x=>lidCorto(x.nombre)).join(', '))+(L.length>3?'…':''):'<br>Líder de estación'}</div></div>`; }
+function mostrarLlegada(container, r, lids){
   const t = r.tipo==='actividad' && TEMAS[r.cat] ? r.cat : null;
   // actividad del Excel: título (columna F) y frase (columna G); Matemáticas y Ciencias con animación propia
   const A = window.ActSTEM, k = t && A ? A.clave(r) : null;
@@ -227,7 +241,7 @@ function mostrarLlegada(container, r){
   if(!el){ el=document.createElement('div'); el.className='arrive'; container.appendChild(el); }
   el.style.setProperty('--c',T.col);
   el.innerHTML=`<div class="abox"><div class="atag">Llegaste a · ${escHTML(r.tipo==='pausa'?r.area:(r.lugar||r.salon||''))}</div>
-    <svg viewBox="0 0 240 165">${dibujo}</svg><h3>${escHTML(T.titulo)}</h3><p>${escHTML(T.sub)}</p>
+    <svg viewBox="0 0 240 165">${dibujo}</svg>${lids&&lids.length?lidFranja(lids):''}<h3>${escHTML(T.titulo)}</h3><p>${escHTML(T.sub)}</p>
     <div class="row2"><div class="bar"><i></i></div><button type="button">Continuar</button></div></div>`;
   requestAnimationFrame(()=>el.classList.add('on'));
   const bar=el.querySelector('.bar i'); bar.style.transition=`width ${T.dur}ms linear`; requestAnimationFrame(()=>requestAnimationFrame(()=>bar.style.width='100%'));
@@ -257,6 +271,7 @@ class MapaSteam {
     this.road=this.svg.querySelector('[data-r="road"]'); this.trail=this.svg.querySelector('[data-r="trail"]');
     this.total=this.road.getTotalLength();
     this.lens=this.PTS.map(pt=>{let best=0,bd=1e9; for(let L=0;L<=this.total;L+=2){const p=this.road.getPointAtLength(L),dd=(p.x-pt.x)**2+(p.y-pt.y)**2; if(dd<bd){bd=dd;best=L;}} return best;});
+    this.svg.insertAdjacentHTML('beforeend','<g class="lsaved"></g><g class="lid"></g>');
     this.cur=cur; this.setVB(this.FULL); this.nodes(); this.place(cur<0?0:this.lens[cur],{dir:'f',walk:0}); this.idle();
   }
   side(i){ return this.PTS[i].x<160?-1:1; }
@@ -303,13 +318,51 @@ class MapaSteam {
       return `<g class="node" data-i="${i}" transform="translate(${q.x},${q.y})">${now?`<circle r="16" fill="${col}" opacity=".3"><animate attributeName="r" values="12;19;12" dur="1.6s" repeatCount="indefinite"/></circle>`:''}
         <circle r="11" fill="${done?'#f2a900':col}" stroke="#fff" stroke-width="3"/><text>${done?'★':(r.tipo==='pausa'?'•':i+1)}</text></g>`; }).join('');
     this.svg.querySelectorAll('.node').forEach(n=>n.onclick=()=>this.opts.onTap&&this.opts.onTap(+n.dataset.i));
+    this.pintarGuardados();
+  }
+  /* ---- v28: líderes de estación ---- */
+  lideres(i){ const o=this.opts.lideres&&this.opts.lideres(i); return o&&o.list&&o.list.length?o:null; }
+  base(i){ const P=this.PTS[i], sd=this.side(i); return {sd, bx:P.x+sd*62, by:P.y+6}; }
+  pintarGuardados(){
+    const g=this.svg.querySelector('.lsaved'); if(!g||!this.PTS) return; let s='';
+    this.stops.forEach((r,i)=>{ const o=this.lideres(i); if(!o||!(this.opts.saludado&&this.opts.saludado(i))) return;
+      const {bx,by}=this.base(i), ty=by-(48+(i%3)*6), cx=bx+40, cy=ty-2, l=o.list[0], av=l.avatar||{};
+      s+=`<defs><clipPath id="lcp${i}"><circle cx="${cx}" cy="${cy}" r="9"/></clipPath></defs><circle cx="${cx}" cy="${cy}" r="10.5" fill="#fff" stroke="#f2b705" stroke-width="2"/>
+        <g clip-path="url(#lcp${i})"><rect x="${cx-10}" y="${cy-10}" width="20" height="20" fill="#fff3e6"/><g transform="translate(${cx},${cy+16}) scale(.27)">${avatarPose(av,{})}</g></g>
+        <path transform="translate(${cx+8},${cy-8})" d="M0,-4.2L1,-1.4L4,-1.3L1.6,.6L2.5,3.4L0,1.8L-2.5,3.4L-1.6,.6L-4,-1.3L-1,-1.4Z" fill="#f2b705" stroke="#2b2b3a" stroke-width=".8"/>
+        ${o.list.length>1?`<rect x="${cx-9}" y="${cy+8}" width="18" height="9" rx="4.5" fill="#c2410c"/><text x="${cx}" y="${cy+14.8}" text-anchor="middle" style="font-size:6.5px;font-weight:900;fill:#fff">×${o.list.length}</text>`:''}`; });
+    g.innerHTML=s;
+  }
+  dibujaLid(list,pos,poses,op){ const g=this.svg.querySelector('.lid'); if(!g) return; const t=performance.now()/1000;
+    g.innerHTML=list.map((l,k)=>`<g opacity="${op==null?1:op}" transform="translate(${pos[k].x.toFixed(1)},${pos[k].y.toFixed(1)}) scale(.52)">${lidDibujo(l,poses[k],t)}</g>`).join(''); }
+  burbuja(o,lin){ let b=this.box.querySelector('.lidbub'); if(!lin){ if(b){ b.style.opacity=0; setTimeout(()=>b.remove(),300); } return; }
+    b=document.createElement('div'); b.className='lidbub';
+    b.innerHTML=`<div style="display:flex;gap:2px;flex:none">${o.list.slice(0,3).map(l=>lidMini(l,30)).join('')}</div><div><b>${escHTML(lin[0])}</b><br>${escHTML(lin[1])}<br>${escHTML(lin[2])}${o.list.length>3?`<br><span class="mas">+${o.list.length-3} líderes más</span>`:''}</div>`;
+    this.box.appendChild(b); requestAnimationFrame(()=>b.style.opacity=1); }
+  async saludo(idx,o){
+    const list=o.list.slice(0,3), {sd,bx,by}=this.base(idx), p=this.road.getPointAtLength(this.lens[idx]);
+    const D={x:bx-sd*6,y:by+10}, T=list.map((_,k)=>({x:p.x+13+sd*(27+k*19),y:p.y+12+(k%2)*8}));
+    const lerp=(a,b,k)=>a+(b-a)*k, ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2, flip=T[0].x<D.x;
+    this.place(this.lens[idx],{walk:0,dir:'f',look:sd,wave:0});
+    await this.anim(1500,k=>{ const pos=[],po=[]; list.forEach((_,i)=>{ const kk=Math.max(0,Math.min(1,(k-i*.12)/.76)), e=ease(kk); pos.push({x:lerp(D.x,T[i].x,e),y:lerp(D.y,T[i].y,e)}); po.push({walk:kk>0&&kk<1?1:0,ph:kk*14,dir:'f',flip}); }); this.dibujaLid(list,pos,po,Math.min(1,k*4)); });
+    const quien=o.quien?'¡Hola, '+o.quien+'!':'¡Hola!';
+    const lin=o.list.length>1?[quien,'Somos los líderes de esta estación',o.curso?'Bienvenidos, '+o.curso+' 👋':'¡Bienvenidos! 👋']:[quien,'Soy '+lidCorto(o.list[0].nombre)+', líder de esta estación',o.curso?'Bienvenidos, '+o.curso+' 👋':'¡Bienvenidos! 👋'];
+    this.burbuja(o,lin);
+    await this.anim(2600,k=>{ this.dibujaLid(list,T,list.map((_,i)=>({wave:Math.min(1,k*1.4+i*.1)%1,dir:'f',flip:sd>0}))); this.place(this.lens[idx],{walk:0,dir:'f',look:sd,wave:k>.35?(k-.35)/.65:0}); });
+    this.burbuja(o,null); this._lid={T,D,list};
+  }
+  async regreso(idx){
+    const {T,D,list}=this._lid||{}; if(!T) return; const lerp=(a,b,k)=>a+(b-a)*k, ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    await this.anim(1400,k=>{ const pos=[],po=[]; list.forEach((_,i)=>{ const kk=Math.max(0,Math.min(1,(k-i*.1)/.8)), e=ease(kk); pos.push({x:lerp(T[i].x,D.x,e),y:lerp(T[i].y,D.y,e)}); po.push({walk:kk<1?1:0,ph:kk*14,dir:'b',flip:D.x<T[i].x}); }); this.dibujaLid(list,pos,po,k>.8?(1-k)/.2:1); });
+    const g=this.svg.querySelector('.lid'); if(g) g.innerHTML=''; this._lid=null;
+    if(this.opts.guardarSaludo) this.opts.guardarSaludo(idx); this.pintarGuardados();
   }
   setVB(v){ this.vb=v; this.svg.setAttribute('viewBox',v.map(n=>n.toFixed(1)).join(' ')); }
   zoomAt(x,y){ const ZW=150, ZH=ZW*this.H/430; return [Math.max(-55,Math.min(375-ZW,x-ZW/2)), Math.max(0,Math.min(this.H-ZH,y-ZH/2)), ZW, ZH]; }
   place(L,pose){ this.L=L; const p=this.road.getPointAtLength(L); this.trail.style.strokeDasharray=this.total; this.trail.style.strokeDashoffset=this.opts.libre?this.total:this.total-L;
     this.pose=Object.assign({dir:'f',flip:false},this.pose||{},pose||{});
     const lift=this.pose.lift||0;
-    this.svg.querySelector('.av').innerHTML=`<g transform="translate(${(p.x+13).toFixed(1)},${(p.y-4-lift).toFixed(1)}) scale(.52)">${avatarPose(this.av,this.pose)}</g>`; return p; }
+    this.svg.querySelector('.av').innerHTML=`<g transform="translate(${(p.x+13).toFixed(1)},${(p.y-4-lift).toFixed(1)}) scale(.52)">${(window.avatarAny||avatarPose)(this.av,this.pose)}</g>`; return p; }
   /* parpadeo y mirada cuando está quieto */
   idle(){ if(this._idle) return; let t0=performance.now();
     this._idle=setInterval(()=>{ if(this.busy||!this.road||document.hidden) return; const t=(performance.now()-t0)/1000;
@@ -333,7 +386,10 @@ class MapaSteam {
     await this.anim(1100,k=>{ this.place(to,{walk:0,dir:'f',flip:false,lift:k<.3?Math.sin(k/.3*Math.PI)*10:0,wave:k>.25?(k-.25)/.75:0}); });
     this.place(to,{walk:0,dir:'f',wave:0,lift:0});
     if(this.opts.onArrive) this.opts.onArrive(idx);
-    if(conLlegada){ await this.anim(250,()=>{}); await mostrarLlegada(this.box,this.stops[idx]); }
+    const lo=conLlegada?this.lideres(idx):null;           // v28: el líder sale a recibir al docente
+    if(lo){ try{ await this.saludo(idx,lo); }catch(e){} }
+    if(conLlegada){ await this.anim(250,()=>{}); await mostrarLlegada(this.box,this.stops[idx],lo&&lo.list); }
+    if(lo){ try{ await this.regreso(idx); }catch(e){} }
     const z1=[...this.vb]; await this.anim(900,k=>{const e=ease(k); this.setVB(z1.map((v,i)=>lerp(v,full[i],e)));});
     this.tag.classList.remove('on'); this.busy=false;
   }
