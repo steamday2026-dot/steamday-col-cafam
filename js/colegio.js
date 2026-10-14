@@ -8,6 +8,7 @@
 const $c=id=>document.getElementById(id);
 const esc=t=>t==null?'':String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let DATA=[], ACT=[], NOW=480, AV=avatarNormal({}), CAM=null;
+let LIDFN=null, PINS=[];   // v28: líderes de estación por fila y pines de la Agenda Master (administrador)
 const toMin=h=>{const[a,b]=h.split(':').map(Number);return a*60+b;};
 const cap=t=>t?t.charAt(0)+t.slice(1).toLowerCase():t;
 /* escala de los interiores (avatar, detalle de los salones y cámara) */
@@ -290,11 +291,32 @@ function carpa(i,j,col,txt,k=1,act){ const w=34*k, d=24*k, hp=22*k, hr=30*k; let
   s+=`<polygon points="${pts([D,C,M])}" fill="${col}"/><polygon points="${pts([C,B,M])}" fill="${shade(col,.75)}"/><polygon points="${pts([A,D,M])}" fill="${claro(col,.25)}"/>`;
   s+=`<path d="M${D[0]},${D[1]} L${C[0]},${C[1]}" stroke="#fff" stroke-width="${1.8*k}" stroke-dasharray="3 3"/>`;
   if(txt){ const [x,y]=P(i+w/2,j+d,3); s+=`<text x="${x}" y="${y+9}" text-anchor="middle" style="font-size:8px;font-weight:800;fill:${shade(col,.6)}">${txt}</text>`; }
+  if(act) s+=lidEnCarpa(act,i,j,w,d,k);
   if(act&&act.id!=null) s=`<g class="tapc" style="cursor:pointer" data-act="${act.id}" data-pi="${(i+w/2).toFixed(1)}" data-pj="${(j+d+7*k).toFixed(1)}">${s}</g>`;
   return s; }
 /* objeto temático según el área que predomina en el lugar */
 function decorEn(i,j,fs,k=1){ const st=fs.find(f=>f.categoria!=='gen'); if(!st) return ''; const [x,y]=P(i,j); return envDecor(st.categoria,x,y,k); }
 function persona(x,y,c){ return `<rect x="${x-1.4}" y="${y-5}" width="2.8" height="4.5" rx="1" fill="${c}"/><circle cx="${x}" cy="${y-6.6}" r="1.6" fill="#e8b48a"/>`; }
+/* ---------- v28 · líderes de estación dentro de los salones y carpas ---------- */
+const lidPill=(x,y,txt,k)=>{ const w=txt.length*3.1*k+10*k; return `<g pointer-events="none"><rect x="${(x-w/2).toFixed(1)}" y="${(y-7*k).toFixed(1)}" width="${w.toFixed(1)}" height="${(9*k).toFixed(1)}" rx="${(4.5*k).toFixed(1)}" fill="#c2410c" stroke="#fff" stroke-width="${(.6*k).toFixed(2)}"/><text x="${x.toFixed(1)}" y="${(y-.6*k).toFixed(1)}" text-anchor="middle" style="font-size:${(5.6*k).toFixed(1)}px;font-weight:900;fill:#fff">${esc(txt)}</text></g>`; };
+const lidCort=n=>{ const p=String(n||'').trim().split(/\s+/); return p.length>=3?p[2]:(p[0]||''); };
+function lidsFila(f){ try{ return (LIDFN&&f)?(LIDFN(f)||[]):[]; }catch(e){ return []; } }
+function lidsUnicos(fs){ const out=[], ids=new Set(); fs.forEach(f=>lidsFila(f).forEach(l=>{ if(!ids.has(l.id)){ ids.add(l.id); out.push(l); } })); return out; }
+function lidEnSalon(code,m,i0,i1,j0,j1){ if(!LIDFN||typeof lidDibujo!=='function') return ''; const L=lidsUnicos(enSalon(code,m)); if(!L.length) return '';
+  const w=i1-i0, d=j1-j0, n=Math.min(L.length,4); let s='';
+  L.slice(0,4).forEach((l,k)=>{ const [x,y]=P(i0+w*(.5+(k-(n-1)/2)*.26), j0+d*.2); s+=`<g pointer-events="none" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(.22)">${lidDibujo(l,{},0)}</g>`+lidPill(x,y+5,'⭐ '+lidCort(l.nombre),1); });
+  return s; }
+function lidEnCarpa(act,i,j,w,d,k){ if(!LIDFN||typeof lidDibujo!=='function') return ''; const f=DATA.find(x=>String(x.id)===String(act.id))||act; const all=lidsFila(f); if(!all.length) return '';
+  let L=all; if(all.length>2){ const mates=enSalon(ns(f.salon),NOW).filter(x=>x.hora_inicio===f.hora_inicio).map(x=>String(x.id)); const pos=Math.max(0,mates.indexOf(String(f.id))); L=[all[pos%all.length]]; }
+  let s=''; L.forEach((l,q)=>{ const [x,y]=P(i+w+5*k, j+d*(.35+q*.4)); s+=`<g pointer-events="none" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${(.24*k).toFixed(2)})">${lidDibujo(l,{},0)}</g>`+lidPill(x,y+4*k,'⭐ '+lidCort(l.nombre),k*.75); });
+  return s; }
+function lidSheet(fs){ const L=lidsUnicos(fs); return L.length?`<h4>⭐ Líder${L.length>1?'es':''} de estación</h4><p>${L.map(l=>esc(typeof lidNombre==='function'?lidNombre(l.nombre):l.nombre)).join('<br>')}</p>`:''; }
+/* pines de la Agenda Master (solo administrador): dónde debería estar cada Master ahora */
+function pinsSVG(){ if(!PINS.length) return ''; const g={}; PINS.forEach(p=>{ let k; try{ k=escDe({salon:ns(p.lugar)}); }catch(e){ k=null; } if(!k) return; (g[k]=g[k]||[]).push(p); });
+  let s=''; Object.entries(g).forEach(([k,ps])=>{ let xy; try{ xy=flagPos(k); }catch(e){ return; } const [x,y]=xy;
+    ps.slice(0,4).forEach((p,n)=>{ const t='📍 '+p.nombre, w=t.length*4.4+12, yy=y-26-n*14; s+=`<g pointer-events="none"><rect x="${(x-w/2).toFixed(1)}" y="${(yy-10).toFixed(1)}" width="${w.toFixed(1)}" height="13" rx="6.5" fill="#173d7a" stroke="#fff" stroke-width="1.2"/><text x="${x.toFixed(1)}" y="${(yy-1).toFixed(1)}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">${esc(t)}</text></g>`; });
+    if(ps.length>4) s+=`<text x="${x}" y="${y-26-4*14}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:#173d7a">+${ps.length-4}</text>`; });
+  return s; }
 function roomBox(i0,i1,j0,j1,code,m,h=20){
   if(CI().det) return roomDet(i0,i1,j0,j1,code,m,h); h=h*(CI().hk||1);
   const fs=enSalon(code,m), c=colorF(fs), w=i1-i0, d=j1-j0;
@@ -305,6 +327,7 @@ function roomBox(i0,i1,j0,j1,code,m,h=20){
   { const a=P(i0,j0+d*.5,h*.35),b=P(i0,j0+d*.85,h*.35); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${b[1]-h*.4} ${a[0]},${a[1]-h*.4}" fill="#9fc8ef" stroke="#7d8696" stroke-width=".7"/>`; }  // ventana
   for(let r=0;r<2;r++) for(let q=0;q<2;q++){ const i=i0+w*.18+q*w*.38, j=j0+d*.3+r*d*.3; s+=box(i,i+w*.22,j,j+d*.12,3,'#c99a62','#dcb27c',{noShadow:1}); if(c) s+=box(i+w*.04,i+w*.14,j+d*.14,j+d*.22,2.5,c,claro(c,.35),{noShadow:1}); }
   { const [x,y]=P(i0+w*.82,j0+d*.12); s+=`<rect x="${x-3}" y="${y-5}" width="6" height="4" fill="#8a6a44"/>`; }
+  s+=lidEnSalon(code,m,i0,i1,j0,j1);
   const [x,y]=P((i0+i1)/2,j1,-6);
   s+=`<g class="tap room" data-room="${code}"><rect x="${x-17}" y="${y-9}" width="34" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b2333">${code}</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
   return s; }
@@ -327,6 +350,7 @@ function roomDet(i0,i1,j0,j1,code,m,h){
   s+=box(i1-1.5,i1,j0,j1,h*.32,'#e8e1d4','#f3eee4',{noShadow:1});
   s+=box(i0,i0+w*.55,j1-1.5,j1,h*.32,'#efe9dd','#f3eee4',{noShadow:1});
   { const a=P(i0+w*.62,j1,0),b=P(i0+w*.9,j1,0); s+=`<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${b[0]},${b[1]-1.5} ${a[0]},${a[1]-1.5}" fill="#8a5a3b"/>`; }
+  s+=lidEnSalon(code,m,i0,i1,j0,j1);
   const [x,y]=P((i0+i1)/2,j1,-6);
   s+=`<g class="tap room" data-room="${code}"><rect x="${x-15}" y="${y-8}" width="30" height="${fs.length?17:11}" rx="4" fill="#fff" stroke="${c||'#b9c1cf'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:6.8px;font-weight:800;fill:#1b2333">${code}</text>${fs.length?`<text x="${x}" y="${y+7}" text-anchor="middle" style="font-size:6.2px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
   return s; }
@@ -341,6 +365,7 @@ function aulaCristal(i0,i1,j0,j1,m){ const code='Aula de Cristal', fs=enSalon(co
   s=vidrio(A,B,.35)+vidrio(A,D,.35)+s+vidrio(D,C,.28)+vidrio(B,C,.28);
   s+=`<polygon points="${pts([u(A),u(B),u(C),u(D)])}" fill="none" stroke="#7fbfe4" stroke-width="1.4"/>`;
   { const g=[P(i0+w*.15,j0,h-2),P(i0+w*.45,j0,h-2)]; s+=`<line x1="${g[0][0]}" y1="${g[0][1]}" x2="${g[1][0]}" y2="${g[1][1]}" stroke="#fff" stroke-width="2" opacity=".9"/>`; }
+  s+=lidEnSalon(code,m,i0,i1,j0,j1);
   const [x,y]=P((i0+i1)/2,j1,-6);
   s+=`<g class="tap room" data-room="${code}"><rect x="${x-34}" y="${y-9}" width="68" height="${fs.length?20:12}" rx="4" fill="#fff" stroke="${c||'#7fbfe4'}"/><text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#1b5e85">Aula de Cristal</text>${fs.length?`<text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:${c}">${fs.map(f=>f.curso).join(',')}</text>`:''}</g>`;
   return s; }
@@ -500,7 +525,7 @@ const anim=(d,fn)=>new Promise(r=>{const t0=performance.now();const f=t=>{const 
 const ease=q=>q<.5?2*q*q:1-Math.pow(-2*q+2,2)/2, lerp=(a,b,q)=>a+(b-a)*q;
 let POSE={dir:'f',flip:false};
 function placeAv(ij,pose){ POSE=Object.assign({},POSE,pose||{}); const [x,y]=P(ij[0],ij[1]); const g=svg.querySelector('.av'); if(!g) return;
-  const k=scene==='ext'?.5:CI().av; g.innerHTML=`<g transform="translate(${(x+2*k/.5).toFixed(1)},${(y-(POSE.lift||0)*k/.5).toFixed(1)}) scale(${k})">${avatarPose(AV,POSE)}</g>`; }
+  const k=scene==='ext'?.5:CI().av; g.innerHTML=`<g transform="translate(${(x+2*k/.5).toFixed(1)},${(y-(POSE.lift||0)*k/.5).toFixed(1)}) scale(${k})">${(window.avatarAny||avatarPose)(AV,POSE)}</g>`; }
 /* en reposo: parpadea, mira a los lados y respira */
 const T0=performance.now();
 setInterval(()=>{ if(!svg||busy||document.hidden||!box_.offsetParent) return; const t=(performance.now()-T0)/1000;
@@ -511,7 +536,7 @@ function render(){
   if(!svg) return;
   if(scene==='ext'){ CX=215;CY=60; svg.innerHTML=sceneExt(NOW); }
   else { svg.innerHTML=INT[scene].draw(NOW)+'<g class="av"></g>'; }
-  { const extra=(CAM?camSVG():'')+(scene==='ext'?lugarSVG()+orgSVG():''); if(extra){ const gg=document.createElementNS('http://www.w3.org/2000/svg','g'); gg.setAttribute('class','ruta'); gg.innerHTML=extra; svg.querySelector('.av').before(gg); } }
+  { const extra=(CAM?camSVG():'')+(scene==='ext'?lugarSVG()+orgSVG()+pinsSVG():''); if(extra){ const gg=document.createElementNS('http://www.w3.org/2000/svg','g'); gg.setAttribute('class','ruta'); gg.innerHTML=extra; svg.querySelector('.av').before(gg); } }
   if(scene!=='ext'&&CI().lbl&&CI().lbl!==1){ const L=CI().lbl; svg.querySelectorAll('.tap').forEach(n=>{ try{ const b=n.getBBox(), cx=b.x+b.width/2, cy=b.y+b.height/2; n.setAttribute('transform',`translate(${cx} ${cy}) scale(${L}) translate(${-cx} ${-cy})`); }catch(e){} }); }
   placeAv(avPos); bindTaps(); header(); strip();
 }
@@ -549,10 +574,10 @@ let GEN=0;   // cambia al salir o quitar: cancela una ficha pendiente
 async function fichaSalon(code){
   if(busy) return; const g=GEN, sc0=scene; document.getElementById('sheet').classList.remove('open'); await irSalon(code); if(g!==GEN||scene!==sc0) return;
   const fs=enSalon(code,NOW), f=fs[0], c=colorF(fs)||'#5b6577';
-  if(f&&!busy){ busy=true; try{ if(g!==GEN) return; await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:(/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':'')+code,salon:code,frase:f.frase}); } finally{ busy=false; } }
+  if(f&&!busy){ busy=true; try{ if(g!==GEN) return; await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:(/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':'')+code,salon:code,frase:f.frase},lidsUnicos(fs)); } finally{ busy=false; } }
   const dia=ACT.filter(x=>x.salon===code).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
   sheet(c,f?nombreA(f.area):'Salón',`${/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':''}${code}${f?' · '+f.curso:''}`,
-    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
+    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}${lidSheet(fs)||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
      <h4>Durante el día</h4>${dia.map(x=>`<p>${fmtHora(x.hora_inicio)} · <b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')||'<p class="pend">Sin actividades</p>'}`);
 }
 /* actividades en carpas (Hall, pisos, Zona verde, Coliseo, cancha): el avatar camina hasta la carpa, animación e información */
@@ -562,12 +587,12 @@ async function fichaCarpa(id,pt){
   if(!same(avPos,pt)){ busy=true; const v=[...svg._vb]; try{ await caminar([avPos,pt],CI().walk); placeAv(avPos,{dir:'b',flip:false});
     const z=svg._vb; await anim(600,q=>{const e=ease(q); setVB(z.map((x,i)=>lerp(x,v[i],e)));}); FULL=v; } finally{ busy=false; } }
   if(g!==GEN||scene!==sc0) return;
-  busy=true; try{ await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:f.salon,salon:f.salon,frase:f.frase}); } finally{ busy=false; }
+  busy=true; try{ await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:f.salon,salon:f.salon,frase:f.frase},lidsFila(f)); } finally{ busy=false; }
   if(g!==GEN||scene!==sc0) return;
   const c=AREA_C[f.categoria]||'#5b6577', otros=enSalon(f.salon,NOW).filter(x=>x!==f);
   sheet(c,nombreA(f.area),`${esc(f.salon)} · ${esc(f.curso)}`,
     `<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}
-     <h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p><h4>Acompañante</h4><p>${esc(f.acompanante)||'—'}</p><h4>Apoyo</h4><p>${esc(f.apoyo)||'—'}</p>
+     ${lidSheet([f])||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Acompañante</h4><p>${esc(f.acompanante)||'—'}</p><h4>Apoyo</h4><p>${esc(f.apoyo)||'—'}</p>
      ${otros.length?`<h4>También aquí ahora</h4>${otros.map(x=>`<p><b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')}`:''}`);
 }
 /* el avatar camina hasta el salón que se toca dentro de un edificio */
@@ -744,6 +769,8 @@ const API={
   manual:0,
   setDatos(rows){ DATA=(rows||[]).map(r=>({...r,salon:ns(r.salon),area:r.area||'',titulo:r.titulo||'',frase:r.frase||''})); ACT=DATA.filter(f=>f.tipo==='actividad'); },
   setAvatar(av){ AV=avatarNormal(av||{}); if(svg) placeAv(avPos); },
+  setLideres(fn){ LIDFN=fn||null; },
+  setPins(p){ PINS=p||[]; if(svg&&!busy&&scene==='ext') render(); },
   setHora(m){ setNow(Math.max(420,Math.min(900,m))); },
   ocupado(){ return busy; },
   /* vista Master: el colegio completo */
@@ -757,7 +784,7 @@ const API={
   async lugar(row){ montar(); if(busy) return; row=nrow(row); CAM=null; const k=escDe(row); LUGAR={k,txt:'Aquí es · '+(row.salon||'')}; NOW=toMin(row.hora_inicio)+1; scene='ext';
     if(ORGU) avPos=door(ORGU.k); render(); if(!svg._vb) fit(); await volarA(k); },
   /* entra al edificio de la actividad */
-  async entrar(row){ row=nrow(row); LUGAR=null; NOW=toMin(row.hora_inicio)+1; const g=++GEN; await irInterior(intKey(row),true,row); if(g===GEN) await fichaSalon(row.salon); },
+  async entrar(row){ montar(); if(scene!=='ext'&&!svg.firstChild) scene='ext'; row=nrow(row); LUGAR=null; NOW=toMin(row.hora_inicio)+1; const g=++GEN; await irInterior(intKey(row),true,row); if(g===GEN) await fichaSalon(row.salon); },
   async quitar(){ GEN++; if(busy) return; const dentro=scene!=='ext'; CAM=null; LUGAR=null; ROOMP=null;
     if(dentro){ const d=INT[scene]&&INT[scene].door; EXTK=ORGU?null:extDe(scene); busy=true; try{ await fadeTo('Saliendo…',()=>{ scene='ext'; avPos=ORGU?door(ORGU.k):(d||WX.inicio); render(); fit(); }); } finally{ busy=false; } }
     else { scene='ext'; if(ORGU) avPos=door(ORGU.k); render(); fit(); } },
