@@ -137,7 +137,7 @@ function avatarEditor(root, cfg, onChange){
     };
     mk('optGender',OPT.gender,'gender','chip'); mk('optSkin',OPT.skin,'skin','sw');
     mk('optHair',M?OPT.hairM:OPT.hairH,'hair','chip'); mk('optHairC',OPT.hairC,'hairC','sw');
-    mk('optStyle',styles,'style','chip'); mk('optTop',PAL,'top','sw'); mk('optBot',PAL,'bot','sw'); mk('optShoe',OPT.shoe,'shoe','sw');
+    mk('optStyle',styles,'style','chip'); mk('optTop',PAL.slice(0,10),'top','sw'); mk('optBot',PAL.slice(0,10),'bot','sw'); mk('optShoe',OPT.shoe,'shoe','sw');
     mk('optHead',OPT.head,'head','chip'); mk('optFace',OPT.face,'face','chip'); mk('optExtra',OPT.extra,'extra','chip',true);
   }
   root.querySelectorAll('.atabs span').forEach(t=>t.onclick=()=>{
