@@ -27,7 +27,8 @@ const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const instalada = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
 /* Hora de Bogotá (UTC-5, sin horario de verano). ?simular=2026-10-23T09:15 permite probar. */
-const _sim = new URLSearchParams(location.search).get('simular');
+let _simSS=null; try{ _simSS=sessionStorage.getItem('steam_sim'); }catch(e){}
+const _sim = new URLSearchParams(location.search).get('simular') || _simSS;   // también el «Modo ensayo» (Alertas → Más)
 const _simBase = _sim ? { t0: Date.now(), d: new Date(_sim+':00Z') } : null;
 function ahora(){
   let d;
@@ -757,7 +758,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span></div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -768,6 +769,7 @@ async function pintarAlertas(){
   $('aProbar').onclick=()=>sonarTono(prefs().tono);
   $('aVideo').onclick=()=>pantallaVideo(true);
   $('aDiag').onclick=()=>{ window._diag=true; pintarDiag(); };
+  if($('aEns')) $('aEns').onclick=abrirEnsayo;
   if($('aTuto')) $('aTuto').onclick=()=>pantallaTutorial(true);
   if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
   $('aSalir').onclick=async()=>{ if(S.vistaComo) return salirVista(); await S.sb.auth.signOut(); location.reload(); };
@@ -825,6 +827,22 @@ function suscribirTiempoReal(){
       S.avisos.unshift(payload.new); pintarBanner();
       if(avisosMios().some(a=>a.id===payload.new.id)){ const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('📣 '+payload.new.titulo,'',5000); } })
     .subscribe();
+}
+
+
+/* ---------------- Modo ensayo: vivir el día del evento a cualquier hora (admin y cuentas de prueba) ---------------- */
+function puedeEnsayo(){ const p=S.real||S.perfil; return p&&(p.rol==='admin'||/^prueba\./i.test(p.correo||'')); }
+function abrirEnsayo(){
+  const fe=(S.config&&S.config.fecha_evento)||'2026-10-23', h=_sim?_sim.slice(11,16):'07:50';
+  $('modalBox').innerHTML=`<div class="modal"><div class="mbox"><div class="k" style="color:#7b4bd6">🧪 MODO ENSAYO</div><h3>Vive el STEM Day antes del 23</h3>
+    <p>La app se comporta como si fuera el día del evento, desde la hora que elijas, y el reloj avanza normalmente. Solo cambia en este celular y hasta que cierres la app.</p>
+    <div class="field" style="margin:12px 0"><label>Hora de inicio del ensayo</label><input type="time" id="ensH" value="${h}" min="06:30" max="15:30"></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">${['06:55','07:50','08:55','09:03','10:25','12:40'].map(x=>`<span class="chip" data-h="${x}">${fmtHora(x)}</span>`).join('')}</div>
+    <button class="btn" id="ensOk">Iniciar ensayo</button>${_sim?'<button class="btn ghost" id="ensFin" style="margin-top:8px">Salir del ensayo</button>':''}<button class="btn ghost" id="ensX" style="margin-top:8px">Cancelar</button></div></div>`;
+  $('modalBox').querySelectorAll('[data-h]').forEach(c=>c.onclick=()=>$('ensH').value=c.dataset.h);
+  $('ensOk').onclick=()=>{ try{ sessionStorage.setItem('steam_sim',fe+'T'+($('ensH').value||'07:50')); }catch(e){} location.reload(); };
+  if($('ensFin')) $('ensFin').onclick=()=>{ try{ sessionStorage.removeItem('steam_sim'); }catch(e){} location.reload(); };
+  $('ensX').onclick=()=>$('modalBox').innerHTML='';
 }
 
 /* ---------------- administrador · "Ver como" otro perfil ----------------
@@ -893,7 +911,7 @@ window.STEAM = S; window.continuarApp = continuar; window.recargarApp = async()=
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='26';
+const VERSION_APP='27';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
@@ -910,7 +928,7 @@ function ajustarAlto(){
     // y queda un espacio vacío abajo. Se usa el alto real de la pantalla.
     const vert=window.innerHeight>=window.innerWidth, alto=vert?Math.max(screen.height,screen.width):Math.min(screen.height,screen.width);
     const inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
-    const falta=alto-window.innerHeight, iosPwa=inst&&/iP(hone|od|ad)/.test(navigator.userAgent)&&falta>20&&falta<80;
+    const falta=alto-window.innerHeight, iosPwa=inst&&/iP(hone|od|ad)/.test(navigator.userAgent)&&falta>=15&&falta<80;
     document.documentElement.classList.toggle('ios-pwa',!!iosPwa);
     document.documentElement.style.setProperty('--app-h',(iosPwa?alto:window.innerHeight)+'px');
     document.querySelectorAll('.screen').forEach(s=>s.style.transform='');
