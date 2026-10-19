@@ -33,6 +33,7 @@ function v30Iniciar(){
     presencia(); vigilarPerfil(); cargarMensajes();
   }
   setTimeout(revisarV30,2500); setInterval(revisarV30,30000);
+  if(window.turIniciar) turIniciar();
 }
 function latido(){ if(document.hidden||!S.perfil||S.vistaComo) return; S.sb.rpc('sd_latido',{p_sesion:V30.sesion}).then(()=>{},()=>{}); }
 
@@ -88,10 +89,21 @@ function avisoRolUnaVez(){
 /* asistencia: 7:00 (todos los directores y codirectores) y 5 min después de llegar a cada actividad */
 function recordatoriosAsistencia(){
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
-  if(a.min>=418&&a.min<450){ const k='steam_asis7_'+S.perfil.id; if(!LS.get(k,false)){ LS.set(k,true); avisarAsis({titulo:'Recuerda llamar asistencia',html:`<p>Ya empezó la jornada. Abre <b>Lista</b> y marca a cada estudiante de <b>${escHTML(S.cursos.join(' y '))}</b>: asistió, no asistió o llegó tarde (con el motivo del retardo).</p>`,mom:'inicial'}); } }
+  if(a.min>=418&&a.min<450){ const k='steam_asis7_'+S.perfil.id; if(!LS.get(k,false)){ LS.set(k,true); const prim=S.cursos.some(c=>S.prog.some(r=>r.curso===c&&r.nivel==='Primaria'));
+    avisarAsis({titulo:'Recuerda llamar asistencia',html:`<p>Ya empezó la jornada. Abre <b>Lista</b> y marca a cada estudiante de <b>${escHTML(S.cursos.join(' y '))}</b>: asistió, no asistió o llegó tarde (con el motivo del retardo).</p>${prim?'<p class="onces">🍎 <b>Después de llamar a lista</b>, los estudiantes pueden comer algo sencillo antes de salir a la primera rotación.</p>':''}`,mom:'inicial'}); } }
+  avisoSalidaDirGrupo(a);
   S.cursos.forEach(c=>{ momentosLista(c).forEach(s=>{
     const m=toMin(s.h)+5; if(a.min<m||a.min>m+20) return; const k='steam_asisact_'+c+'_'+s.h; if(LS.get(k,false)) return; LS.set(k,true);
     avisarAsis({titulo:`Llamado a lista · ${escHTML(c)}`,html:`<p>Ya están en <b>${escHTML(s.salon||s.nombre)}</b> (${escHTML(s.nombre)}). Confirma quiénes están en esta actividad y, si falta alguien, el motivo.</p>`,mom:s.h,curso:c}); }); });
+}
+/* v34 · cierre de la dirección de grupo: 30 minutos antes de la primera rotación, recordar que deben salir */
+function avisoSalidaDirGrupo(a){
+  S.cursos.forEach(c=>{ const sig=rutaCurso(c).find(x=>x.tipo==='actividad'&&!esDirGrupo(x)); if(!sig) return;
+    const m=toMin(sig.h)-30; if(a.min<m||a.min>=toMin(sig.h)) return; const k='steam_salida_'+c+'_'+sig.h; if(LS.get(k,false)) return; LS.set(k,true);
+    const p=prefs(); if(p.sonido) sonarTono(p.tono); if(p.vibracion&&navigator.vibrate) navigator.vibrate([300,150,300]);
+    ventana({icono:'⏰',kicker:`Curso ${escHTML(c)} · cierre de la dirección de grupo`,titulo:`En ${toMin(sig.h)-a.min} minutos salen a la próxima rotación`,color:'#c2410c',
+      html:`<p>Su primera actividad es <b>${escHTML(sig.nombre)}</b> en <b>${escHTML(sig.salon||'la estación')}</b> a las <b>${fmtHora(sig.h)}</b>.</p><p>Cierren la dirección de grupo, recojan sus cosas y prepárense para salir a tiempo.</p>`,
+      botones:[{t:'Ver el camino',fn:()=>{ irPanel('ruta'); }},{t:'Entendido',ghost:true}]}); });
 }
 function avisarAsis(o){ const p=prefs(); if(p.sonido) sonarTono(p.tono); if(p.vibracion&&navigator.vibrate) navigator.vibrate([200,100,200]);
   ventana({icono:'📋',kicker:'Asistencia',titulo:o.titulo,color:'#1f9d6b',html:o.html,botones:[{t:'Llamar a lista ahora',fn:()=>{ S.listaMom=o.mom; if(o.curso) S.listaCurso=o.curso; S.listaLocal=null; irPanel('lista'); }},{t:'Más tarde',ghost:true}]}); }
