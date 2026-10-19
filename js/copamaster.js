@@ -59,7 +59,26 @@ function cmAgenda(){
   if(!el.querySelector('#cmSel')) el.querySelector('h3')&&el.querySelector('h3').insertAdjacentHTML('afterend',`<div class="cmhead"><span>🏆 <b>Liga Master</b> · llega a tiempo, reporta tu zona, responde la trivia y otorga sellos</span><button class="b2 sm" id="cmSel">🏅 Otorgar Sello STEM</button></div>`);
   el.querySelectorAll('.agb').forEach(x=>{ const b=(S.agenda||[]).find(z=>String(z.id)===x.dataset.id); if(!b||x.nextElementSibling&&x.nextElementSibling.classList.contains('cmact')) return; const h=cmBotones(b); if(h) x.insertAdjacentHTML('afterend',h); });
   cmBind(el); if($('cmSel')) $('cmSel').onclick=()=>cmSello();
+  cmTop10();
 }
+/* v38: Top 10 de la Liga Master dentro de «Mi agenda» (se actualiza en vivo con el ranking) */
+const CMT={d:null,t:0};
+async function cmTop10(){
+  const el=$('agPz'); if(!el||!esCompMaster()) return;
+  let R=(copaLiga()==='mst'&&typeof COPA!=='undefined'&&COPA.rank)?COPA.rank:null;
+  if(!R){ if(Date.now()-CMT.t>30000){ CMT.t=Date.now(); try{ const r=await S.sb.rpc('sd_copa_ranking_master'); if(!r.error) CMT.d=r.data; }catch(e){} } R=CMT.d; }
+  let box=el.querySelector('#cmTop'); if(!box){ box=document.createElement('div'); box.id='cmTop'; box.className='cmtop'; el.appendChild(box);
+    const hd=el.querySelector('.cmhead'); if(hd&&!el.querySelector('#cmTopLnk')){ hd.insertAdjacentHTML('afterend','<button class="cmtoplnk" id="cmTopLnk">🏆 Ver el Top 10 de la Liga Master ↓</button>'); el.querySelector('#cmTopLnk').onclick=()=>box.scrollIntoView({behavior:'smooth',block:'start'}); } }
+  if(!R){ box.innerHTML='<h4>🏆 Top 10 · Liga Master</h4><p class="sm">Cargando el ranking…</p>'; return; }
+  const T=(R.top||[]).slice(0,10), yo=R.yo, med=['🥇','🥈','🥉'];
+  const fila=(x,me)=>`<div class="cmtr ${me?'me':''}"><span class="n">${x.pos<=3?med[x.pos-1]:x.pos+'.º'}</span>${copaCara(x.avatar)}<span class="nm">${me?'Tú':escHTML(x.nombre)}</span><b>${x.puntos} pts</b></div>`;
+  box.innerHTML=`<h4>🏆 Top 10 · Liga Master <small>${R.total||0} en competencia · en vivo</small></h4>`
+    +(T.length?T.map(x=>fila(x,x.id===S.perfil.id)).join('')+(yo&&yo.pos>10?`<div class="cmtsep">···</div>`+fila({pos:yo.pos,puntos:yo.puntos,avatar:S.perfil.avatar},true):'')
+      :'<p class="sm">Aún nadie suma puntos. ¡Marca tu llegada a tu zona para empezar!</p>')
+    +'<button class="b2 sm" id="cmTopPod" style="margin-top:8px;width:100%">Ver el podio completo</button>';
+  box.querySelector('#cmTopPod').onclick=()=>copaPodio();
+}
+window.cmTop10=cmTop10;
 function cmTarjeta(){
   const card=$('agCard'); if(!card||card.hidden||card.classList.contains('min')||!esCompMaster()) return;
   const {cur,nxt}=bloqueAhora(), b=cur||nxt; if(!b) return; const h=cmBotones(b,true); if(!h) return;
@@ -74,6 +93,7 @@ async function cmLlegue(b){
   await cmCargar(); cmRepintar();
   if(r.data&&r.data.repetida) return toast('Tu llegada ya estaba registrada.','ok');
   const p=(r.data&&r.data.puntos)||0; if(window.copaSonar) copaSonar('puntos');
+  if(window.avatarCelebrar) avatarCelebrar(S.perfil.avatar,`+${p} pts`);   // v38
   ventana({icono:'📍',kicker:'Ronda de vigía',titulo:`¡Llegada registrada! +${p} pts`,color:'#173d7a',html:`<p>${p===40?'Llegaste a tiempo a':'Ya estás en'} <b>${escHTML(lugarTxt(b.lugar))}</b>.</p><p>Ahora observa la zona unos minutos y envía el <b>reporte</b>: suma 50 puntos y más si lo haces pronto.</p>`,
     botones:[{t:'📝 Hacer el reporte',fn:()=>cmReporte(b)},{t:'Más tarde',ghost:true}]});
 }
