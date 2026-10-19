@@ -51,8 +51,9 @@ function turBoton(){
   if(!b){ const p=$('p-ruta'); if(!p) return; b=document.createElement('button'); b.id='btnTurnos'; b.className='turbtn'; b.hidden=true; p.appendChild(b); b.onclick=()=>turAbrirDocente(); }
   if(S.modo!=='docente'||!(S.cursos||[]).length){ b.hidden=true; return; }
   let pend=0, sin=0; S.cursos.forEach(c=>{ const yo=miPapel(c); turBloques(c).forEach(s=>{ if(turIniciado(s.h)) return; const t=TUR.m[turK(c,s.h)]; if(!t) sin++; else if(!t.confirmado&&t.propuesto_por!==S.perfil.id&&yo) pend++; }); });
-  b.innerHTML=`👥 Turnos${pend?` <b class="r">${pend}</b>`:sin?` <b>${sin}</b>`:' ✓'}`; b.title=pend?`${pend} por confirmar`:sin?`${sin} sin definir`:'Todo acordado';
-  b.hidden=false; const e=$('btnEnc'), mb=$('btnColegio'), mp=$('mapa'), t0=(mb&&mb.offsetTop)||((mp&&mp.offsetTop||0)+10); b.style.top=(e&&!e.hidden?t0+46:t0)+'px';
+  b.innerHTML=`<span class="ti">👥${pend?`<b class="r">${pend}</b>`:sin?`<b>${sin}</b>`:'<b class="ok">✓</b>'}</span>Turnos`; b.title=pend?`${pend} por confirmar`:sin?`${sin} sin definir`:'Todo acordado';
+  // v39: debajo del botón «Mapa del colegio» (a la izquierda) para no tapar los salones de la ruta
+  b.hidden=false; const mb=$('btnColegio'), mp=$('mapa'); b.style.top=(mb&&!mb.hidden&&mb.offsetHeight?mb.offsetTop+mb.offsetHeight+8:((mp&&mp.offsetTop||0)+10))+'px';
 }
 
 /* ---------- hoja del docente: proponer / confirmar ---------- */
