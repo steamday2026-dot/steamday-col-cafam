@@ -37,6 +37,9 @@ function completarProgramacion(rows){
 
 /* ---------- qué actividad es (por título y frase) ---------- */
 const REG=[
+  // v30 · Tecnología: un desastre por espacio del Coliseo
+  ['d_avalancha','avalancha'],['d_volcan','erupcion volcanica|erupcion'],['d_incendio','incendios forestales|incendio'],['d_inundacion','inundacion'],
+  ['d_terremoto','terremoto|sismo'],['d_tormenta','tormenta electrica'],['d_tsunami','tsunami'],['d_huracan','huracan'],
   ['salvando','salvando especies|corre, piensa y resuelve|pista de obstaculos'],
   ['especie','una especie nos necesita|el tiempo corre'],
   ['notodo','no todo es lo que parece|equilibrio nunca miente'],
@@ -68,6 +71,33 @@ const piso='<rect x="0" y="150" width="240" height="15" fill="#e8eef7"/>';
 const tag=(x,y,txt,col,d)=>`<g class="x-pop" style="--d:${d}s"><rect x="${x-txt.length*3.2-8}" y="${y-11}" width="${txt.length*6.4+16}" height="18" rx="9" fill="${col}"/><text x="${x}" y="${y+2}" text-anchor="middle" style="font-size:9.5px;font-weight:800;fill:#fff">${txt}</text></g>`;
 const mariposa=(x,y,c)=>`<g transform="translate(${x} ${y})"><g class="x-bob"><path class="x-wl" d="M0,0 C-14,-20 -26,-12 -20,2 C-26,14 -10,18 0,4Z" fill="${c}"/><path class="x-wr" d="M0,0 C14,-20 26,-12 20,2 C26,14 10,18 0,4Z" fill="${c}"/><rect x="-1.5" y="-8" width="3" height="16" rx="1.5" fill="#1b2333"/></g></g>`;
 const SV={
+/* ---------- TECNOLOGÍA · Desastres naturales (v30) ---------- */
+d_avalancha:()=>`${piso}<path d="M0,150 L70,40 L120,95 L160,30 L240,150Z" fill="#9aa9bf"/><path d="M70,40 L84,62 L60,58Z M160,30 L178,58 L146,54Z" fill="#fff"/>
+  ${[0,1,2,3,4,5,6].map(i=>`<circle r="${6+i%3*3}" fill="#fff" stroke="#dfe7f2"><animateMotion dur="2.2s" begin="${.3+i*.18}s" fill="freeze" path="M${150+i*4},${46+i*3} Q${110-i*6},${110} ${40-i*4},${140}"/></circle>`).join('')}
+  <g class="x-pop" style="--d:2.2s"><rect x="186" y="104" width="34" height="26" rx="4" fill="#2a3550"/><rect x="190" y="108" width="26" height="14" fill="#5ef0ff"/><path d="M196,116 l5,4 l10,-9" stroke="#1f9d6b" stroke-width="3" fill="none"/></g>
+  <g class="x-ring2"><circle cx="203" cy="100" r="16" fill="none" stroke="#e5484d" stroke-width="2"/></g>${tag(120,18,'Sensor de alerta temprana','#7b4bd6',2.6)}`,
+d_volcan:()=>`${piso}<path d="M30,150 L100,56 L140,56 L210,150Z" fill="#8a5a3c"/><path d="M100,56 L140,56 L130,70 L110,70Z" fill="#e5484d"/>
+  <path class="x-draw" pathLength="1" style="--t:1.4s;--d:.6s" d="M118,60 Q112,96 96,150" stroke="#ff7a1a" stroke-width="7" fill="none" stroke-linecap="round"/><path class="x-draw" pathLength="1" style="--t:1.4s;--d:.9s" d="M124,60 Q134,100 150,150" stroke="#ffb020" stroke-width="5" fill="none" stroke-linecap="round"/>
+  ${[0,1,2,3,4].map(i=>`<circle cx="${110+i*5}" cy="50" r="${8+i*2}" fill="#7d8696" opacity=".55" style="animation:xup 2.4s ${.2+i*.35}s ease-out infinite"/>`).join('')}
+  <g class="x-pop" style="--d:2s"><circle cx="200" cy="44" r="18" fill="#2a3550"/><path d="M190,44 h20 M200,34 v20" stroke="#5ef0ff" stroke-width="2"/><circle cx="200" cy="44" r="5" fill="none" stroke="#5ef0ff" stroke-width="2"/></g>${tag(120,18,'Monitoreo con drones','#7b4bd6',2.6)}`,
+d_incendio:()=>`${piso}${[40,80,120,160,200].map((x,i)=>`<g><rect x="${x-3}" y="112" width="6" height="38" fill="#7a5a30"/><circle cx="${x}" cy="104" r="20" fill="#3f9b52"/><g class="x-pop" style="--d:${.3+i*.3}s"><path d="M${x-12},106 Q${x-8},78 ${x},86 Q${x+4},70 ${x+8},88 Q${x+14},80 ${x+12},106Z" fill="#ff7a1a"><animate attributeName="opacity" values="1;.7;1" dur=".5s" repeatCount="indefinite"/></path><path d="M${x-6},106 Q${x-2},92 ${x+2},98 Q${x+6},90 ${x+6},106Z" fill="#ffd34d"/></g></g>`).join('')}
+  <g class="x-mv" style="--x0:-80px;--y0:0px;--x1:0px;--y1:0px;--t:1.6s;--d:2s"><path d="M150,28 h50 l10,10 h-70z" fill="#e5484d"/><rect x="170" y="38" width="4" height="8" fill="#5b6577"/>${[0,1,2,3,4,5].map(i=>`<line x1="${160+i*8}" y1="46" x2="${156+i*8}" y2="70" stroke="#5fa8ff" stroke-width="2" opacity=".8"/>`).join('')}</g>${tag(120,18,'Detección y control del fuego','#7b4bd6',3)}`,
+d_inundacion:()=>`${piso}<rect x="30" y="88" width="50" height="62" fill="#bd6a43"/><path d="M24,90 L55,62 L86,90Z" fill="#8a3c2c"/><rect x="150" y="70" width="60" height="80" fill="#c9ced6"/><rect x="162" y="84" width="14" height="14" fill="#5fa8ff"/><rect x="186" y="84" width="14" height="14" fill="#5fa8ff"/>
+  <rect x="0" y="165" width="240" height="70" fill="#2f6fde" opacity=".75"><animate attributeName="y" from="165" to="118" dur="2.6s" begin=".3s" fill="freeze"/></rect>
+  <g class="x-pop" style="--d:2.4s"><rect x="100" y="60" width="30" height="40" rx="4" fill="#2a3550"/><rect x="104" y="64" width="22" height="22" fill="#5ef0ff"/><path d="M108,80 v-10 M115,80 v-14 M122,80 v-6" stroke="#2f6fde" stroke-width="3"/></g>${tag(120,18,'Medidor del nivel del agua','#7b4bd6',2.8)}`,
+d_terremoto:()=>`${piso}<g style="animation:xshake .12s linear 14 .3s">${[[40,60],[90,40],[150,70]].map(([x,h])=>`<rect x="${x}" y="${150-h-40}" width="44" height="${h+40}" fill="#c9ced6" stroke="#8a94a8"/>${[0,1,2].map(r=>`<rect x="${x+8}" y="${150-h-30+r*18}" width="10" height="10" fill="#5fa8ff"/><rect x="${x+26}" y="${150-h-30+r*18}" width="10" height="10" fill="#5fa8ff"/>`).join('')}`).join('')}</g>
+  <path class="x-draw" pathLength="1" style="--t:1s;--d:.6s" d="M0,150 L60,150 L70,140 L80,158 L92,146 L104,156 L240,150" stroke="#1b2333" stroke-width="2.5" fill="none"/>
+  <g class="x-pop" style="--d:2.2s"><rect x="196" y="40" width="36" height="28" rx="4" fill="#2a3550"/><path class="x-draw" pathLength="1" style="--t:1s;--d:2.4s" d="M200,54 l5,0 l3,-8 l4,16 l4,-12 l3,4 l9,0" stroke="#5ef0ff" stroke-width="2" fill="none"/></g>${tag(110,18,'Sismógrafo y rutas de evacuación','#7b4bd6',2.8)}`,
+d_tormenta:()=>`<rect width="240" height="165" fill="#2a3550" opacity=".18"/>${piso}<g><ellipse cx="90" cy="40" rx="40" ry="18" fill="#7d8696"/><ellipse cx="130" cy="34" rx="34" ry="20" fill="#9aa3b5"/><ellipse cx="160" cy="44" rx="30" ry="16" fill="#7d8696"/></g>
+  <path d="M118,56 L104,92 L118,92 L106,130" stroke="#ffd34d" stroke-width="5" fill="none" stroke-linejoin="round" opacity="0"><animate attributeName="opacity" values="0;1;0;1;0" dur="1.4s" begin=".6s" repeatCount="2"/></path>
+  <rect x="180" y="60" width="4" height="90" fill="#5b6577"/><path d="M182,52 l-6,10 h12z" fill="#ffd34d"/><g class="x-pop" style="--d:2.4s">${[0,1].map(i=>`<path d="M${182},${56+i*0} m-${10+i*8},0 a${10+i*8},${10+i*8} 0 0 1 ${20+i*16},0" fill="none" stroke="#5ef0ff" stroke-width="2"/>`).join('')}</g>
+  <rect x="40" y="110" width="40" height="40" fill="#bd6a43"/><path d="M34,112 L60,90 L86,112Z" fill="#8a3c2c"/>${tag(120,18,'Pararrayos inteligente','#7b4bd6',2.8)}`,
+d_tsunami:()=>`${piso}<rect x="0" y="128" width="240" height="22" fill="#e8d6a8"/><rect x="170" y="80" width="50" height="70" fill="#c9ced6"/><path d="M164,82 L195,60 L226,82Z" fill="#8a94a8"/>
+  <path fill="#2f8fdd" d="M-60,150 C-30,60 30,40 60,90 C70,108 40,110 50,96 C30,96 20,150 0,150Z"><animateTransform attributeName="transform" type="translate" from="0 0" to="150 0" dur="2.6s" begin=".3s" fill="freeze"/></path>
+  <g class="x-pop" style="--d:2.6s"><rect x="186" y="30" width="10" height="44" fill="#5b6577"/><path d="M178,30 h26 l-4,-10 h-18z" fill="#e5484d"/><g class="x-ring2"><path d="M206,28 a10,10 0 0 1 0,16 M212,22 a18,18 0 0 1 0,28" fill="none" stroke="#e5484d" stroke-width="2"/></g></g>${tag(110,18,'Sirena y boya de alerta','#7b4bd6',2.9)}`,
+d_huracan:()=>`${piso}<g style="transform-origin:120px 76px;animation:xspin 1.6s linear infinite">${[0,1,2].map(i=>`<path d="M120,76 C${150},${40} ${180},${70} ${160},${100}" stroke="#7b4bd6" stroke-width="${6-i*1.5}" fill="none" stroke-linecap="round" transform="rotate(${i*120} 120 76)" opacity="${.9-i*.2}"/>`).join('')}<circle cx="120" cy="76" r="8" fill="#fff" stroke="#7b4bd6" stroke-width="3"/></g>
+  ${[40,200].map(x=>`<g><rect x="${x-2}" y="110" width="4" height="40" fill="#7a5a30"/><path d="M${x},110 q-16,-6 -22,4 M${x},110 q16,-6 22,4 M${x},110 q-8,-14 -18,-12 M${x},110 q8,-14 18,-12" stroke="#3f9b52" stroke-width="4" fill="none"><animateTransform attributeName="transform" type="rotate" values="-10 ${x} 150;12 ${x} 150;-10 ${x} 150" dur=".8s" repeatCount="indefinite"/></path></g>`).join('')}
+  <g class="x-pop" style="--d:2.4s"><circle cx="200" cy="40" r="14" fill="#2a3550"/><path d="M200,30 v10 l7,5" stroke="#5ef0ff" stroke-width="2.5" fill="none"/></g>${tag(110,18,'Estación meteorológica','#7b4bd6',2.8)}`,
 /* ---------- MATEMÁTICAS ---------- */
 museo:()=>{ const tri=[[78,40,118,40,98,72,'#2f6fde'],[118,40,158,40,138,72,'#f2b705'],[98,72,138,72,118,40,'#e5484d'],[78,104,98,72,118,104,'#1f9d6b'],[118,104,138,72,158,104,'#7b4bd6'],[98,72,138,72,118,104,'#ff8a3d']];
   return `<line x1="90" y1="112" x2="74" y2="155" stroke="#8a6a44" stroke-width="5"/><line x1="146" y1="112" x2="162" y2="155" stroke="#8a6a44" stroke-width="5"/><line x1="118" y1="112" x2="118" y2="150" stroke="#8a6a44" stroke-width="4"/>
@@ -243,6 +273,7 @@ const CSS=`
   .x-magnet{animation:xmag 1.2s ease-in-out infinite alternate} @keyframes xmag{to{transform:translateX(44px)}}
   .x-glow{opacity:.15;animation:xglow 1.2s ease-in-out infinite alternate} @keyframes xglow{to{opacity:.95}}
   @keyframes xup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-30px)}}
+  @keyframes xshake{0%{transform:translateX(-3px)}50%{transform:translateX(3px)}100%{transform:translateX(0)}}
 `;
 (()=>{ const st=document.createElement('style'); st.textContent=CSS; document.head.appendChild(st); })();
 
