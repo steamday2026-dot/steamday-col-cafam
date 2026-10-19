@@ -118,7 +118,9 @@ window.avatarAny=avatarAny;
    ===================================================================== */
 const LIDE={ sal:null, rsal:'*', raf:0, t0:performance.now() };
 function filasLider(){ return S.prog.filter(r=>r.tipo==='actividad'&&Array.isArray(r.lideres)&&r.lideres.includes(S.perfil.id)).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)||String(a.curso).localeCompare(b.curso,'es',{numeric:true})); }
-function salonesLider(fs){ return [...new Set((fs||filasLider()).map(r=>r.salon||'Por definir'))]; }
+function salKeyL(x){ return String(x||'Por definir').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim(); }
+function salonesLider(fs){ const m=new Map(); (fs||filasLider()).forEach(r=>{ const k=salKeyL(r.salon); if(!m.has(k)) m.set(k,r.salon||'Por definir'); }); return [...m.values()]; }
+function letraLider(fs,sal){ const c={}; fs.filter(r=>salKeyL(r.salon)===salKeyL(sal)).forEach(r=>{ const l=String(r.curso||'').slice(-1).toUpperCase(); c[l]=(c[l]||0)+1; }); return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''; }
 function areaLider(fs){ const c={}; (fs||filasLider()).forEach(r=>{ if(['tec','mat','cie'].includes(r.categoria)) c[r.categoria]=(c[r.categoria]||0)+1; }); return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||'cie'; }
 function minAhora(){ const a=ahora(), fe=S.config.fecha_evento; return a.fecha<fe?-1:a.fecha>fe?9999:a.min; }
 /* franjas (hora de inicio) en las que el líder recibe cursos */
@@ -128,30 +130,88 @@ const lidNom=n=>{ const p=String(n||'').trim().split(/\s+/); return p.length>=3?
 
 /* ---------- escena del salón (vista de frente) ---------- */
 function lineasTablero(t){ const w=String(t||'').split(/\s+/), out=['']; w.forEach(x=>{ const l=out[out.length-1]; if((l+' '+x).trim().length>24&&l) out.push(x); else out[out.length-1]=(l+' '+x).trim(); }); if(out.length>2){ out[1]=out.slice(1).join(' ').slice(0,23)+'…'; out.length=2; } return out; }
-function escenaEstacion(titulo,salon,area){
-  const col=LID_AREA[area]||'#1f9d6b', t1=String(titulo||'').slice(0,30), sal=String(salon||'').slice(0,18);
-  return `<svg viewBox="0 0 340 290" class="estsc">${LID_DEFS}
-   <rect width="340" height="290" fill="#f4efe6"/><rect width="340" height="146" fill="#e9eef7"/><rect y="142" width="340" height="6" fill="#c9d2e3"/>
-   <path d="M0,148 L340,148 L340,290 L0,290Z" fill="#d8c4a3"/>${Array.from({length:9},(_,i)=>`<path d="M${i*40-20},290 L${170+(i*40-180)*.35},148" stroke="#c7b08b"/>`).join('')}
-   <rect x="72" y="28" width="196" height="90" rx="5" fill="#1f5b46" stroke="#7a5a30" stroke-width="5"/>
-   ${lineasTablero(titulo).map((l,i,arr)=>`<text x="170" y="${(arr.length>1?54:62)+i*16}" text-anchor="middle" style="font:800 12.5px system-ui;fill:#fff">${escHTML(l)}</text>`).join('')}
-   <text x="170" y="96" text-anchor="middle" style="font:700 10px system-ui;fill:#ffe9a6">${escHTML(LID_AREA_N[area]||'')} · ¡Bienvenidos!</text>
-   <rect x="14" y="26" width="44" height="64" rx="3" fill="#bfe1ff" stroke="#8aa0bf" stroke-width="3"/><line x1="36" y1="26" x2="36" y2="90" stroke="#8aa0bf" stroke-width="2"/>
-   <rect x="283" y="14" width="52" height="14" rx="7" fill="${col}"/><text x="309" y="24.5" text-anchor="middle" style="font:800 8.5px system-ui;fill:#fff">${escHTML(sal)}</text>
-   <rect x="292" y="54" width="40" height="94" rx="3" fill="#a0703f" stroke="#7a5a30" stroke-width="2"/><circle cx="300" cy="102" r="2.5" fill="#f2b705"/>
-   ${[[62,208],[132,208],[202,208],[272,208],[40,256],[118,256],[198,256],[276,256]].map(([x,y],i)=>`<g><rect x="${x-26}" y="${y-12}" width="52" height="14" rx="3" fill="#e8d6b5" stroke="#a88a5c"/><rect x="${x-22}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x+18}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x-14}" y="${y-18}" width="7" height="7" rx="1.5" fill="${['#e5484d','#2f6fde','#f2a900','#7b4bd6'][i%4]}"/></g>`).join('')}
-   <g class="eLid"></g><g class="eDoc"></g></svg>`;
+/* v30 · el escenario cambia según el lugar: aula, laboratorio de química (143 y 144), laboratorio de microbiología (138),
+   Aula de Cristal (paredes de vidrio) y Coliseo (cancha con los espacios A–H) */
+function tipoLugar(salon){ const k=String(salon||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  if(/^14[34]\b/.test(k)) return 'quim'; if(/^138\b/.test(k)) return 'micro'; if(/cristal/.test(k)) return 'cristal'; if(/coliseo/.test(k)) return 'coliseo'; return 'aula'; }
+const _desks=()=>[[62,208],[132,208],[202,208],[272,208],[40,256],[118,256],[198,256],[276,256]].map(([x,y],i)=>`<g><rect x="${x-26}" y="${y-12}" width="52" height="14" rx="3" fill="#e8d6b5" stroke="#a88a5c"/><rect x="${x-22}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x+18}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x-14}" y="${y-18}" width="7" height="7" rx="1.5" fill="${['#e5484d','#2f6fde','#f2a900','#7b4bd6'][i%4]}"/></g>`).join('');
+function _tablero(titulo,area,x,w){ x=x||72; w=w||196; const cx=x+w/2;
+  return `<rect x="${x}" y="28" width="${w}" height="90" rx="5" fill="#1f5b46" stroke="#7a5a30" stroke-width="5"/>`+
+   lineasTablero(titulo).map((l,i,arr)=>`<text x="${cx}" y="${(arr.length>1?54:62)+i*16}" text-anchor="middle" style="font:800 ${w<180?11:12.5}px system-ui;fill:#fff">${escHTML(l)}</text>`).join('')+
+   `<text x="${cx}" y="96" text-anchor="middle" style="font:700 10px system-ui;fill:#ffe9a6">${escHTML(LID_AREA_N[area]||'')} · ¡Bienvenidos!</text>`; }
+function _piso(){ return `<rect width="340" height="290" fill="#f4efe6"/><rect width="340" height="146" fill="#e9eef7"/><rect y="142" width="340" height="6" fill="#c9d2e3"/><path d="M0,148 L340,148 L340,290 L0,290Z" fill="#d8c4a3"/>${Array.from({length:9},(_,i)=>`<path d="M${i*40-20},290 L${170+(i*40-180)*.35},148" stroke="#c7b08b"/>`).join('')}`; }
+const _pill=(sal,col)=>`<rect x="283" y="14" width="52" height="14" rx="7" fill="${col}"/><text x="309" y="24.5" text-anchor="middle" style="font:800 8.5px system-ui;fill:#fff">${escHTML(String(sal||'').slice(0,18))}</text>`;
+function _mesaLab(y,micro){ let s=`<rect x="18" y="${y}" width="304" height="16" rx="3" fill="#2b3446"/><rect x="24" y="${y+16}" width="292" height="26" fill="#9aa3b5"/>${[60,130,200,270].map(x=>`<rect x="${x-14}" y="${y+20}" width="28" height="18" rx="2" fill="#b7bfcd" stroke="#8a94a8"/><circle cx="${x}" cy="${y+29}" r="1.6" fill="#5b6577"/>`).join('')}`;
+  [40,95,150,205,260,305].forEach((x,i)=>{ if(micro){ if(i%2===0) s+=`<g transform="translate(${x},${y-2})"><rect x="-9" y="-2" width="18" height="3" fill="#5b6577"/><path d="M4,-2 C9,-10 9,-18 3,-22" fill="none" stroke="#5b6577" stroke-width="3"/><rect x="-5" y="-26" width="6" height="15" rx="2" fill="#dfe7f2" stroke="#5b6577" transform="rotate(-18 -2 -18)"/><rect x="-6" y="-8" width="10" height="2" fill="#9aa3b5"/></g>`;
+      else s+=`<ellipse cx="${x-6}" cy="${y-1}" rx="7" ry="2.4" fill="#f6e7ff" stroke="#b083d6"/><ellipse cx="${x+6}" cy="${y-1}" rx="7" ry="2.4" fill="#e8ffe9" stroke="#7fc98a"/><circle cx="${x-7}" cy="${y-1.4}" r="1.1" fill="#b083d6"/><circle cx="${x+5}" cy="${y-1.6}" r="1" fill="#2e9d4a"/>`; }
+    else { const c=['#32d27a','#2f8fdd','#e5484d','#f2a900','#b083d6','#32d27a'][i]; s+=i%2?`<g transform="translate(${x},${y})"><path d="M-3,-16 h6 v6 l6,9 a2,2 0 0 1 -2,3 h-14 a2,2 0 0 1 -2,-3 l6,-9z" fill="#eaf6ff" stroke="#8aa0bf"/><path d="M-7,-4 h14 l2,3 a2,2 0 0 1 -2,3 h-14 a2,2 0 0 1 -2,-3z" fill="${c}"/></g>`:`<g transform="translate(${x},${y})"><rect x="-6" y="-14" width="5" height="14" rx="2" fill="#eaf6ff" stroke="#8aa0bf"/><rect x="-5.5" y="-7" width="4" height="7" rx="2" fill="${c}"/><rect x="2" y="-12" width="5" height="12" rx="2" fill="#eaf6ff" stroke="#8aa0bf"/><rect x="2.5" y="-5" width="4" height="5" rx="2" fill="${['#f2a900','#2f8fdd','#e5484d'][i%3]}"/><path d="M10,-2 q2,-8 0,-14" stroke="#cfd8e6" stroke-width="2" fill="none" opacity=".7"/></g>`; } });
+  [50,110,170,230,290].forEach(x=>{ s+=`<g><rect x="${x-8}" y="${y+46}" width="16" height="4" rx="2" fill="#1b2333"/><rect x="${x-1.5}" y="${y+50}" width="3" height="16" fill="#5b6577"/><rect x="${x-7}" y="${y+64}" width="14" height="2.5" rx="1" fill="#5b6577"/></g>`; });
+  return s; }
+function escenaEstacion(titulo,salon,area,letra){
+  const col=LID_AREA[area]||'#1f9d6b', tipo=tipoLugar(salon);
+  LIDE.esc={ lid:[58,238,1.12], ent:[300,160], dst:[220,220], k:.78 };
+  if(tipo==='coliseo') return escenaColiseo(titulo,salon,letra);
+  let s=`<svg viewBox="0 0 340 290" class="estsc">${LID_DEFS}${_piso()}`;
+  if(tipo==='aula'||tipo==='cristal'){
+    if(tipo==='cristal'){   // todas las paredes de vidrio: se ve el exterior
+      s+=`<rect width="340" height="146" fill="#cfeaff"/><path d="M0,112 C40,96 80,104 120,98 C170,90 210,104 260,96 C300,90 320,100 340,96 L340,146 L0,146Z" fill="#8fc77a"/>`+
+        [20,75,250,310].map((x,i)=>`<circle cx="${x}" cy="${88+i%2*6}" r="${16+i%3*3}" fill="#4caf50" opacity=".85"/><rect x="${x-2}" y="${100+i%2*6}" width="4" height="16" fill="#7a5a30"/>`).join('')+
+        Array.from({length:9},(_,i)=>`<rect x="${i*42}" y="0" width="4" height="146" fill="#dfe7f2" opacity=".95"/>`).join('')+`<rect y="70" width="340" height="3" fill="#dfe7f2"/><rect width="340" height="146" fill="#ffffff" opacity=".12"/>
+        <path d="M10,10 L40,60 M210,10 L250,70 M300,20 L330,70" stroke="#fff" stroke-width="3" opacity=".55"/>`;
+      s+=`<path d="M0,148 L0,290" stroke="#b9d9f5" stroke-width="10" opacity=".7"/><path d="M340,148 L340,290" stroke="#b9d9f5" stroke-width="10" opacity=".7"/>`;
+    } else s+=`<rect x="14" y="26" width="44" height="64" rx="3" fill="#bfe1ff" stroke="#8aa0bf" stroke-width="3"/><line x1="36" y1="26" x2="36" y2="90" stroke="#8aa0bf" stroke-width="2"/><rect x="292" y="54" width="40" height="94" rx="3" fill="#a0703f" stroke="#7a5a30" stroke-width="2"/><circle cx="300" cy="102" r="2.5" fill="#f2b705"/>`;
+    s+=_tablero(titulo,area)+_pill(salon,col)+_desks();
+    if(tipo==='cristal') s+=`<rect x="6" y="6" width="70" height="16" rx="8" fill="#2f8fdd"/><text x="41" y="17" text-anchor="middle" style="font:800 8px system-ui;fill:#fff">AULA DE CRISTAL</text>`;
+  } else {
+    const micro=tipo==='micro';
+    // pared del laboratorio: póster, tablero y (química) cabina de extracción o (micro) incubadora
+    if(micro) s+=`<g transform="translate(16,30)"><rect width="50" height="62" rx="3" fill="#fff" stroke="#b083d6" stroke-width="2"/><ellipse cx="25" cy="30" rx="18" ry="14" fill="#f6e7ff" stroke="#b083d6"/><circle cx="21" cy="28" r="5" fill="#c79be6"/><circle cx="31" cy="34" r="2" fill="#7fc98a"/><circle cx="14" cy="36" r="1.6" fill="#7fc98a"/><text x="25" y="56" text-anchor="middle" style="font:800 6.5px system-ui;fill:#7b4bd6">LA CÉLULA</text></g>`;
+    else s+=`<g transform="translate(14,30)"><rect width="54" height="40" rx="2" fill="#fff" stroke="#8aa0bf"/>${Array.from({length:36},(_,i)=>`<rect x="${3+(i%9)*5.4}" y="${4+Math.floor(i/9)*8}" width="4.6" height="6.6" fill="${['#ff9aa2','#ffd6a5','#fdffb6','#caffbf','#9bf6ff','#a0c4ff','#bdb2ff','#ffc6ff','#e0e0e0'][i%9]}"/>`).join('')}<text x="27" y="49" text-anchor="middle" style="font:800 6px system-ui;fill:#5b6577">TABLA PERIÓDICA</text></g>
+      <g transform="translate(16,82)"><rect width="22" height="22" fill="#f2c200" transform="rotate(45 11 11)"/><text x="11" y="15" text-anchor="middle" style="font:900 12px system-ui;fill:#1b2333">!</text></g>`;
+    s+=_tablero(titulo,area,82,176)+_pill(salon,col);
+    if(micro) s+=`<g transform="translate(270,46)"><rect width="58" height="98" rx="4" fill="#f4f6fa" stroke="#9aa3b5" stroke-width="2"/><rect x="8" y="10" width="42" height="50" rx="3" fill="#dfe7f2" stroke="#9aa3b5"/>${[20,32,44].map(y=>`<line x1="10" y1="${y}" x2="48" y2="${y}" stroke="#9aa3b5"/>`).join('')}<ellipse cx="22" cy="18" rx="7" ry="2" fill="#e8ffe9" stroke="#7fc98a"/><ellipse cx="36" cy="30" rx="7" ry="2" fill="#f6e7ff" stroke="#b083d6"/><rect x="10" y="68" width="38" height="8" rx="2" fill="#1b2333"/><text x="29" y="74.5" text-anchor="middle" style="font:700 6px monospace;fill:#5ef0ff">37.0 °C</text><text x="29" y="90" text-anchor="middle" style="font:800 6px system-ui;fill:#5b6577">INCUBADORA</text></g>`;
+    else s+=`<g transform="translate(268,30)"><rect width="62" height="114" rx="3" fill="#c9ced8" stroke="#8a94a8" stroke-width="2"/><rect x="6" y="8" width="50" height="10" fill="#8a94a8"/><rect x="6" y="24" width="50" height="44" fill="#d9f1ff" stroke="#8a94a8" opacity=".85"/><rect x="6" y="70" width="50" height="38" fill="#eef1f5" stroke="#8a94a8"/><path d="M18,62 h10 M34,54 v14" stroke="#32d27a" stroke-width="5" stroke-linecap="round"/><text x="31" y="15.5" text-anchor="middle" style="font:800 6px system-ui;fill:#fff">CAMPANA</text></g>`;
+    s+=`<rect x="70" y="124" width="190" height="8" rx="2" fill="#a0703f"/>`+[90,120,150,180,210,240].map((x,i)=>`<rect x="${x-5}" y="${micro?110:108}" width="10" height="${micro?14:16}" rx="2" fill="${micro?['#f6e7ff','#e8ffe9'][i%2]:['#32d27a','#2f8fdd','#e5484d'][i%3]}" stroke="#8aa0bf"/>`).join('');
+    s+=_mesaLab(176,micro)+_mesaLab(238,micro);
+    s+=`<rect x="6" y="122" width="${micro?96:92}" height="16" rx="8" fill="${micro?'#7b4bd6':'#1f9d6b'}"/><text x="${micro?54:52}" y="133" text-anchor="middle" style="font:800 8px system-ui;fill:#fff">${micro?'LAB. MICROBIOLOGÍA':'LAB. DE QUÍMICA'}</text>`;
+    LIDE.esc={ lid:[58,196,1.0], ent:[330,150], dst:[250,170], k:.72 };
+  }
+  return s+`<g class="eLid"></g><g class="eDoc"></g></svg>`;
+}
+/* Coliseo: la cancha vista desde arriba con los 8 espacios; se resalta el del líder */
+function escenaColiseo(titulo,salon,letra){
+  const Z=window.COL_Z||{}, L=String(letra||'').toUpperCase(), zc={};
+  let s=`<svg viewBox="0 0 340 290" class="estsc">${LID_DEFS}<rect width="340" height="290" fill="#eef1f6"/>
+    <rect x="78" y="6" width="176" height="14" rx="3" fill="#5b6577"/><text x="166" y="16" text-anchor="middle" style="font:800 8px system-ui;fill:#fff">TARIMA</text>
+    <rect x="262" y="6" width="48" height="14" rx="3" fill="#a0703f"/><text x="286" y="16" text-anchor="middle" style="font:800 7px system-ui;fill:#fff">Teatro</text>
+    <rect x="58" y="26" width="236" height="250" rx="6" fill="#ffe58a"/><rect x="72" y="38" width="208" height="226" rx="3" fill="#d8a86a" stroke="#3db5e6" stroke-width="3"/>
+    ${Array.from({length:14},(_,i)=>`<line x1="${72+i*16}" y1="38" x2="${72+i*16}" y2="264" stroke="#c99a5c" stroke-width="1"/>`).join('')}
+    <rect x="166" y="38" width="20" height="226" fill="#ffd640" opacity=".75"/>
+    <rect x="8" y="60" width="40" height="80" rx="4" fill="#e5484d"/><text x="28" y="100" text-anchor="middle" transform="rotate(-90 28 100)" style="font:800 8px system-ui;fill:#fff">LOGÍSTICA</text>
+    <rect x="8" y="150" width="40" height="80" rx="4" fill="#5b6577"/><text x="28" y="190" text-anchor="middle" transform="rotate(-90 28 190)" style="font:800 7px system-ui;fill:#fff">MATERIAL / VARIOS</text>`;
+  'ABCDEFGH'.split('').forEach((l,k)=>{ const z=Z[l]||['','#999',''], r=Math.floor(k/2), c=k%2, x=c?190:78, y=44+r*55, w=86, h=48, mio=l===L; zc[l]=[x+w/2,y+h/2];
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="${mio?z[1]:'#fff'}" opacity="${mio?1:.55}" stroke="${mio?'#fff':z[1]}" stroke-width="${mio?3:1.2}"/>
+      <text x="${x+12}" y="${y+18}" style="font:900 16px system-ui;fill:${mio?'#fff':z[1]}">${l}</text><text x="${x+w-6}" y="${y+16}" text-anchor="end" style="font-size:12px">${z[2]}</text>
+      <text x="${x+w/2}" y="${y+h-7}" text-anchor="middle" style="font:800 7.4px system-ui;fill:${mio?'#fff':'#5b6577'}">${escHTML(z[0])}</text>`; });
+  s+=`<polyline points="22,284 64,270 64,32 120,32 300,32 300,24" fill="none" stroke="#6d3fc0" stroke-width="2.4" stroke-dasharray="6 4"/><polyline points="64,270 288,270 288,282 330,282" fill="none" stroke="#6d3fc0" stroke-width="2.4" stroke-dasharray="6 4"/>
+    <rect x="4" y="270" width="76" height="16" rx="8" fill="#6d3fc0"/><text x="42" y="281" text-anchor="middle" style="font:800 7px system-ui;fill:#fff">Entrada · Av. 68</text>
+    <rect x="296" y="36" width="42" height="26" rx="6" fill="#1f9d6b"/><text x="317" y="47" text-anchor="middle" style="font:800 6.5px system-ui;fill:#fff">Salida →</text><text x="317" y="56" text-anchor="middle" style="font:800 6.5px system-ui;fill:#fff">Media torta</text>
+    <g class="eLid"></g><g class="eDoc"></g></svg>`;
+  const c=zc[L]||[234,148]; LIDE.esc={ lid:[c[0]-22,c[1]+22,.5], ent:[24,282], dst:[c[0]+18,c[1]+18], k:.36, coliseo:true };
+  return s;
 }
 const DOC_GEN={gender:0,skin:2,hair:0,hairC:0,style:1,top:0,bot:5,shoe:0,head:0,face:1,extra:[1]};
 function animEstacion(){
   cancelAnimationFrame(LIDE.raf);
   const loop=()=>{ const sc=document.querySelector('#estPz .estsc'); if(!sc||S.panel!=='estacion'||document.hidden){ LIDE.raf=0; return; }
     const t=(performance.now()-LIDE.t0)/1000, av=S.perfil.avatar||{}, L=av.lid||{area:areaLider(),atu:1,est:true,efe:[]};
-    const lg=sc.querySelector('.eLid'); if(lg) lg.innerHTML=`<g transform="translate(58,238) scale(1.12)">${liderSVG(av,L,{wave:(t%6)<1.6?(t%6)/1.6:0,blink:(t%4)<.12},t)}</g>`;
+    const E=LIDE.esc||{lid:[58,238,1.12],ent:[300,160],dst:[220,220],k:.78}; const lg=sc.querySelector('.eLid'); if(lg) lg.innerHTML=`<g transform="translate(${E.lid[0]},${E.lid[1]}) scale(${E.lid[2]})">${liderSVG(av,L,{wave:(t%6)<1.6?(t%6)/1.6:0,blink:(t%4)<.12},t)}</g>`;
     const dg=sc.querySelector('.eDoc'), ll=LIDE.llega;
     if(dg){ if(ll){ const cyc=Math.min(t-ll.t0,6), k=Math.min(1,cyc/4); let s='';
-        for(let i=0;i<3;i++){ const kk=Math.max(0,Math.min(1,(cyc-.7-i*.5)/4)); if(cyc>.7+i*.5) s+=`<g transform="translate(${(300-kk*(60+i*22)).toFixed(1)},${(160+kk*(70-i*6)).toFixed(1)}) scale(.42)">${avatarPose({gender:i%2,skin:i,hair:i%3,hairC:i,style:2,top:[0,3,8][i],bot:5,shoe:1,extra:[]},{walk:kk<1?1:0,ph:t*9+i,dir:'f'})}</g>`; }
-        s+=`<g transform="translate(${(300-k*80).toFixed(1)},${(160+k*60).toFixed(1)}) scale(.78)">${avatarPose(DOC_GEN,{walk:k<1?1:0,ph:t*9,dir:'f',wave:k>=1?Math.min(1,(cyc-4)/2):0})}</g>`; dg.innerHTML=s; }
+        const [ex,ey]=E.ent,[dx,dy]=E.dst, kd=E.k||.78, ks=kd*.54, via=E.coliseo?[64,ey-8]:null;
+        const at=q=>{ if(!via) return [ex+(dx-ex)*q,ey+(dy-ey)*q]; const q1=Math.min(1,q*2), q2=Math.max(0,q*2-1); return q<.5?[ex+(via[0]-ex)*q1,ey+(via[1]-ey)*q1]:[via[0]+(dx-via[0])*q2,via[1]+(dy-via[1])*q2]; };
+        for(let i=0;i<3;i++){ const kk=Math.max(0,Math.min(1,(cyc-.7-i*.5)/4)); if(cyc>.7+i*.5){ const [px,py]=at(kk*(1-i*.08)); s+=`<g transform="translate(${(px+12+i*10).toFixed(1)},${(py-6+i*4).toFixed(1)}) scale(${ks})">${avatarPose({gender:i%2,skin:i,hair:i%3,hairC:i,style:2,top:[0,3,8][i],bot:5,shoe:1,extra:[]},{walk:kk<1?1:0,ph:t*9+i,dir:'f'})}</g>`; } }
+        const [px,py]=at(k); s+=`<g transform="translate(${px.toFixed(1)},${py.toFixed(1)}) scale(${kd})">${avatarPose(DOC_GEN,{walk:k<1?1:0,ph:t*9,dir:'f',wave:k>=1?Math.min(1,(cyc-4)/2):0})}</g>`; dg.innerHTML=s; }
       else dg.innerHTML=''; }
     LIDE.raf=requestAnimationFrame(loop); };
   LIDE.raf=requestAnimationFrame(loop);
@@ -166,13 +226,13 @@ function pintarEstacion(){
   const m=minAhora(), F=franjasLider(fs), cur=F.find(x=>toMin(x.h)<=m&&m<toMin(x.f)), nxt=F.find(x=>toMin(x.h)>m);
   const base=cur||nxt||F[F.length-1];
   if(!LIDE.sal) LIDE.sal=(base.rs[0].salon||'Por definir');
-  const enSal=r=>(r.salon||'Por definir')===LIDE.sal;
+  const enSal=r=>salKeyL(r.salon)===salKeyL(LIDE.sal);
   const rCur=cur?cur.rs.filter(enSal):[], rNxt=nxt?nxt.rs.filter(enSal):[], r0=(rCur[0]||rNxt[0]||fs.find(enSal)||fs[0]);
   const area=['tec','mat','cie'].includes(r0.categoria)?r0.categoria:areaLider(fs);
   const grupos=F.length, hechos=F.filter(x=>toMin(x.f)<=m).length;
-  const cursoTxt=rs=>rs.map(r=>`<div class="lrow"><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><div><b>${escHTML(r.grado||'')}</b> con ${escHTML(lidNom(r.acompanante)||'—')}<small>Apoyo: ${escHTML(lidNom(r.apoyo)||'—')}</small></div>${llegoBtn(r)}</div>`).join('');
-  let h=`${sal.length>1?`<div class="segs wrap" style="margin-bottom:8px">${sal.map(x=>`<span class="${x===LIDE.sal?'on lid':''}" data-s="${escHTML(x)}">${escHTML(x)}</span>`).join('')}</div>`:''}
-    <div class="estbox">${escenaEstacion(nombreAct(r0),LIDE.sal,area)}</div>`;
+  const cursoTxt=rs=>rs.map(r=>`<div class="lrow"><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><div><b>${escHTML(r.grado||'')}</b> con ${escHTML(lidNom(r.acompanante)||'—')}<small>Codirector: ${escHTML(lidNom(r.apoyo)||'—')}</small></div>${llegoBtn(r)}</div>`).join('');
+  let h=`${sal.length>6?`<select class="selsal" id="lSal">${sal.map(x=>`<option ${x===LIDE.sal?'selected':''}>${escHTML(x)}</option>`).join('')}</select>`:sal.length>1?`<div class="segs wrap" style="margin-bottom:8px">${sal.map(x=>`<span class="${x===LIDE.sal?'on lid':''}" data-s="${escHTML(x)}">${escHTML(x)}</span>`).join('')}</div>`:''}
+    <div class="estbox">${escenaEstacion(nombreAct(r0),LIDE.sal,area,letraLider(fs,LIDE.sal))}</div>`;
   if(m<0) h+=`<div class="lcard"><div class="k">El STEM Day es el ${escHTML(fechaLarga(S.config.fecha_evento))}</div><p>Ese día verás aquí, en vivo, qué curso tienes, quién lo acompaña y cuánto falta para la siguiente rotación.</p></div>`;
   if(cur&&rCur.length){ const tot=toMin(cur.f)-toMin(cur.h), pas=Math.max(0,m-toMin(cur.h));
     h+=`<div class="lcard now"><div class="k">Ahora · ${fmtHora(cur.h)} a ${fmtHora(cur.f)}</div>${cursoTxt(rCur)}<div class="lbar"><i style="width:${Math.min(100,pas/tot*100).toFixed(0)}%"></i></div><div class="lft"><span>Faltan <b>${Math.max(0,toMin(cur.f)-m)} min</b></span><span>${hechos+1} de ${grupos} rotaciones</span></div></div>`; }
@@ -182,6 +242,7 @@ function pintarEstacion(){
   h+=`<button class="pbtn alt" id="lApoyo">💬 Pedir apoyo a los organizadores</button>`;
   el.innerHTML=h;
   el.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{ LIDE.sal=x.dataset.s; pintarEstacion(); });
+  if($('lSal')) $('lSal').onchange=e=>{ LIDE.sal=e.target.value; pintarEstacion(); };
   el.querySelectorAll('[data-lleg]').forEach(b=>b.onclick=()=>marcarLlegada(b.dataset.lleg));
   $('lApoyo').onclick=pedirApoyo;
   // el curso va llegando: los primeros 5 minutos de la rotación, si aún no se confirmó
@@ -224,7 +285,7 @@ function pintarRotaciones(){
   const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
   items.forEach(x=>{ if(x.t==='p'){ h+=`<div class="rsep">☕ ${escHTML(x.area)} · ${fmtHora(x.h)} a ${fmtHora(x.f)}</div>`; return; }
     const est=toMin(x.f)<=m?'ok':toMin(x.h)<=m?'now':'nx';
-    h+=`<div class="rot2 ${est}"><div class="h">${fmtHora(x.h)}<small>a ${fmtHora(x.f)}</small></div><div class="c">${x.rs.map(r=>`<div><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><b>${escHTML(r.grado||'')}</b> · ${escHTML(r.salon||'')}<small>Acompaña: ${escHTML(r.acompanante||'—')}${r.apoyo?' · Apoyo: '+escHTML(r.apoyo):''}</small></div>`).join('')}</div><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>`; });
+    h+=`<div class="rot2 ${est}"><div class="h">${fmtHora(x.h)}<small>a ${fmtHora(x.f)}</small></div><div class="c">${x.rs.map(r=>`<div><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><b>${escHTML(r.grado||'')}</b> · ${escHTML(r.salon||'')}<small>Director: ${escHTML(r.acompanante||'—')}${r.apoyo?' · Codirector: '+escHTML(r.apoyo):''}</small></div>`).join('')}</div><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>`; });
   el.innerHTML=h; el.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{ LIDE.rsal=x.dataset.s; pintarRotaciones(); });
 }
 
@@ -235,7 +296,7 @@ function revisarAlertasLider(){
   const p=prefs(), hechas=LS.get('steam_lidalert_'+a.fecha,[]);
   franjasLider(filasLider()).forEach(x=>{ const ini=toMin(x.h);
     if(a.min>=ini-p.anticipacion_min&&a.min<ini&&!hechas.includes('a'+x.h)){ hechas.push('a'+x.h); LS.set('steam_lidalert_'+a.fecha,hechas);
-      const r=x.rs[0]; lanzarAlerta({tipo:'lider',nombre:'Llega'+(x.rs.length>1?'n':'')+' '+x.rs.map(z=>z.curso).join(', '),h:x.h,f:x.f,cat:r.categoria,salon:r.salon,frase:x.rs.map(z=>z.curso+' con '+lidNom(z.acompanante)).join(' · '),docente_cargo:'Acompaña: '+x.rs.map(z=>lidNom(z.acompanante)).join(', ')}, ini-a.min); }
+      const r=x.rs[0]; lanzarAlerta({tipo:'lider',nombre:'Llega'+(x.rs.length>1?'n':'')+' '+x.rs.map(z=>z.curso).join(', '),h:x.h,f:x.f,cat:r.categoria,salon:r.salon,frase:x.rs.map(z=>z.curso+' con '+lidNom(z.acompanante)).join(' · '),docente_cargo:'Director: '+x.rs.map(z=>lidNom(z.acompanante)).join(', ')}, ini-a.min); }
     if(a.min>=ini&&a.min<ini+2&&!hechas.includes('l'+x.h)){ hechas.push('l'+x.h); LS.set('steam_lidalert_'+a.fecha,hechas);
       toast('🚶 '+x.rs.map(z=>z.curso).join(', ')+' está'+(x.rs.length>1?'n':'')+' llegando con '+x.rs.map(z=>lidNom(z.acompanante)).join(', '),'',6000); if(p.sonido) sonarTono(p.tono); }
   });
