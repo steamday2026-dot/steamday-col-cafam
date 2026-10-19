@@ -477,17 +477,40 @@ const INT={
       else { const [x,y]=P(MW,MH); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" style="font-size:8.5px;fill:#fff;font-weight:800">Sin cursos en este momento</text>`; }
       const [ex,ey]=P(-12,150); s+=`<g class="tap" data-go="ext"><rect x="${ex-30}" y="${ey-8}" width="60" height="15" rx="7" fill="#173d7a"/><text x="${ex}" y="${ey+3}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">← Salida</text></g>`;
       return s; } },
-  coliseo:{ titulo:'Coliseo', pisos:[], entry:[150,250], target:[150,170],
+  // v30: distribución aprobada por Carlos · 8 espacios A–H (un desastre y un líder por letra), corredores de circulación,
+  // entrada por la Av. 68 (abajo a la izquierda) y salida hacia la media torta (lado de las canchas de voleibol)
+  coliseo:{ titulo:'Coliseo', pisos:[], entry:[352,-30], target:[316,-12], vw:470,
     draw(m){ CX=200;CY=20; let s=floorBase();
-      s+=flat(0,300,0,240,'url(#pWood)','#fff')+flat(20,280,20,220,'none','#fff');
-      const [cx,cy]=P(150,120); s+=`<ellipse cx="${cx}" cy="${cy}" rx="42" ry="24" fill="none" stroke="#fff" stroke-width="2"/>`;
-      s+=box(-10,310,-40,-5,22,'#9aa3b5','#c5ccd8',{noShadow:1});               // graderías
-      for(let k=0;k<70;k++){ const [x,y]=P(-5+R1(k)*310,-36+R1(k+50)*26,22); s+=persona(x,y,['#e5484d','#2f6fde','#f2a900','#1f9d6b','#173d7a'][k%5]); }
-      const fs=activos(m).filter(f=>f.salon==='Coliseo');
-      if(fs.length){ const [bx,by]=P(150,-22,40); s+=`<rect x="${bx-58}" y="${by-9}" width="116" height="15" rx="2" fill="${AREA_C.tec}"/><text x="${bx}" y="${by+1.5}" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">DESASTRES NATURALES</text>`; s+=decorEn(270,215,fs,1.2); }
-      fs.forEach((f,k)=>{ const i=30+(k%4)*64, j=40+Math.floor(k/4)*90; s+=carpa(i,j,AREA_C.tec,f.curso,1,f); });
-      if(fs.length){ const [x,y]=P(300,200); s+=tag(x,y+30,'Desastres naturales',`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,AREA_C.tec,''); }
-      else { const [x,y]=P(150,120); s+=`<text x="${x}" y="${y+4}" text-anchor="middle" style="font-size:9px;fill:#fff;font-weight:800">Sin cursos en este momento</text>`; }
+      s+=`<defs><marker id="flA" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#6d3fc0"/></marker></defs>`;
+      s+=flat(-26,326,-26,266,'#ffe58a');                                  // corredor de circulación (amarillo)
+      s+=flat(0,300,0,240,'url(#pWood)','#fff');
+      s+=flat(4,296,4,236,'none','#3db5e6').replace('stroke-width="1.3"','stroke-width="3"');   // zona de trabajo (cancha)
+      s+=flat(0,300,111,129,'rgba(255,214,64,.75)');                      // corredor central
+      [86,158,230].forEach(i=>{ const a=P(i,4),b=P(i,236); s+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#4caf50" stroke-width="1.4"/>`; });
+      // tarima y teatro (arriba en el plano)
+      s+=box(-62,-30,30,206,9,'#5b6577','#8a94a8',{noShadow:1}); { const [x,y]=P(-46,118,12); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">TARIMA</text>`; }
+      s+=box(-62,-30,214,262,14,'#7a5a30','#a0703f',{noShadow:1}); { const [x,y]=P(-46,238,17); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:#fff">Teatro</text>`; }
+      // logística y material (lado izquierdo en el plano)
+      s+=box(24,136,-58,-36,12,'#e5484d','#f28b82',{noShadow:1}); { const [x,y]=P(80,-47,14); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:7.5px;font-weight:800;fill:#fff">LOGÍSTICA</text>`; }
+      s+=box(156,262,-58,-36,12,'#5b6577','#9aa3b5',{noShadow:1}); { const [x,y]=P(209,-47,14); s+=`<text x="${x}" y="${y}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:#fff">MATERIAL / VARIOS</text>`; }
+      // espacios A–H
+      const fs=activos(m).filter(f=>f.salon==='Coliseo'), porL={}; fs.forEach(f=>{ const L=String(f.curso||'').slice(-1).toUpperCase(); (porL[L]=porL[L]||[]).push(f); });
+      'ABCDEFGH'.split('').forEach((L,k)=>{ const z=COL_Z[L], r=Math.floor(k/2), c=k%2, i0=12+r*72, j0=c?136:12, i1=i0+62, j1=j0+92, hay=porL[L];
+        s+=flat(i0,i1,j0,j1,hay?claro(z[1],.62):'rgba(255,255,255,.35)',hay?z[1]:'#c8b48f');
+        const [lx,ly]=P(i0+6,j0+46,1); s+=`<text x="${lx}" y="${ly}" text-anchor="middle" style="font-size:15px;font-weight:900;fill:${hay?shade(z[1],.6):'#b49a6d'};opacity:.95">${L}</text>`;
+        const [nx,ny]=P(i1-4,j0+46,1); s+=`<text x="${nx}" y="${ny+6}" text-anchor="middle" style="font-size:6.6px;font-weight:800;fill:${hay?shade(z[1],.55):'#a08560'}">${z[2]} ${z[0]}</text>`;
+        (hay||[]).slice(0,1).forEach(f=>{ s+=carpa(i0+16,j0+34,z[1],f.curso,1,f); }); });
+      // flujo de circulación (morado): entra por la Av. 68 y sale hacia la media torta
+      const ruta=(ps,w)=>`<polyline points="${pts(ps.map(p=>P(...p,1)))}" fill="none" stroke="#6d3fc0" stroke-width="${w||2.4}" stroke-dasharray="6 4" marker-end="url(#flA)" stroke-linecap="round" stroke-linejoin="round"/>`;
+      s+=ruta([[360,-40],[318,-14],[-14,-14],[-14,254],[20,254],[20,292]]);
+      s+=ruta([[318,-14],[318,254],[284,254],[284,292]]);
+      s+=ruta([[290,120],[150,120],[20,120]],1.8);
+      // estudiantes de logística (puntos rojos)
+      [[-18,60],[-18,190],[150,-18],[322,60],[322,190],[150,258],[40,-20],[260,258]].forEach(([i,j],k)=>{ const [x,y]=P(i,j,1); s+=persona(x,y,'#e5484d'); });
+      { const [x,y]=P(360,-44); s+=`<g pointer-events="none"><rect x="${x-34}" y="${y-22}" width="68" height="14" rx="7" fill="#6d3fc0"/><text x="${x}" y="${y-12}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:#fff">Entrada · Av. 68</text></g>`; }
+      [[20,300],[284,300]].forEach(([i,j])=>{ const [x,y]=P(i,j); s+=`<g pointer-events="none"><rect x="${x-38}" y="${y-2}" width="76" height="14" rx="7" fill="#1f9d6b"/><text x="${x}" y="${y+8}" text-anchor="middle" style="font-size:7px;font-weight:800;fill:#fff">Salida → Media torta</text></g>`; });
+      if(fs.length){ const [x,y]=P(300,236); s+=tag(x,y+40,'Desastres naturales',`● ${fs[0].grado} (${rango(fs.map(f=>f.curso))})`,AREA_C.tec,''); }
+      else { const [x,y]=P(150,120); s+=`<text x="${x}" y="${y+4}" text-anchor="middle" style="font-size:9px;fill:#5b4a2e;font-weight:800">Sin cursos en este momento</text>`; }
       return s; } },
   pAA1:bloqueP('pAA1','Primaria · AA 101–103',['AA101','AA102','AA103']),
   pAA2:bloqueP('pAA2','Primaria · AA 104–112',['AA104','AA105','AA106','AA107','AA108','AA109','AA110','AA111','AA112']),
@@ -498,6 +521,8 @@ const INT={
   pAC2:bloqueP('pAC','Bloque AC · Piso 2',['AC201','AC202','AC203','AC204','AC205','AC206','AC207','AC208','AC209','AC210','AC211'],['pAC1','pAC2']),
   pV1:verdeP('pV1','Zona verde de Primaria'), pV2:verdeP('pV2','Zona verde de Primaria 2')
 };
+const COL_Z={A:['Avalancha','#5fa8ff','🏔️'],B:['Erupción volcánica','#e5484d','🌋'],C:['Incendios forestales','#ff7a1a','🔥'],D:['Inundación','#2f6fde','💧'],E:['Terremoto','#a0703f','🌍'],F:['Tormenta eléctrica','#e0b400','⚡'],G:['Tsunami','#0f8a8a','🌊'],H:['Huracán','#7b4bd6','🌀']};
+window.COL_Z=COL_Z;
 /* ================= MOTOR ================= */
 let box_=null, svg=null;
 let scene='ext', avPos=WX.inicio, busy=false; let FULL=[-30,-10,460,520], BB=null;
@@ -577,7 +602,7 @@ async function fichaSalon(code){
   if(f&&!busy){ busy=true; try{ if(g!==GEN) return; await mostrarLlegada(box_,{tipo:'actividad',cat:f.categoria,titulo:f.titulo,nombre:titA(f),lugar:(/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':'')+code,salon:code,frase:f.frase},lidsUnicos(fs)); } finally{ busy=false; } }
   const dia=ACT.filter(x=>x.salon===code).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
   sheet(c,f?nombreA(f.area):'Salón',`${/^\d|^[A-Z]{2}\d/.test(code)?'Salón ':''}${code}${f?' · '+f.curso:''}`,
-    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}${lidSheet(fs)||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Acompañante</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
+    `${f?`<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}${lidSheet(fs)||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Director de curso</h4><p>${f.acompanante||'—'}</p>`:'<p class="pend">Sin curso en este momento</p>'}
      <h4>Durante el día</h4>${dia.map(x=>`<p>${fmtHora(x.hora_inicio)} · <b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')||'<p class="pend">Sin actividades</p>'}`);
 }
 /* actividades en carpas (Hall, pisos, Zona verde, Coliseo, cancha): el avatar camina hasta la carpa, animación e información */
@@ -592,7 +617,7 @@ async function fichaCarpa(id,pt){
   const c=AREA_C[f.categoria]||'#5b6577', otros=enSalon(f.salon,NOW).filter(x=>x!==f);
   sheet(c,nombreA(f.area),`${esc(f.salon)} · ${esc(f.curso)}`,
     `<p><b>${fmtHora(f.hora_inicio)}–${fmtHora(f.hora_fin)}</b> · ${f.grado}</p>${f.titulo?`<h4>Actividad</h4><p><b>${esc(titA(f))}</b></p>`:''}${f.frase?`<p class="frase">${esc(f.frase)}</p>`:''}
-     ${lidSheet([f])||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Acompañante</h4><p>${esc(f.acompanante)||'—'}</p><h4>Apoyo</h4><p>${esc(f.apoyo)||'—'}</p>
+     ${lidSheet([f])||`<h4>Docente a cargo</h4><p>${esc(f.docente_cargo)||'<span class="pend">Información pendiente</span>'}</p>`}<h4>Director de curso</h4><p>${esc(f.acompanante)||'—'}</p><h4>Codirector</h4><p>${esc(f.apoyo)||'—'}</p>
      ${otros.length?`<h4>También aquí ahora</h4>${otros.map(x=>`<p><b>${x.curso}</b> · ${esc(titA(x))}</p>`).join('')}`:''}`);
 }
 /* el avatar camina hasta el salón que se toca dentro de un edificio */
@@ -647,7 +672,10 @@ async function irInterior(k,directo,row){
   if(busy) return; busy=true; document.getElementById('sheet').classList.remove('open');
   const sc=INT[k];
   await fadeTo(k==='bS2'||k==='bS3'?'Subiendo por la escalera…':(k==='b130'?'Cruzando el Hall…':(k==='verde'?'Saliendo a la Zona verde…':'Entrando…')),()=>{ scene=k; avPos=sc.entry; render(); fit(); });
-  await caminar([sc.entry,sc.target],CI().walk); await saludo();
+  if(k==='coliseo'&&row&&row.curso){ const n=Math.max(0,'ABCDEFGH'.indexOf(String(row.curso).slice(-1).toUpperCase())), r=Math.floor(n/2), c=n%2, zi=12+r*72+33, zj=(c?136:12)+70;
+    await caminar([sc.entry,[318,-14],[zi,-14],[zi,zj]],CI().walk); }   // v30: al espacio de su letra
+  else await caminar([sc.entry,sc.target],CI().walk);
+  await saludo();
   render(); const v=svg._vb; const F0=[...FULL]; fit(); const F1=[...FULL]; setVB(v); await anim(700,q=>{const e=ease(q); setVB(v.map((x,i)=>lerp(x,F1[i],e)));});
   busy=false;
 }
@@ -699,7 +727,8 @@ const grupo=f=>{ const k=escDe(f); if(k==='verde') return 'V'; if(k==='coliseo')
 const pisoPts=(code,derecha,izquierda)=>{ const r=derecha.indexOf(code); const ci=r>=0?158+40*r:74-40*Math.max(0,izquierda.indexOf(code)); return [[114,175],[ci,175],[ci,150]]; };
 function legsDestino(f,entrada){ const k=escDe(f), s=ns(f.salon);
   if(k==='cancha') return [{scene:'cancha',pts:[[-14,130],[60,130]]}];
-  if(k==='coliseo') return [{scene:'coliseo',pts:[[150,250],[150,170]]}];
+  if(k==='coliseo'){ const n=Math.max(0,'ABCDEFGH'.indexOf(String(f.curso||'').slice(-1).toUpperCase())), r=Math.floor(n/2), c=n%2, zi=12+r*72+33, zj=(c?136:12)+70;
+    return [{scene:'coliseo',pts:[[352,-30],[318,-14],[zi,-14],[zi,zj]]}]; }   // v30: hasta el espacio de su letra
   if(PB[k]){ const key=intKey(f), ix=Math.max(0,(INT[key].salones||[]).indexOf(s)), ci=28+42*ix; return [{scene:key,pts:[[0,105],[ci,105],[ci,80]]}]; }
   if(PV[k]) return [{scene:k,pts:[[-10,170],[110,170]]}];
   const H=n=>({scene:'hall',a:entrada,b:n});
