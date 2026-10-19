@@ -41,6 +41,22 @@
     return 'gen';
   }
   const PAUSAS = ['descanso', 'almuerzo', 'refrigerio', 'receso'];
+  const DOC_HACER = 'Diana Carolina Cardona - Javier Ricardo Téllez';
+
+  // v30: directores y codirectores ORIGINALES según la hoja del directorio (col. A: «3A», «Apoyo 4B y 5G», «Apoyo 8-F-G»…)
+  function cursosDeEtiqueta(txt) {
+    const out = []; let g = null;
+    (String(txt).toUpperCase().match(/\d{1,2}|[A-H]/g) || []).forEach(t => { if (/\d/.test(t)) g = t; else if (g) out.push(g + t); });
+    return out;
+  }
+  function originales(dir) {
+    const o = {};
+    dir.forEach(d => { const c = String(d.cargo || '').trim(); const k = norm(c);
+      if (/^apoyo\b/.test(k)) cursosDeEtiqueta(c.replace(/apoyo/i, '')).forEach(cu => { (o[cu] = o[cu] || { dir: [], codir: [] }).codir.push(d.nombre); });
+      else if (/^\d{1,2}\s*-?\s*[a-h]$/.test(k)) { const cu = k.replace(/[\s-]/g, '').toUpperCase(); (o[cu] = o[cu] || { dir: [], codir: [] }).dir.push(d.nombre); }
+    });
+    return o;
+  }
 
   // ---------- encabezados (por nombre, no por posición) ----------
   const COLS = {
@@ -51,8 +67,8 @@
     titulo:    h => h.includes('titulo') || h.includes('nombre de la actividad'),
     frase:     h => h.startsWith('frase'),
     cargo:     h => h.includes('a cargo') && h.startsWith('docente'),
-    acomp:     h => h.includes('acompanante'),
-    apoyo:     h => h.includes('apoyo'),
+    acomp:     h => h.includes('acompanante') || h.startsWith('director de curso'),   // v30: «Director de curso»
+    apoyo:     h => h.includes('apoyo') || h.startsWith('codirector'),             // v30: «Codirector»
     obs:       h => h.startsWith('observ')
   };
 
@@ -109,13 +125,17 @@
       const partes = salonTxt.split(/\s+-\s+/);
       const curso = limpio(partes[0]).toUpperCase();
       const salon = limpio(partes.slice(1).join(' - '));
-      const area = g(r, 'area');
+      let area = g(r, 'area');
+      let cargo = g(r, 'cargo'), estudiantes = '';
+      // v30: en las «Actividades del hacer: Cambio Climático» la columna H trae ESTUDIANTES de 10.° y 11.°;
+      // los docentes a cargo son siempre Diana Cardona y Javier Téllez.
+      if (/actividad(es)? del hacer|cambio clim/.test(norm(area))) { estudiantes = cargo; cargo = DOC_HACER; area = 'Actividad del hacer: Cambio Climático'; }
       filas.push({
         tipo: 'actividad', nivel, grado, curso,
         hora_inicio: fr.inicio, hora_fin: fr.fin, franja: horario,
         salon, area, categoria: categoria(area),
         titulo: g(r, 'titulo'), frase: g(r, 'frase'),
-        docente_cargo: g(r, 'cargo'), acompanante: g(r, 'acomp'), apoyo: g(r, 'apoyo'), fila
+        docente_cargo: cargo, estudiantes, acompanante: g(r, 'acomp'), apoyo: g(r, 'apoyo'), fila
       });
     }
     return filas;
@@ -209,7 +229,7 @@
     });
 
     return {
-      filas, directorio, docentes: listaDoc, avisos, pendientes,
+      filas, directorio, docentes: listaDoc, avisos, pendientes, originales: originales(directorio),
       resumen: {
         filas: act.length, pausas: filas.length - act.length,
         cursos: Object.keys(porCurso).length,
@@ -227,7 +247,7 @@
     return leerLibro(wb);
   }
 
-  const api = { leerArchivo, leerLibro, norm, leerFranja, categoria };
+  const api = { leerArchivo, leerLibro, norm, leerFranja, categoria, cursosDeEtiqueta };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SteamExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);
