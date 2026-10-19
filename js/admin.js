@@ -707,7 +707,7 @@
     const f=agSel||{perfil_id:(M[0]||{}).id,hora_inicio:'08:00',hora_fin:'09:00',lugar:'',tarea:'',tipo:'sup',avisar:true};
     const blk=b=>`<div class="ablk ${agSel&&agSel.id===b.id?'sel':''}" data-id="${b.id}" style="left:${((aNum(b.hora_inicio)-H0)/W*100).toFixed(2)}%;width:calc(${((aNum(b.hora_fin)-aNum(b.hora_inicio))/W*100).toFixed(2)}% - 3px);background:${(TIPOS[b.tipo]||TIPOS.sup)[1]}" title="${escHTML(b.lugar+' · '+(b.tarea||''))}"><b>${escHTML(b.lugar)}</b>${escHTML(b.tarea||'')}</div>`;
     $('admTab').innerHTML=`<div class="aglay"><div class="agmain">
-      <div class="tools"><div class="aleg">${Object.values(TIPOS).map(t=>`<span><i style="background:${t[1]}"></i>${t[0]}</span>`).join('')}</div><button class="b1" id="agNuevo">+ Nuevo bloque</button><button class="b2" id="agXls">⬇ Descargar agenda</button></div>
+      <div class="tools"><div class="aleg">${Object.values(TIPOS).map(t=>`<span><i style="background:${t[1]}"></i>${t[0]}</span>`).join('')}</div><button class="b1" id="agNuevo">+ Nuevo bloque</button><button class="b2" id="agXls">⬇ Descargar agenda</button><button class="b1" id="agImp" style="background:#b45309">📥 Importar agenda desde Excel</button><input type="file" id="agImpF" accept=".xlsx,.xls" hidden></div>
       ${M.length?`<div class="agantt"><div class="agh"><div>Master</div><div class="agt">${Array.from({length:Math.ceil(W)},(_,i)=>`<span>${fmtHora(hm(H0+i))}</span>`).join('')}</div></div>
       ${M.map(m=>`<div class="agr"><div class="agn"><b>${escHTML(m.nombre)}</b><small>${B.filter(b=>b.perfil_id===m.id).length} bloques</small></div><div class="agt rel" data-p="${m.id}">${B.filter(b=>b.perfil_id===m.id).map(blk).join('')}</div></div>`).join('')}</div>`:'<div class="warnbox">No hay usuarios Master registrados.</div>'}
       <p class="sm">Toca un bloque para editarlo o un espacio vacío de una fila para crear uno nuevo. Los cambios llegan de inmediato al celular de esa persona, con un aviso.</p></div>
@@ -726,6 +726,7 @@
     $('admTab').querySelectorAll('.agt.rel').forEach(x=>x.onclick=e=>{ const r=x.getBoundingClientRect(), h=H0+(e.clientX-r.left)/r.width*W, h0=Math.floor(h*4)/4; agSel={perfil_id:x.dataset.p,hora_inicio:hm(h0),hora_fin:hm(Math.min(H1,h0+1)),lugar:'',tarea:'',tipo:'sup',avisar:true}; pintarAgendaAdm(); });
     $('agNuevo').onclick=()=>{ agSel=null; pintarAgendaAdm(); };
     $('agXls').onclick=descargarAgenda;
+    $('agImp').onclick=()=>$('agImpF').click(); $('agImpF').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) importarAgenda(f); };   // v40
     $('agG').onclick=async()=>{ const d={perfil_id:$('agP').value,hora_inicio:$('agD').value,hora_fin:$('agH').value,lugar:$('agL').value.trim(),tarea:$('agT').value.trim()||null,tipo,avisar:$('agA').checked};
       const err=m=>{ $('agErr').hidden=false; $('agErr').textContent=m; };
       if(!d.lugar) return err('Escribe el lugar.'); if(!d.hora_inicio||!d.hora_fin||d.hora_fin<=d.hora_inicio) return err('La hora final debe ser mayor que la inicial.');
@@ -743,6 +744,54 @@
       m.querySelector('#duOk').onclick=async()=>{ const ids=[...m.querySelectorAll('input:checked')].map(i=>i.value); if(!ids.length) return m.remove();
         const {error}=await sb().from('sd_agenda').insert(ids.map(id=>({perfil_id:id,hora_inicio:agSel.hora_inicio,hora_fin:agSel.hora_fin,lugar:agSel.lugar,tarea:agSel.tarea,tipo:agSel.tipo,avisar:agSel.avisar}))); m.remove();
         if(error) return aviso(error.message,'bad'); aviso(`Bloque copiado a ${ids.length} persona${ids.length>1?'s':''}`,'ok'); await tAgenda(); }; };
+  }
+  /* v40 · Importar la agenda de coordinadores y Bienestar desde Excel (una fila por persona, una columna por franja).
+     Crea las cuentas que falten como Master (contraseña 0000), pasa a Master a quien esté como Docente
+     y reemplaza los bloques de agenda de esas personas. */
+  async function importarAgenda(file){
+    let R; try{ await cargarXLSX(); R=await window.AgendaExcel.leerArchivo(file); }catch(e){ return aviso('No se pudo leer el archivo: '+(e.message||e),'bad'); }
+    if(!R.personas.length) return aviso(R.avisos[0]||'No encontré personas en el archivo.','bad');
+    let perf; try{ perf=await todosPerfiles(); }catch(e){ return aviso(e.message,'bad'); }
+    const porC=new Map(perf.map(p=>[String(p.correo).toLowerCase(),p])), pal=window.AgendaExcel.palabras;
+    const F=R.personas.map(p=>{ let q=p.correo?porC.get(p.correo):null;
+      if(!q){ const tk=pal(p.nombre); const c=perf.filter(x=>{ const w=pal(x.nombre); return tk.length>=2&&tk.every(z=>w.includes(z)); }); if(c.length===1) q=c[0]; }
+      const correo=(q&&q.correo)||p.correo||'';
+      const est=!correo?'sincorreo':!q?'crear':q.rol==='master'?'ok':q.rol==='admin'?'admin':q.rol==='docente'?'convertir':'otro';
+      return {...p,correo,q,est,inc:['ok','crear','convertir'].includes(est)}; });
+    const ROLT={docente:'Docente',lider:'Líder de estación',organizador:'Organizador',secretario:'Secretario',admin:'Administrador',master:'Master'};
+    const EST={ok:'✓ Master',crear:'Se crea cuenta Master (0000)',convertir:'Docente → pasa a Master',admin:'Administrador · se omite (no compite)',sincorreo:'Sin correo · no se puede cargar'};
+    const mini=b=>`<span class="agmini ${b.tipo==='lib'?'lib':''}" title="${escHTML(b.tarea||'')}">${fmtHora(b.hora_inicio)} ${escHTML(b.lugar.length>26?b.lugar.slice(0,25)+'…':b.lugar)}</span>`;
+    const m=document.createElement('div'); m.className='admmodal'; document.body.appendChild(m);
+    const pinta=()=>{ const n=F.filter(x=>x.inc).length, bl=F.filter(x=>x.inc).reduce((s,x)=>s+x.bloques.length,0);
+      m.innerHTML=`<div class="amb" style="max-width:980px;width:96vw"><h3>📥 Importar agenda · ${escHTML(R.hoja)}</h3>
+        <p class="sm">Franjas: ${R.franjas.map(f=>fmtHora(f[0])+'–'+fmtHora(f[1])).join(' · ')}. Los bloques de <b>almuerzo</b> y de <b>desplazamiento</b> quedan como «Libre»: aparecen en su agenda pero <b>no suman puntos</b> en la Liga Master.</p>
+        <div class="twrap" style="max-height:55vh;overflow:auto"><table class="t"><tr><th></th><th>Persona</th><th>Correo</th><th>Cuenta</th><th>Agenda</th></tr>
+        ${F.map((x,i)=>`<tr style="${x.inc?'':'opacity:.55'}"><td><input type="checkbox" data-i="${i}" ${x.inc?'checked':''} ${x.est==='sincorreo'||x.est==='admin'?'disabled':''}></td>
+          <td><b>${escHTML(x.nombre)}</b><br><span class="sm">${escHTML(x.cargo)}</span></td><td class="sm">${escHTML(x.correo||'—')}</td>
+          <td class="sm">${x.est==='otro'?`Es ${escHTML(ROLT[x.q.rol]||x.q.rol)}${x.inc?' → pasa a Master':' · marca la casilla para pasarlo a Master'}`:EST[x.est]}</td>
+          <td><div class="agminis">${x.bloques.map(mini).join('')}</div></td></tr>`).join('')}</table></div>
+        ${R.avisos.length?`<div class="warnbox">${R.avisos.map(escHTML).join('<br>')}</div>`:''}
+        <p class="sm" style="margin-top:8px">Se reemplazan los bloques que ya tengan estas ${n} personas. A cada una le llega el aviso «Tu agenda cambió».</p>
+        <div class="err" id="aiE"></div>
+        <div class="abtn"><button class="b2" id="aiX">Cancelar</button><button class="b1" id="aiOk" ${n?'':'disabled'}>Cargar agenda · ${n} personas · ${bl} bloques</button></div></div>`;
+      m.querySelectorAll('[data-i]').forEach(c=>c.onchange=()=>{ F[+c.dataset.i].inc=c.checked; pinta(); });
+      m.querySelector('#aiX').onclick=()=>m.remove();
+      m.querySelector('#aiOk').onclick=cargar; };
+    const cargar=async()=>{ const b=m.querySelector('#aiOk'), E=m.querySelector('#aiE'); b.disabled=true; b.textContent='Cargando…';
+      try{
+        const sel=F.filter(x=>x.inc);
+        const nuevas=sel.filter(x=>x.est==='crear').map(x=>({nombre:x.nombre,correo:x.correo,rol:'master',org_master:false}));
+        if(nuevas.length){ const {error}=await sb().from('sd_directorio').upsert(nuevas.map(x=>({correo:x.correo,nombre:x.nombre})),{onConflict:'correo'}); if(error) throw error;
+          const r=await sb().rpc('sd_crear_cuentas',{p_lista:nuevas}); if(r.error) throw r.error; }
+        for(const x of sel.filter(x=>x.q&&x.q.rol!=='master')){ const {error}=await sb().rpc('sd_cambiar_perfil',{p_id:x.q.id,p_rol:'master',p_org_master:!!x.q.org_master,p_nombre:null}); if(error) throw error; }
+        const P2=await todosPerfiles(), id=new Map(P2.map(p=>[String(p.correo).toLowerCase(),p.id]));
+        const ids=sel.map(x=>id.get(x.correo.toLowerCase())).filter(Boolean); if(ids.length!==sel.length) throw new Error('No se encontraron todas las cuentas después de crearlas.');
+        const {error:e1}=await sb().from('sd_agenda').delete().in('perfil_id',ids); if(e1) throw e1;
+        const filas=sel.flatMap(x=>x.bloques.map(bq=>({perfil_id:id.get(x.correo.toLowerCase()),hora_inicio:bq.hora_inicio,hora_fin:bq.hora_fin,lugar:bq.lugar,tarea:bq.tarea||null,tipo:bq.tipo,avisar:bq.tipo!=='lib'})));
+        for(let i=0;i<filas.length;i+=200){ const {error}=await sb().from('sd_agenda').insert(filas.slice(i,i+200)); if(error) throw error; }
+        m.remove(); aviso(`Agenda cargada: ${sel.length} personas, ${filas.length} bloques${nuevas.length?` · ${nuevas.length} cuentas nuevas (contraseña 0000)`:''}`,'ok'); agSel=null; await tAgenda();
+      }catch(e){ b.disabled=false; b.textContent='Reintentar'; E.textContent='No se pudo cargar: '+(e.message||e); } };
+    pinta();
   }
   async function descargarAgenda(){ try{ await cargarXLSX(); const nom=id=>((AGS.m.find(x=>x.id===id)||{}).nombre||'');
       const filas=AGS.b.slice().sort((a,b)=>nom(a.perfil_id).localeCompare(nom(b.perfil_id),'es')||a.hora_inicio.localeCompare(b.hora_inicio)).map(b=>({Master:nom(b.perfil_id),Desde:b.hora_inicio,Hasta:b.hora_fin,Lugar:b.lugar,'Qué debe hacer':b.tarea||'',Tipo:(TIPOS[b.tipo]||TIPOS.sup)[0],Aviso:b.avisar?'Sí':'No'}));
