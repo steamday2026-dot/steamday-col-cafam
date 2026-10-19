@@ -236,7 +236,7 @@ function mostrarLlegada(container, r, lids){
   const T = t ? {...TEMAS[t], titulo: tit || (t==='tec'?TEMAS.tec.titulo:(r.nombre||TEMAS[t].titulo)), sub: frase || TEMAS[t].sub}
               : {titulo: r.nombre, sub: r.tipo==='pausa' ? '¡Momento de recargar energías!' : 'Llegaste a la siguiente estación.', col: r.tipo==='pausa'?'#e9a23b':'#173d7a', dur:2400};
   if(t) T.dur = Math.max(5200, Math.min(9000, 2800 + (T.sub||'').length*26));
-  const dibujo = (k && t!=='tec' && A.tiene(k)) ? A.svg(k) : animSVG(t,r);
+  const dibujo = (k && (t!=='tec'||/^d_/.test(k)) && A.tiene(k)) ? A.svg(k) : animSVG(t,r);   // v30: Tecnología tiene una animación por desastre
   let el=container.querySelector('.arrive');
   if(!el){ el=document.createElement('div'); el.className='arrive'; container.appendChild(el); }
   el.style.setProperty('--c',T.col);
