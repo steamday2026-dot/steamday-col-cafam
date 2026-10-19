@@ -276,6 +276,7 @@ function pedirApoyo(){
 function pintarRotaciones(){
   const el=$('rotPz'), fs=filasLider();
   if(!fs.length){ el.innerHTML='<div class="alertbox">Aún no tienes rotaciones asignadas.</div>'; return; }
+  if(fs.every(r=>tipoLugar(r.salon)==='coliseo')) return pintarRotColiseo(fs);
   const sal=salonesLider(fs), m=minAhora(); if(LIDE.rsal!=='*'&&!sal.includes(LIDE.rsal)) LIDE.rsal='*';
   const ver=fs.filter(r=>LIDE.rsal==='*'||(r.salon||'Por definir')===LIDE.rsal), F=franjasLider(ver);
   const niv=[...new Set(fs.map(r=>r.nivel))], pausas=S.prog.filter(p=>p.tipo==='pausa'&&niv.includes(p.nivel));
@@ -287,6 +288,28 @@ function pintarRotaciones(){
     const est=toMin(x.f)<=m?'ok':toMin(x.h)<=m?'now':'nx';
     h+=`<div class="rot2 ${est}"><div class="h">${fmtHora(x.h)}<small>a ${fmtHora(x.f)}</small></div><div class="c">${x.rs.map(r=>`<div><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><b>${escHTML(r.grado||'')}</b> · ${escHTML(r.salon||'')}<small>Director: ${escHTML(r.acompanante||'—')}${r.apoyo?' · Codirector: '+escHTML(r.apoyo):''}</small></div>`).join('')}</div><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>`; });
   el.innerHTML=h; el.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{ LIDE.rsal=x.dataset.s; pintarRotaciones(); });
+}
+
+/* v33 · Líderes del Coliseo: qué curso llega a su espacio y a los demás espacios (A–H) en cada rotación */
+function pintarRotColiseo(fs){
+  const el=$('rotPz'), Z=window.COL_Z||{}, mi=letraLider(fs,fs[0].salon), m=minAhora(), modo=LIDE.rcol||'todo';
+  const col=S.prog.filter(r=>r.tipo==='actividad'&&tipoLugar(r.salon)==='coliseo'), F=franjasLider(col);
+  const L=r=>String(r.curso||'').trim().slice(-1).toUpperCase(), z=k=>Z[k]||[k,'#5b6577','📍'];
+  const lider=r=>{ const id=(r.lideres||[])[0]; return id&&S.lid&&S.lid[id]?S.lid[id].nombre:''; };
+  const niv=[...new Set(col.map(r=>r.nivel))], pausas=S.prog.filter(p=>p.tipo==='pausa'&&niv.includes(p.nivel));
+  const mios=col.filter(r=>L(r)===mi).length, zm=z(mi);
+  let h=`<div class="lcard colcard" style="margin-top:0;--c:${zm[1]}"><span class="colL">${escHTML(mi)}</span><div><div class="k">Tu espacio en el Coliseo</div><b style="font-size:15px">${zm[2]} ${escHTML(zm[0])}</b><small style="display:block;color:var(--muted)">${F.length} rotaciones · ${mios} grupos llegan a tu espacio</small></div></div>
+    <div class="segs" style="margin:8px 0"><span data-cm="todo" class="${modo==='todo'?'on lid':''}">Todo el Coliseo</span><span data-cm="mi" class="${modo==='mi'?'on lid':''}">Solo mi espacio</span></div>`;
+  const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
+  items.forEach(x=>{ if(x.t==='p'){ h+=`<div class="rsep">☕ ${escHTML(x.area)} · ${fmtHora(x.h)} a ${fmtHora(x.f)}</div>`; return; }
+    const est=toMin(x.f)<=m?'ok':toMin(x.h)<=m?'now':'nx', yo=x.rs.find(r=>L(r)===mi);
+    h+=`<div class="rotcol e-${est}"><div class="rh"><b>${fmtHora(x.h)} a ${fmtHora(x.f)}</b><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>
+      <div class="miesp" style="--c:${zm[1]}">${yo?`<span class="cur">${escHTML(yo.curso)}</span><div><b>Llega a tu espacio ${escHTML(mi)}</b><small>Director: ${escHTML(yo.acompanante||'—')}${yo.apoyo?' · Codirector: '+escHTML(yo.apoyo):''}</small></div>`:`<div><b>Ningún curso llega a tu espacio en esta rotación</b><small>Puedes apoyar a los demás espacios.</small></div>`}</div>`;
+    if(modo==='todo') h+=`<div class="colgrid">${'ABCDEFGH'.split('').filter(k=>k!==mi).map(k=>{ const r=x.rs.find(q=>L(q)===k), zz=z(k);
+        return `<div class="cg ${r?'':'vac'}" style="--c:${zz[1]}"><span class="l">${k}</span><div><small>${zz[2]} ${escHTML(zz[0])}</small><b>${r?escHTML(r.curso):'—'}</b>${r?`<small>${escHTML(lider(r)||'')}</small>`:''}</div></div>`; }).join('')}</div>`;
+    else h+=`<div class="colmini">${'ABCDEFGH'.split('').filter(k=>k!==mi).map(k=>{ const r=x.rs.find(q=>L(q)===k); return `<span style="--c:${z(k)[1]}"><b>${k}</b> ${r?escHTML(r.curso):'—'}</span>`; }).join('')}</div>`;
+    h+='</div>'; });
+  el.innerHTML=h; el.querySelectorAll('[data-cm]').forEach(x=>x.onclick=()=>{ LIDE.rcol=x.dataset.cm; pintarRotColiseo(fs); });
 }
 
 /* ---------- alertas del líder: antes de cada rotación y cuando el curso llega ---------- */
