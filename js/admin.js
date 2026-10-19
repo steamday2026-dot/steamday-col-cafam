@@ -348,7 +348,9 @@
       <div class="err" id="cuE"></div>
       <div class="abtn"><button class="b2" id="cuX">Cancelar</button><button class="b1" id="cuOk">Crear cuenta</button></div></div>`;
     const N=m.querySelector('#cuN'), C=m.querySelector('#cuC'), R=m.querySelector('#cuR'), Hh=m.querySelector('#cuH'), Er=m.querySelector('#cuE');
-    const esCargo=n=>S().prog.some(r=>r.docente_cargo&&String(r.docente_cargo).split(/\s*-\s*/).some(x=>SteamExcel.norm(x)===SteamExcel.norm(n)));
+    // v39: el Excel escribe «ESTEBAN BERNAL» (nombre y apellido) y el directorio «Bernal … Esteban»: se compara por palabras, no por el texto exacto
+    const pal=x=>SteamExcel.norm(x).replace(/[^a-z ]/g,' ').split(' ').filter(w=>w.length>1);
+    const esCargo=n=>{ const tn=pal(n); return tn.length>=2&&S().prog.some(r=>r.tipo==='actividad'&&r.docente_cargo&&String(r.docente_cargo).split(/\s*(?:[-,;\/]|\sy\s)\s*/i).some(x=>{ const tx=pal(x); return tx.length>=2&&tx.every(w=>tn.includes(w)); })); };
     const revisa=()=>{ const n=N.value.trim(), k=SteamExcel.norm(n); if(!n){ Hh.textContent=''; return; }
       const fs=S().prog.filter(r=>r.tipo==='actividad'&&[r.acompanante,r.apoyo].some(x=>x&&SteamExcel.norm(x)===k));
       const lid=esCargo(n); if(lid) R.value='lider';
@@ -456,7 +458,7 @@
         <td><select data-k="rol">${ROLES.map(([k,t])=>`<option value="${k}" ${p.rol===k?'selected':''}>${t}</option>`).join('')}</select></td>
         <td style="text-align:center"><input type="checkbox" data-k="org" ${p.org_master?'checked':''}></td>
         <td class="sm">${p.confirmado?'✓ Activa':'Sin ingresar'}</td>
-        <td style="white-space:nowrap"><button class="b1 sm" data-g>Guardar</button> <button class="b2 sm" data-del title="Eliminar cuenta">🗑</button></td></tr>`).join('')}</table></div>
+        <td style="white-space:nowrap"><button class="b1 sm" data-g>Guardar</button> ${p.rol!=='admin'?'<button class="b2 sm" data-res title="Restablecer la contraseña a 0000">🔑 0000</button> ':''}<button class="b2 sm" data-del title="Eliminar cuenta">🗑</button></td></tr>`).join('')}</table></div>
       ${L.length>400?`<p class="sm">Se muestran 400 de ${L.length}. Usa el buscador.</p>`:''}`;
   }
   function bindCuentas(perf){
@@ -468,6 +470,11 @@
       if(error) return aviso('No se pudo cambiar: '+error.message,'bad');
       Object.assign(p,{rol,org_master:org,nombre}); aviso(`${nombre}: ${ROLN[rol]}${org?' · Organizador Master':''}`,'ok');
       if(rol==='lider'||p.rol==='lider') aplicarLideres().catch(()=>{}); });
+    $('cuBox').querySelectorAll('[data-res]').forEach(b=>b.onclick=async()=>{ const tr=b.closest('tr'), p=perf.find(x=>x.id===tr.dataset.id);   // v39
+      if(!confirm(`¿Restablecer la contraseña de ${p.nombre} (${p.correo}) a 0000? Al entrar, la app le pedirá crear una nueva.`)) return;
+      b.disabled=true; const {error}=await sb().rpc('sd_restablecer_clave',{p_correo:p.correo}); b.disabled=false;
+      if(error) return aviso('No se pudo restablecer: '+error.message+(/function|does not exist/i.test(error.message)?' · Ejecuta en Supabase el archivo 15-restablecer-clave.sql':''),'bad');
+      p.confirmado=false; aviso(`Contraseña de ${p.nombre} restablecida a 0000`,'ok'); $('cuBox').innerHTML=cuentasHTML(perf); bindCuentas(perf); });
     $('cuBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ const tr=b.closest('tr'), id=tr.dataset.id, p=perf.find(x=>x.id===id);
       if(!confirm(`¿Eliminar la cuenta de ${p.nombre} (${p.correo})? Esta acción no se puede deshacer.`)) return;
       const {error}=await sb().rpc('sd_eliminar_usuario',{p_id:id}); if(error) return aviso('No se pudo eliminar: '+error.message,'bad');
