@@ -375,7 +375,7 @@ function irPanel(p){
   if(p==='vivo') pintarVivo();
   if(p==='chat') abrirChat();
   if(p==='enc') pintarEncuestas();
-  if(p==='ruta') pintarRuta(false);
+  if(p==='ruta'){ pintarRuta(false); if(window.turBoton) turBoton(); }
   if(p==='estacion') pintarEstacion();
   if(p==='rot') pintarRotaciones();
   if(p==='agenda') pintarAgenda();
@@ -927,14 +927,16 @@ function pintarVivo(){
   const G={}; act.forEach(f=>{ const k=ColegioVivo.zona(f); (G[k]=G[k]||[]).push(f); });
   let h=`<h3>En vivo · ${fmtHora(hm)}</h3><div class="sub">Qué curso está en qué salón y haciendo qué. Toca un curso para ver el recorrido.</div>
     <div class="hora"><span id="vMenos">− 15 min</span><b id="vAhora">${S.vivoMin==null?'Ahora':'Volver a ahora'}</b><span id="vMas">+ 15 min</span></div>
+    ${window.turAbrirResumen?'<button class="b2" id="vTur" style="width:100%;margin:6px 0">👥 Turnos de director y codirector</button>':''}
     <input class="srch" id="vBus" placeholder="Buscar curso, salón o actividad…" value="${escHTML(S.vivoQ||'')}">
     ${pz.map(p=>`<div class="leg">☕ ${escHTML(p.area)} ${escHTML(p.nivel)}: ${fmtHora(p.hora_inicio)} – ${fmtHora(p.hora_fin)}</div>`).join('')}`;
   let n=0;
   Object.entries(G).forEach(([k,fs])=>{ fs=fs.filter(f=>!q||`${f.curso} ${f.salon} ${f.area}`.toLowerCase().includes(q)).sort((x,y)=>String(x.curso).localeCompare(y.curso,'es',{numeric:true})); if(!fs.length) return; n+=fs.length;
     const col=(fs.find(f=>f.categoria!=='gen')||{}).categoria; 
-    h+=`<div class="lugar" style="--c:${col?AREA_C[col]:'#5b6577'}"><h4><span>${escHTML(ColegioVivo.nombreZona(k))}</span><span>${fs.length} curso${fs.length>1?'s':''}</span></h4>${fs.map(f=>`<div class="fila" data-id="${f.id}"><b>${escHTML(f.curso)}</b><span>${escHTML(f.titulo?titA(f.titulo):f.area)} · Salón ${escHTML(f.salon||'—')}</span><i>🧭</i></div>`).join('')}</div>`; });
+    h+=`<div class="lugar" style="--c:${col?AREA_C[col]:'#5b6577'}"><h4><span>${escHTML(ColegioVivo.nombreZona(k))}</span><span>${fs.length} curso${fs.length>1?'s':''}</span></h4>${fs.map(f=>`<div class="fila" data-id="${f.id}"><b>${escHTML(f.curso)}</b><span>${escHTML(f.titulo?titA(f.titulo):f.area)} · Salón ${escHTML(f.salon||'—')}${window.conQuienHTML?conQuienHTML(f.curso,f.hora_inicio):''}</span><i>🧭</i></div>`).join('')}</div>`; });
   if(!n) h+='<p class="pend" style="margin-top:10px">No hay cursos en actividad a esta hora.</p>';
   el.innerHTML=h;
+  if($('vTur')) $('vTur').onclick=()=>turAbrirResumen();
   $('vMenos').onclick=()=>{ S.vivoMin=Math.max(420,m-15); pintarVivo(); }; $('vMas').onclick=()=>{ S.vivoMin=Math.min(900,m+15); pintarVivo(); }; $('vAhora').onclick=()=>{ S.vivoMin=null; pintarVivo(); };
   $('vBus').oninput=e=>{ S.vivoQ=e.target.value; pintarVivo(); const b=$('vBus'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); };
   el.querySelectorAll('.fila').forEach(e=>e.onclick=()=>{ const f=S.prog.find(x=>String(x.id)===e.dataset.id); if(f) verEnMapa([f]); });
@@ -1018,7 +1020,7 @@ async function pintarAlertas(){
     ${S.modo==='lider'?`<div class="opt"><h4>Próximas llegadas a tu estación</h4>${(()=>{ const pl=proximasLider(); return pl.length?pl.slice(0,6).map(x=>{ const m=toMin(x.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>Llega${x.rs.length>1?'n':''} ${escHTML(x.rs.map(r=>r.curso).join(', '))}</b><small>${fmtHora(x.h)} · ${escHTML(x.rs.map(r=>r.salon).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}</small></div></div>`; }).join(''):'<p class="sm">No hay más rotaciones por hoy.</p>'; })()}</div>`:''}
     ${S.modo==='master'&&S.agenda&&S.agenda.length?`<div class="opt"><h4>Avisos de tu agenda</h4><p class="sm">Te avisaremos ${p.anticipacion_min} minutos antes de cada bloque de tu agenda.</p></div>`:''}
     ${S.modo==='docente'?`<div class="opt"><h4>Próximos avisos</h4>${prox.length?prox.slice(0,6).map(s=>{ const m=toMin(s.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>${escHTML(s.nombre)}${S.cursos.length>1&&s.tipo!=='pausa'?' · '+escHTML(s.cursoA):''}</b><small>${escHTML(s.tipo==='pausa'?s.area:'Salón '+(s.salon||'por definir'))}</small></div></div>`; }).join(''):'<p class="sm">No hay más actividades por hoy.</p>'}</div>`:S.modo==='lider'?'':'<p class="sm" style="margin:10px 0">Como usuario Master recibirás los avisos generales del evento.</p>'}
-    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.modo==='master'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.modo==='lider'?'<span class="chip" id="aApoyo">💬 Pedir apoyo</span>':''}${S.perfil.rol==='admin'||S.perfil.org_master?'<span class="chip" id="aProg">📅 Programa</span>':''}${S.modo==='docente'&&window.encuestaFinalDisponible&&encuestaFinalDisponible()?'<span class="chip" id="aEncF">📝 Encuesta final</span>':''}${S.modo==='docente'&&S.config.video_asistencia?'<span class="chip" id="aVAs">▶ Cómo llamar asistencia</span>':''}${S.modo==='docente'&&S.config.video_hacer?'<span class="chip" id="aVHa">▶ Actividades del hacer</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
+    <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.modo==='master'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.modo==='lider'?'<span class="chip" id="aApoyo">💬 Pedir apoyo</span>':''}${S.perfil.rol==='admin'||S.perfil.org_master?'<span class="chip" id="aProg">📅 Programa</span>':''}${(S.perfil.rol==='admin'||['org','master','lider'].includes(S.modo))&&window.turAbrirResumen?'<span class="chip" id="aTurnos">👥 Turnos de los cursos</span>':''}${S.modo==='docente'&&window.turAbrirDocente?'<span class="chip" id="aTurD">👥 Turnos con mi codirector</span>':''}${S.modo==='docente'&&window.encuestaFinalDisponible&&encuestaFinalDisponible()?'<span class="chip" id="aEncF">📝 Encuesta final</span>':''}${S.modo==='docente'&&S.config.video_asistencia?'<span class="chip" id="aVAs">▶ Cómo llamar asistencia</span>':''}${S.modo==='docente'&&S.config.video_hacer?'<span class="chip" id="aVHa">▶ Actividades del hacer</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
@@ -1034,6 +1036,7 @@ async function pintarAlertas(){
   if($('aAvat')) $('aAvat').onclick=()=>irPanel('avatar');
   if($('aApoyo')) $('aApoyo').onclick=pedirApoyo;
   if($('aProg')) $('aProg').onclick=()=>irPanel('programa');
+  if($('aTurnos')) $('aTurnos').onclick=()=>turAbrirResumen(); if($('aTurD')) $('aTurD').onclick=()=>turAbrirDocente();
   if($('aEncF')) $('aEncF').onclick=()=>abrirEncuestaFinal(S.curso);
   if($('aVAs')) $('aVAs').onclick=()=>verVideo('Cómo llamar asistencia',S.config.video_asistencia);
   if($('aVHa')) $('aVHa').onclick=()=>verVideo('Actividades del hacer · Cambio climático',S.config.video_hacer);
@@ -1233,7 +1236,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='33';
+const VERSION_APP='35';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
