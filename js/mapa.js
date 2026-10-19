@@ -230,13 +230,13 @@ function lidFranja(L){ return `<div class="lidstrip">${L.slice(0,3).map(l=>lidMi
 function mostrarLlegada(container, r, lids){
   const t = r.tipo==='actividad' && TEMAS[r.cat] ? r.cat : null;
   // actividad del Excel: título (columna F) y frase (columna G); Matemáticas y Ciencias con animación propia
-  const A = window.ActSTEM, k = t && A ? A.clave(r) : null;
+  const A = window.ActSTEM, k = A && r.tipo==='actividad' ? A.clave(r) : null;   // v34: también dirección de curso, rompecabezas y actividad del hacer
   const tit = (r.titulo && window.tituloA) ? window.tituloA(r.titulo) : (r.titulo||'');
   const frase = r.frase ? String(r.frase).trim() : '';
   const T = t ? {...TEMAS[t], titulo: tit || (t==='tec'?TEMAS.tec.titulo:(r.nombre||TEMAS[t].titulo)), sub: frase || TEMAS[t].sub}
-              : {titulo: r.nombre, sub: r.tipo==='pausa' ? '¡Momento de recargar energías!' : 'Llegaste a la siguiente estación.', col: r.tipo==='pausa'?'#e9a23b':'#173d7a', dur:2400};
+              : {titulo: r.nombre, sub: r.tipo==='pausa' ? '¡Momento de recargar energías!' : (frase || 'Llegaste a la siguiente estación.'), col: r.tipo==='pausa'?'#e9a23b':({lista:'#2f6fde',rompe:'#7b4bd6',hacer:'#1f9d6b'}[k]||'#173d7a'), dur: frase&&r.tipo!=='pausa' ? Math.max(5200, Math.min(9000, 2800 + frase.length*26)) : 2400};
   if(t) T.dur = Math.max(5200, Math.min(9000, 2800 + (T.sub||'').length*26));
-  const dibujo = (k && (t!=='tec'||/^d_/.test(k)) && A.tiene(k)) ? A.svg(k) : animSVG(t,r);   // v30: Tecnología tiene una animación por desastre
+  const dibujo = (k && (t!=='tec'||/^d_/.test(k)) && (t||['lista','rompe','hacer'].includes(k)) && A.tiene(k)) ? A.svg(k) : animSVG(t,r);   // v30: Tecnología tiene una animación por desastre
   let el=container.querySelector('.arrive');
   if(!el){ el=document.createElement('div'); el.className='arrive'; container.appendChild(el); }
   el.style.setProperty('--c',T.col);
@@ -328,7 +328,7 @@ class MapaSteam {
     this.stops.forEach((r,i)=>{ const o=this.lideres(i); if(!o||!(this.opts.saludado&&this.opts.saludado(i))) return;
       const {bx,by}=this.base(i), ty=by-(48+(i%3)*6), cx=bx+40, cy=ty-2, l=o.list[0], av=l.avatar||{};
       s+=`<defs><clipPath id="lcp${i}"><circle cx="${cx}" cy="${cy}" r="9"/></clipPath></defs><circle cx="${cx}" cy="${cy}" r="10.5" fill="#fff" stroke="#f2b705" stroke-width="2"/>
-        <g clip-path="url(#lcp${i})"><rect x="${cx-10}" y="${cy-10}" width="20" height="20" fill="#fff3e6"/><g transform="translate(${cx},${cy+16}) scale(.27)">${avatarPose(av,{})}</g></g>
+        <g clip-path="url(#lcp${i})"><rect x="${cx-10}" y="${cy-10}" width="20" height="20" fill="#fff3e6"/><g transform="translate(${cx},${cy+16}) scale(.27)">${typeof avatarFondo==='function'?avatarFondo(av,-37,-96,74,74):''}${avatarPose(av,{})}</g></g>
         <path transform="translate(${cx+8},${cy-8})" d="M0,-4.2L1,-1.4L4,-1.3L1.6,.6L2.5,3.4L0,1.8L-2.5,3.4L-1.6,.6L-4,-1.3L-1,-1.4Z" fill="#f2b705" stroke="#2b2b3a" stroke-width=".8"/>
         ${o.list.length>1?`<rect x="${cx-9}" y="${cy+8}" width="18" height="9" rx="4.5" fill="#c2410c"/><text x="${cx}" y="${cy+14.8}" text-anchor="middle" style="font-size:6.5px;font-weight:900;fill:#fff">×${o.list.length}</text>`:''}`; });
     g.innerHTML=s;
