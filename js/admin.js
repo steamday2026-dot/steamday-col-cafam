@@ -749,6 +749,9 @@
      Crea las cuentas que falten como Master (contraseña 0000), pasa a Master a quien esté como Docente
      y reemplaza los bloques de agenda de esas personas. */
   async function importarAgenda(file){
+    // v40b: si el index.html publicado no trae agenda-excel.js, se carga aquí mismo
+    if(!window.AgendaExcel){ try{ await new Promise((ok,no)=>{ const s=document.createElement('script'); s.src='js/agenda-excel.js?v=40b'; s.onload=ok; s.onerror=()=>no(new Error('no se encontró')); document.head.appendChild(s); }); }catch(e){} }
+    if(!window.AgendaExcel) return aviso('Falta el archivo js/agenda-excel.js en GitHub. Súbelo dentro de la carpeta js y vuelve a intentar.','bad');
     let R; try{ await cargarXLSX(); R=await window.AgendaExcel.leerArchivo(file); }catch(e){ return aviso('No se pudo leer el archivo: '+(e.message||e),'bad'); }
     if(!R.personas.length) return aviso(R.avisos[0]||'No encontré personas en el archivo.','bad');
     let perf; try{ perf=await todosPerfiles(); }catch(e){ return aviso(e.message,'bad'); }
