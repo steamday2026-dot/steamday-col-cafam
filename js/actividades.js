@@ -37,6 +37,17 @@ function completarProgramacion(rows){
 
 /* ---------- qué actividad es (por título y frase) ---------- */
 const REG=[
+  // v34 · actividades nuevas del Excel del 18 de octubre (Ciencias) y espacios generales
+  ['estanque','pasando en el estanque|pistas de la naturaleza|pistas biologicas'],
+  ['extremos','extremos|hielo y el fuego|dos temperaturas'],
+  ['ficcion','ficcion y la realidad|mecanica, cuantica|biofisica'],
+  ['comes','lo que comes|lo que comemos|tienes lo que se necesita'],
+  ['microbios','microbios a manjares|fermentacion'],
+  ['visible','mas alla de lo visible|fisica detras del vuelo'],
+  ['solucion','solucion para el planeta|combinan creatividad'],
+  ['lista','pasando lista por el futuro|direccion de grupo|direccion de curso'],
+  ['rompe','cada pieza encaja|rompecabezas'],
+  ['hacer','la ciencia nos inspira|actividad del hacer'],
   // v30 · Tecnología: un desastre por espacio del Coliseo
   ['d_avalancha','avalancha'],['d_volcan','erupcion volcanica|erupcion'],['d_incendio','incendios forestales|incendio'],['d_inundacion','inundacion'],
   ['d_terremoto','terremoto|sismo'],['d_tormenta','tormenta electrica'],['d_tsunami','tsunami'],['d_huracan','huracan'],
@@ -71,6 +82,61 @@ const piso='<rect x="0" y="150" width="240" height="15" fill="#e8eef7"/>';
 const tag=(x,y,txt,col,d)=>`<g class="x-pop" style="--d:${d}s"><rect x="${x-txt.length*3.2-8}" y="${y-11}" width="${txt.length*6.4+16}" height="18" rx="9" fill="${col}"/><text x="${x}" y="${y+2}" text-anchor="middle" style="font-size:9.5px;font-weight:800;fill:#fff">${txt}</text></g>`;
 const mariposa=(x,y,c)=>`<g transform="translate(${x} ${y})"><g class="x-bob"><path class="x-wl" d="M0,0 C-14,-20 -26,-12 -20,2 C-26,14 -10,18 0,4Z" fill="${c}"/><path class="x-wr" d="M0,0 C14,-20 26,-12 20,2 C26,14 10,18 0,4Z" fill="${c}"/><rect x="-1.5" y="-8" width="3" height="16" rx="1.5" fill="#1b2333"/></g></g>`;
 const SV={
+/* ---------- v34 · CIENCIAS · actividades nuevas (Excel del 18 de octubre) ---------- */
+estanque:()=>`${piso}<ellipse cx="120" cy="128" rx="96" ry="24" fill="#4fa3d1"/><ellipse cx="120" cy="124" rx="80" ry="16" fill="#7cc3ea"/>
+  <ellipse class="x-ring2" style="--d:.2s" cx="96" cy="124" rx="16" ry="5" fill="none" stroke="#fff" stroke-width="1.5"/><ellipse class="x-ring2" style="--d:.8s" cx="150" cy="128" rx="14" ry="4" fill="none" stroke="#fff" stroke-width="1.5"/>
+  ${[30,40,204,214].map((x,i)=>`<path d="M${x},140 q-4,-30 ${i%2?4:-2},-52" stroke="#3f9b52" stroke-width="3" fill="none"/><ellipse cx="${x+(i%2?4:-2)}" cy="88" rx="3" ry="9" fill="#8d5a2b"/>`).join('')}
+  <ellipse cx="160" cy="122" rx="16" ry="5" fill="#4caf50"/><g class="x-pop" style="--d:.5s"><ellipse cx="160" cy="114" rx="10" ry="7" fill="#5cb85c"/><circle cx="155" cy="108" r="3" fill="#fff"/><circle cx="165" cy="108" r="3" fill="#fff"/><circle cx="155" cy="108" r="1.4" fill="#1b2333"/><circle cx="165" cy="108" r="1.4" fill="#1b2333"/></g>
+  <g class="x-mv" style="--x0:-70px;--y0:-20px;--x1:10px;--y1:0px;--t:2.4s;--d:.4s"><circle cx="100" cy="96" r="18" fill="rgba(255,255,255,.35)" stroke="#3a4253" stroke-width="5"/><line x1="113" y1="109" x2="130" y2="126" stroke="#3a4253" stroke-width="7" stroke-linecap="round"/></g>
+  ${tag(58,28,'Biología','#1f9d6b',1.2)}${tag(120,22,'Química','#2f6fde',1.6)}${tag(184,28,'Física','#7b4bd6',2)}
+  <g class="x-pop" style="--d:2.4s"><rect x="212" y="40" width="10" height="44" rx="5" fill="#fff" stroke="#9aa3b5" stroke-width="2"/><rect x="214" y="58" width="6" height="24" rx="3" fill="#e5484d"/><circle cx="217" cy="86" r="7" fill="#e5484d"/></g>`,
+extremos:()=>`${piso}<rect x="0" y="0" width="120" height="150" fill="#dff1ff"/><rect x="120" y="0" width="120" height="150" fill="#ffe7d6"/>
+  <path d="M10,150 L40,92 L62,118 L86,80 L114,150Z" fill="#fff" stroke="#9cc9ee" stroke-width="2"/><path d="M40,92 L48,104 L34,104Z M86,80 L96,98 L78,98Z" fill="#bfe4ff"/>
+  ${[[24,30,0],[70,22,.6],[100,46,1.2],[52,56,.9]].map(([x,y,d])=>`<g class="x-mv" style="--x0:0px;--y0:0px;--x1:0px;--y1:40px;--t:2.6s;--d:${d}s"><text x="${x}" y="${y}" style="font-size:13px;fill:#5fa8ff">❄</text></g>`).join('')}
+  ${[[150,0],[176,.3],[202,.15]].map(([x,d])=>`<g class="x-glow" style="animation-delay:${d}s"><path d="M${x},150 q-14,-26 0,-52 q6,18 14,8 q12,26 -4,44z" fill="#ff7a1a"/><path d="M${x+2},150 q-6,-16 2,-30 q4,12 8,6 q4,14 -4,24z" fill="#ffd166"/></g>`).join('')}
+  <circle cx="120" cy="84" r="26" fill="#4fa3d1" stroke="#fff" stroke-width="3"/><path d="M104,74 q8,-8 16,0 q6,8 -2,14 q-8,4 -4,12 q-10,-4 -12,-14z M126,86 q10,-4 14,4 q2,10 -6,14 q-8,0 -10,-8z" fill="#5cb85c"/>
+  ${tag(52,22,'-20 °C','#2f6fde',.6)}${tag(190,22,'45 °C','#e5484d',1)}${tag(120,138,'Un planeta','#1f9d6b',1.6)}`,
+ficcion:()=>`${piso}<g transform="translate(64 78)"><g class="x-spin" style="--t:3s"><ellipse rx="40" ry="14" fill="none" stroke="#7b4bd6" stroke-width="2.5"/></g><g class="x-spin" style="--t:4s"><ellipse rx="40" ry="14" fill="none" stroke="#2f6fde" stroke-width="2.5" transform="rotate(60)"/></g><g class="x-spin" style="--t:5s"><ellipse rx="40" ry="14" fill="none" stroke="#1f9d6b" stroke-width="2.5" transform="rotate(-60)"/></g><circle r="8" fill="#e5484d"/></g>
+  <line x1="150" y1="34" x2="210" y2="34" stroke="#5b6577" stroke-width="4"/><g class="x-bal" style="transform-origin:180px 34px"><line x1="180" y1="34" x2="180" y2="92" stroke="#5b6577" stroke-width="2"/><circle cx="180" cy="98" r="10" fill="#f2a900"/></g>
+  ${Array.from({length:7},(_,i)=>`<g class="x-pop" style="--d:${.3+i*.12}s"><circle cx="${150+i*10}" cy="${132+Math.sin(i)*8}" r="3" fill="#2f6fde"/><circle cx="${150+i*10}" cy="${132-Math.sin(i)*8}" r="3" fill="#e5484d"/><line x1="${150+i*10}" y1="${132+Math.sin(i)*8}" x2="${150+i*10}" y2="${132-Math.sin(i)*8}" stroke="#9aa3b5"/></g>`).join('')}
+  ${tag(64,22,'Cuántica','#7b4bd6',.8)}${tag(180,118,'Biofísica','#1f9d6b',1.4)}${tag(180,16,'Mecánica','#2f6fde',2)}`,
+comes:()=>`${piso}<ellipse cx="100" cy="128" rx="62" ry="14" fill="#fff" stroke="#c8d0dc" stroke-width="3"/><ellipse cx="100" cy="124" rx="44" ry="8" fill="#eef2f7"/>
+  <g class="x-pop" style="--d:.3s"><circle cx="82" cy="110" r="14" fill="#e5484d"/><path d="M82,96 q4,-8 10,-8" stroke="#3f9b52" stroke-width="3" fill="none"/></g>
+  <g class="x-pop" style="--d:.5s"><path d="M100,118 q0,-22 20,-22 q20,0 20,22z" fill="#e0a85c"/><path d="M106,108 l6,-6 M116,106 l6,-6 M126,108 l6,-6" stroke="#b07a3a" stroke-width="2"/></g>
+  <g class="x-pop" style="--d:.7s"><rect x="62" y="96" width="10" height="22" rx="3" fill="#ff9f43"/><path d="M64,96 l3,-8 l3,8" fill="#3f9b52"/></g>
+  <g class="x-pop" style="--d:1s"><path d="M186,60 h18 v28 l14,36 q2,8 -6,8 h-34 q-8,0 -6,-8 l14,-36z" fill="rgba(191,230,251,.7)" stroke="#9aa3b5" stroke-width="2.5"/><path d="M176,112 l8,-20 h22 l8,20 q2,6 -4,6 h-30 q-6,0 -4,-6z" fill="#7b4bd6" opacity=".7"/></g>
+  ${[0,1,2].map(i=>`<g class="x-pop" style="--d:${1.6+i*.4}s"><rect x="20" y="${26+i*20}" width="14" height="14" rx="3" fill="#fff" stroke="#1f9d6b" stroke-width="2"/><path d="M23,${33+i*20} l4,4 l6,-8" stroke="#1f9d6b" stroke-width="2.5" fill="none"/></g>`).join('')}
+  ${tag(120,26,'¿Tienes lo que se necesita?','#e5484d',.2)}${tag(196,148,'Ciencia','#7b4bd6',2.8)}`,
+microbios:()=>`${piso}<rect x="70" y="40" width="70" height="108" rx="12" fill="rgba(191,230,251,.5)" stroke="#9aa3b5" stroke-width="3"/><rect x="66" y="32" width="78" height="12" rx="4" fill="#5b6577"/>
+  <rect x="73" y="86" width="64" height="59" rx="9" fill="#f3d9a4"/>
+  ${[[86,0],[104,.5],[122,1],[96,1.5],[114,.8]].map(([x,d])=>`<g class="x-mv x-loop" style="--x0:0px;--y0:0px;--x1:0px;--y1:-44px;--t:1.8s;--d:${d}s"><circle cx="${x}" cy="138" r="3.5" fill="#fff" opacity=".9"/></g>`).join('')}
+  ${[[30,60,'#7b4bd6'],[44,100,'#1f9d6b'],[172,58,'#e5484d'],[190,98,'#2f6fde']].map(([x,y,c],i)=>`<g class="x-bob" style="animation-delay:${i*.3}s"><ellipse cx="${x}" cy="${y}" rx="12" ry="8" fill="${c}" opacity=".85"/><circle cx="${x-4}" cy="${y-2}" r="1.6" fill="#fff"/><circle cx="${x+4}" cy="${y-2}" r="1.6" fill="#fff"/><path d="M${x-12},${y} l-6,-4 M${x+12},${y} l6,4" stroke="${c}" stroke-width="2"/></g>`).join('')}
+  <g class="x-pop" style="--d:1.8s"><path d="M168,148 q0,-26 26,-26 q26,0 26,26z" fill="#e0a85c"/><path d="M176,136 q18,-10 36,0" stroke="#b07a3a" stroke-width="2" fill="none"/></g>
+  ${tag(105,20,'Fermentación','#1f9d6b',.6)}${tag(194,112,'¡Manjar!','#f2a900',2.2)}`,
+visible:()=>`${piso}<rect x="0" y="0" width="240" height="70" fill="#e7f3ff"/>
+  <g class="x-mv" style="--x0:-90px;--y0:20px;--x1:150px;--y1:-10px;--t:3.4s;--d:.2s"><path d="M40,40 l40,-4 l10,4 l-10,4z" fill="#5b6577"/><path d="M58,38 l-10,-14 h8 l14,14z M58,42 l-10,14 h8 l14,-14z" fill="#2f6fde"/><path d="M40,40 l-6,-8 h5 l6,8z" fill="#2f6fde"/></g>
+  <path class="x-draw" style="--t:2.4s;--d:.8s" pathLength="1" d="M10,104 h40 l8,-16 l8,30 l8,-40 l8,26 h30" fill="none" stroke="#e5484d" stroke-width="3"/>
+  <g transform="translate(170 72)"><rect x="-6" y="56" width="44" height="8" rx="3" fill="#3a4253"/><rect x="10" y="-6" width="10" height="44" rx="3" fill="#5b6577" transform="rotate(-20 15 16)"/><rect x="0" y="40" width="30" height="6" fill="#5b6577"/><path d="M26,44 q12,0 12,14" stroke="#5b6577" stroke-width="6" fill="none"/></g>
+  ${[[150,124,0],[134,140,.4],[160,142,.8]].map(([x,y,d])=>`<g class="x-pop" style="--d:${1.6+d}s"><circle cx="${x}" cy="${y}" r="8" fill="#a6e3b8" stroke="#1f9d6b" stroke-width="2"/><circle cx="${x+1}" cy="${y}" r="3" fill="#1f9d6b"/></g>`).join('')}
+  ${tag(46,138,'Medicina','#e5484d',1.4)}${tag(196,22,'Vuelo','#2f6fde',1)}${tag(120,90,'Física','#7b4bd6',2.4)}`,
+solucion:()=>`${piso}<g class="x-glow"><circle cx="120" cy="64" r="44" fill="#ffd166"/></g><path d="M100,64 a20,20 0 1 1 40,0 q0,12 -10,20 v10 h-20 v-10 q-10,-8 -10,-20z" fill="#fff6cc" stroke="#f2a900" stroke-width="3"/><rect x="108" y="96" width="24" height="8" rx="2" fill="#9aa3b5"/><path d="M114,74 l6,-10 l6,10" stroke="#f2a900" stroke-width="2.5" fill="none"/>
+  <g transform="translate(46 112)"><g class="x-spin" style="--t:4s">${Array.from({length:8},(_,i)=>`<rect x="-4" y="-22" width="8" height="10" fill="#5b6577" transform="rotate(${i*45})"/>`).join('')}<circle r="16" fill="#5b6577"/><circle r="6" fill="#e8eef7"/></g></g>
+  <g class="x-grow" style="--d:1s;transform-origin:194px 150px"><path d="M194,150 v-36" stroke="#3f9b52" stroke-width="4"/><path d="M194,124 q-20,-6 -22,-24 q18,2 22,24z M194,116 q18,-8 20,-26 q-18,4 -20,26z" fill="#5cb85c"/></g>
+  ${tag(54,22,'Creatividad','#7b4bd6',.6)}${tag(186,22,'Innovación','#2f6fde',1)}${tag(120,140,'Ciencia','#1f9d6b',1.4)}`,
+/* ---------- v34 · espacios generales: dirección de curso, rompecabezas y actividad del hacer ---------- */
+lista:()=>`${piso}<rect x="62" y="22" width="96" height="124" rx="10" fill="#fff" stroke="#9aa3b5" stroke-width="3"/><rect x="92" y="14" width="36" height="16" rx="5" fill="#5b6577"/>
+  ${[0,1,2,3].map(i=>`<rect x="76" y="${48+i*22}" width="14" height="14" rx="3" fill="none" stroke="#1f9d6b" stroke-width="2"/><path class="x-draw" style="--t:.4s;--d:${.5+i*.45}s" pathLength="1" d="M79,${55+i*22} l4,4 l7,-9" stroke="#1f9d6b" stroke-width="3" fill="none"/><rect x="96" y="${52+i*22}" width="${44-i*6}" height="6" rx="3" fill="#dfe5ee"/>`).join('')}
+  <g class="x-pop" style="--d:2.4s"><circle cx="190" cy="56" r="22" fill="#ffd166"/><path d="M194,40 l-12,18 h10 l-6,16 l14,-20 h-10z" fill="#f2a900"/></g>
+  <g class="x-grow" style="--d:2.6s;transform-origin:34px 150px"><path d="M34,150 v-28" stroke="#3f9b52" stroke-width="3"/><path d="M34,130 q-14,-4 -16,-18 q14,2 16,18z M34,124 q14,-6 16,-20 q-14,4 -16,20z" fill="#5cb85c"/></g>
+  ${tag(120,158,'Pasando lista por el futuro','#2f6fde',3)}`,
+rompe:()=>`${piso}<rect x="66" y="30" width="108" height="108" rx="10" fill="#e6ebf5"/>
+  ${[[66,30,'#4fa3d1','-60px','-30px',0],[120,30,'#5cb85c','60px','-30px',.4],[66,84,'#5cb85c','-60px','40px',.8],[120,84,'#4fa3d1','60px','40px',1.2]].map(([x,y,c,a,b,d])=>`<g class="x-mv" style="--x0:${a};--y0:${b};--x1:0px;--y1:0px;--t:1s;--d:${d}s"><path d="M${x},${y} h54 v54 h-54z" fill="${c}" stroke="#fff" stroke-width="3"/><circle cx="${x+27}" cy="${y+27}" r="9" fill="#fff" opacity=".35"/></g>`).join('')}
+  <g class="x-pop" style="--d:2.4s"><circle cx="120" cy="84" r="22" fill="none" stroke="#fff" stroke-width="4"/><path d="M110,78 q6,-8 12,0 q4,6 -2,10 q-6,4 -2,10 q-8,-2 -10,-10z" fill="#fff"/></g>
+  ${tag(120,14,'Cada pieza encaja','#7b4bd6',2.6)}${tag(120,156,'Juntos armamos la solución','#1f9d6b',3)}`,
+hacer:()=>`${piso}${[[70,'#f1c27d',0],[120,'#c68642',.3],[170,'#8d5524',.6]].map(([x,c,d])=>`<g class="x-mv" style="--x0:0px;--y0:40px;--x1:0px;--y1:0px;--t:.9s;--d:${d}s"><rect x="${x-10}" y="112" width="20" height="40" rx="6" fill="#2f6fde"/><rect x="${x-12}" y="84" width="24" height="30" rx="8" fill="${c}"/>${[-9,-3,3,9].map((dx,j)=>`<rect x="${x+dx-2.6}" y="${70-(j===1||j===2?6:0)}" width="5.2" height="${20+(j===1||j===2?6:0)}" rx="2.6" fill="${c}"/>`).join('')}<rect x="${x-17}" y="92" width="8" height="5.2" rx="2.6" fill="${c}" transform="rotate(-35 ${x-13} 94)"/></g>`).join('')}
+  <g class="x-pop" style="--d:1.4s"><path d="M120,40 q-16,-14 -22,0 q-4,12 22,28 q26,-16 22,-28 q-6,-14 -22,0z" fill="#e5484d"/></g>
+  <g class="x-pop" style="--d:1.8s"><path d="M40,30 q22,-10 30,14 q-24,8 -30,-14z" fill="#5cb85c"/><path d="M200,30 h10 v14 l10,22 q2,6 -4,6 h-22 q-6,0 -4,-6 l10,-22z" fill="rgba(191,230,251,.8)" stroke="#9aa3b5" stroke-width="2"/></g>
+  ${tag(56,62,'Inspira','#2f6fde',2.2)}${tag(120,158,'Transforma','#1f9d6b',2.6)}${tag(120,14,'Nos une','#e5484d',3)}`,
 /* ---------- TECNOLOGÍA · Desastres naturales (v30) ---------- */
 d_avalancha:()=>`${piso}<path d="M0,150 L70,40 L120,95 L160,30 L240,150Z" fill="#9aa9bf"/><path d="M70,40 L84,62 L60,58Z M160,30 L178,58 L146,54Z" fill="#fff"/>
   ${[0,1,2,3,4,5,6].map(i=>`<circle r="${6+i%3*3}" fill="#fff" stroke="#dfe7f2"><animateMotion dur="2.2s" begin="${.3+i*.18}s" fill="freeze" path="M${150+i*4},${46+i*3} Q${110-i*6},${110} ${40-i*4},${140}"/></circle>`).join('')}
@@ -160,7 +226,7 @@ escape:()=>`<rect x="70" y="24" width="84" height="126" rx="4" fill="#5b3a1f"/>
   <g class="x-mv" style="--x0:-120px;--y0:30px;--x1:0px;--y1:0px;--t:1.6s;--d:.6s"><circle cx="124" cy="90" r="7" fill="none" stroke="#f2b705" stroke-width="3"/><rect x="131" y="88" width="14" height="4" fill="#f2b705"/></g>
   ${['?','?','!'].map((t,i)=>`<text class="x-pop" x="${30+i*14}" y="${50+i*20}" style="--d:${.2+i*.5}s;font-size:22px;font-weight:900;fill:#1f9d6b">${t}</text>`).join('')}
   <rect x="186" y="40" width="14" height="80" rx="7" fill="#fff" stroke="#9aa3b5" stroke-width="2"/><circle cx="193" cy="124" r="10" fill="#e5484d"/><rect class="a-merc" x="189" y="50" width="8" height="74" rx="4" fill="#e5484d"/>
-  ${tag(112,14,'¡Resuelve el misterio!','#1f9d6b',2.6)}`,
+  ${tag(112,12,'Science on the edge','#1f9d6b',2.6)}${tag(40,138,'Repair','#2f6fde',.6)}${tag(40,158,'Separate','#7b4bd6',1.1)}${tag(196,138,'Save','#e5484d',1.6)}${tag(196,158,'Escape!','#f2a900',2.1)}`,
 hidrosfera:()=>`<path d="M0,128 Q30,120 60,128 T120,128 T180,128 T240,128 V165 H0Z" fill="#4fa3d1"/><circle class="a-sun" cx="36" cy="32" r="14" fill="#ffd166"/>
   ${[50,90,130].map((x,i)=>`<path class="x-mv" style="--x0:0px;--y0:0px;--x1:0px;--y1:-60px;--t:1.6s;--d:${.3+i*.3}s" d="M${x},120 q-4,-8 0,-14 q4,-6 0,-14" fill="none" stroke="#bde3ff" stroke-width="3" stroke-linecap="round"/>`).join('')}
   <g class="x-pop" style="--d:1.6s"><ellipse cx="150" cy="38" rx="34" ry="14" fill="#fff"/><ellipse cx="132" cy="44" rx="20" ry="10" fill="#fff"/><ellipse cx="170" cy="44" rx="20" ry="10" fill="#fff"/></g>
@@ -181,7 +247,7 @@ trazo:()=>`<rect x="30" y="30" width="180" height="116" rx="4" fill="#fff" strok
   <path pathLength="1" class="x-draw" style="--t:2.2s" d="M44,120 C70,80 90,140 116,100 S160,70 196,96" fill="none" stroke="#1f9d6b" stroke-width="3.5" stroke-linecap="round"/>
   ${[[64,58,0],[108,52,1],[152,58,2]].map(([x,y,i])=>`<g class="x-pop" style="--d:${.9+i*.8}s"><path d="M${x},${y+16} C${x-14},${y+6} ${x-10},${y-12} ${x},${y-16} C${x+10},${y-12} ${x+14},${y+6} ${x},${y+16}Z" fill="${['#3f9b52','#5cb85c','#2e8b3d'][i]}"/><line x1="${x}" y1="${y+16}" x2="${x}" y2="${y-12}" stroke="#d4f0c8" stroke-width="1.5"/></g>`).join('')}
   <g class="x-stamp"><rect x="0" y="0" width="30" height="16" rx="3" fill="#8a5a2b"/><rect x="10" y="-22" width="10" height="22" rx="4" fill="#c99a62"/></g>
-  ${tag(120,18,'Cada trazo deja huella','#1f9d6b',3.2)}`,
+  ${tag(120,18,'Ilustra · observa · ordena','#1f9d6b',3.2)}${tag(120,160,'Cada estampado deja huella','#7b4bd6',3.6)}`,
 comer:()=>`<ellipse cx="96" cy="112" rx="66" ry="26" fill="#fff" stroke="#c9bfae" stroke-width="3"/><ellipse cx="96" cy="108" rx="48" ry="17" fill="#f6f0e2"/>
   <g class="x-pop" style="--d:.3s"><circle cx="72" cy="100" r="11" fill="#e5484d"/><path d="M72,89 q2,-6 6,-7" stroke="#3f9b52" stroke-width="2" fill="none"/></g>
   <g class="x-pop" style="--d:.7s"><ellipse cx="98" cy="102" rx="7" ry="15" fill="#f2b705" transform="rotate(30 98 102)"/><path d="M104,94 q8,-6 10,-14" stroke="#3f9b52" stroke-width="3" fill="none"/></g>
