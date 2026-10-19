@@ -44,7 +44,7 @@ function cmClave(b){ const i0=b.hora_inicio, f0=b.hora_fin, k=cmKey(b.lugar);
   return f?{clave:copaClave(f),nombre:titA(f.titulo||f.area)}:{clave:'general',nombre:'el STEM Day y el cambio climático'}; }
 function cmBotones(b,compacto){
   const e=cmEstado(b), r=CM.rep[b.id]||{}, out=[];
-  if(!CM.ok) return '';
+  if(!CM.ok||b.tipo==='lib') return '';   // v40: almuerzo y desplazamiento no suman puntos
   if(r.llegada_en) out.push(`<span class="cmok">✓ Llegaste ${hDe(minDe(r.llegada_en))}</span>`);
   else if(e.abierto) out.push(`<button class="cmb ll" data-cm="ll" data-id="${b.id}">📍 Llegué a mi zona</button>`);
   if(r.reportado_en) out.push(`<span class="cmok">✓ Reporte enviado</span>${!compacto&&!LS.get('cm_triv_'+b.id,false)?`<button class="cmb tv" data-cm="tv" data-id="${b.id}">⚡ Trivia de zona</button>`:''}`);
@@ -164,7 +164,7 @@ window.cmSello=cmSello;
 /* ---------- recordatorios del Master ---------- */
 function cmRecordar(){
   const a=ahora(); if(a.fecha!==S.config.fecha_evento||!esCompMaster()||!CM.ok||S.vistaComo) return;
-  (S.agenda||[]).forEach(b=>{ const ini=toMin(b.hora_inicio), r=CM.rep[b.id]||{};
+  (S.agenda||[]).forEach(b=>{ if(b.tipo==='lib') return; const ini=toMin(b.hora_inicio), r=CM.rep[b.id]||{};
     if(!r.llegada_en&&a.min>=ini-2&&a.min<ini+10){ const k='cm_rll_'+b.id; if(!LS.get(k,false)){ LS.set(k,true);
       ventana({icono:'📍',kicker:'Ronda de vigía · Liga Master',titulo:`¿Ya estás en ${escHTML(lugarTxt(b.lugar))}?`,color:'#173d7a',html:'<p>Marca tu llegada: <b>+40 puntos</b> si es hasta 5 minutos después del inicio.</p>',botones:[{t:'📍 Llegué a mi zona',fn:()=>cmLlegue(b)},{t:'Más tarde',ghost:true}]}); } }
     if(r.llegada_en&&!r.reportado_en&&a.min>=ini+6&&a.min<toMin(b.hora_fin)){ const k='cm_rrp_'+b.id; if(!LS.get(k,false)){ LS.set(k,true);
