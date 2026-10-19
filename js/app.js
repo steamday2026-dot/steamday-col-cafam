@@ -1100,7 +1100,7 @@ function pintarAgenda(){
   el.innerHTML=h;
   el.querySelectorAll('.agb').forEach(x=>x.onclick=()=>{ const b=L.find(z=>String(z.id)===x.dataset.id); if(b) irLugarAgenda(b); });
 }
-async function irLugarAgenda(b){ irPanel('ruta'); try{ await ColegioVivo.lugar({salon:b.lugar,hora_inicio:b.hora_inicio,tipo:'actividad'}); }catch(e){} actualizarBotonesCV(); }
+async function irLugarAgenda(b){ irPanel('ruta'); try{ await ColegioVivo.lugar({salon:String(b.lugar||'').split(/\s*,\s*/)[0],hora_inicio:b.hora_inicio,tipo:'actividad'}); }catch(e){} actualizarBotonesCV(); }
 /* tarjeta «Ahora debes estar en» sobre el Colegio vivo (Master) y pines para el administrador */
 function tickAgenda(){
   const card=$('agCard');
@@ -1238,7 +1238,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='39';
+const VERSION_APP='40';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
