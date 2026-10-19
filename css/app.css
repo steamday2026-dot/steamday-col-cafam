@@ -700,3 +700,8 @@ small.turq{display:block;font-size:11.5px;margin-top:2px}small.turq.ok{color:#14
 .cmtr{display:flex;align-items:center;gap:9px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:14px}
 .cmtr .n{width:30px;text-align:center;font-weight:800;color:var(--muted)}.cmtr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cmtr b{color:var(--brand)}
 .cmtr.me{background:#fff4cc;border-radius:8px}.cmtsep{text-align:center;color:var(--muted);line-height:1}
+/* v39: botón Turnos debajo de «Mapa del colegio», en morado */
+.turbtn{left:10px;right:auto;width:68px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 4px 8px;border-radius:16px;background:linear-gradient(165deg,#8b5cf6 0%,#6d3fc0 100%);border:2px solid #fff;font-size:11.5px;line-height:1.1;box-shadow:0 6px 16px rgba(76,29,149,.35)}
+.turbtn{padding:5px 4px 6px}.turbtn .ti{display:flex;align-items:center;gap:3px;font-size:16px;line-height:1}
+.turbtn b{margin:0;color:#6d3fc0;font-size:10.5px}.turbtn b.ok{background:#d1fae5;color:#047857}
+.turbtn{width:52px;font-size:10px;padding:5px 2px 5px;border-radius:14px}.turbtn .ti{font-size:15px}
