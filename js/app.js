@@ -432,7 +432,7 @@ function pintarRuta(rehacer){
     $('mHola').innerHTML=`Hola, ${nom}${S.curso?' · Curso '+escHTML(S.curso):''}`; $('mTit').textContent='Ruta STEM Day';
   }
   const lista=S.vista==='lista';
-  $('mapa').hidden=lista; $('lista').hidden=!lista; $('btnColegio').hidden=lista||!S.stops.length; $('btnColegio').style.top=($('mapa').offsetTop+10)+'px';
+  $('mapa').hidden=lista; $('lista').hidden=!lista; $('btnColegio').hidden=lista||!S.stops.length; $('btnColegio').style.top=($('mapa').offsetTop+10)+'px'; if(window.turBoton) setTimeout(turBoton,0);
   if(!S.stops.length){
     $('mapa').hidden=true; $('lista').hidden=false; $('card').hidden=true;
     $('listaBody').innerHTML=`<div class="alertbox" style="margin:0">${S.modo==='master'?'Esta área no tiene actividades en '+S.nivel+'.':'Aún no tienes un curso asignado. Toca el botón <b>?</b> de arriba para elegir tu grado y curso.'}</div>`;
@@ -1238,7 +1238,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='38';
+const VERSION_APP='39';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
