@@ -7,7 +7,9 @@
    ===================================================================== */
 const COPA_SND={correcta:'sonidos/correcta.mp3',incorrecta:'sonidos/incorrecta.mp3',puntos:'sonidos/puntos.mp3',podio:'sonidos/podio.mp3',aviso:'sonidos/aviso.mp3'};
 const COPA_T=30;          // segundos por pregunta
-let COPA={rank:null, prev:null, ok:true, buf:{}, t:null, pend:[]};
+let COPA={rank:null, prev:null, ok:true, buf:{}, t:null, pend:[], liga:null};
+const copaLiga=()=>COPA.liga||(S.modo==='master'&&S.perfil&&S.perfil.rol!=='admin'?'mst':'doc');
+const copaYoCompite=()=>COPA.liga?false:(S.modo==='docente'||(S.modo==='master'&&S.perfil.rol!=='admin'));
 
 /* ---------- sonidos (Web Audio, con los archivos de Descript) ---------- */
 async function copaSonar(k){
@@ -97,7 +99,7 @@ async function copaResumen(it,ganado){
   const w=copaW(); await copaRanking(true); const yo=COPA.rank&&COPA.rank.yo, tot=COPA.rank&&COPA.rank.total;
   w.innerHTML=`<div class="cwhd"><span class="x" id="cwX">✕</span><small>RESULTADO · ${escHTML(it.nombre)}</small><h3>¡Excelente, ${escHTML(firstName(S.perfil.nombre))}!</h3></div>
    <div class="cwb"><div class="ccard center"><small>GANASTE EN LAS PREGUNTAS</small><div class="cbig">${ganado} <span>pts</span></div></div>
-   ${yo?`<div class="ccard crow">${copaCara(S.perfil.avatar,'lg')}<div><small>TU PUESTO EN LA COPA STEM</small><div class="cpos">${yo.pos}.º</div><div class="sm">de ${tot} docentes · ${yo.puntos} pts</div></div></div>`:''}
+   ${yo?`<div class="ccard crow">${copaCara(S.perfil.avatar,'lg')}<div><small>TU PUESTO EN LA COPA STEM</small><div class="cpos">${yo.pos}.º</div><div class="sm">de ${tot} ${copaLiga()==='mst'?'Master':'docentes'} · ${yo.puntos} pts</div></div></div>`:''}
    <button class="btn cgo" id="cwPod">🏆 Ver el podio</button><button class="btn ghost" id="cwC" style="margin-top:8px">Volver a mi ruta</button></div>`;
   if(ganado>0) copaSonar('puntos');
   $('cwX').onclick=$('cwC').onclick=copaCerrar; $('cwPod').onclick=()=>{ copaCerrar(); copaPodio(); };
@@ -105,7 +107,7 @@ async function copaResumen(it,ganado){
 
 /* ---------- 4) ranking, barra y podio ---------- */
 async function copaRanking(silencio){
-  try{ const r=await S.sb.rpc('sd_copa_ranking'); if(r.error) throw r.error; COPA.ok=true;
+  try{ const r=await S.sb.rpc(copaLiga()==='mst'?'sd_copa_ranking_master':'sd_copa_ranking'); if(r.error) throw r.error; COPA.ok=true;
     const prev=COPA.rank; COPA.rank=r.data||{top:[],total:0}; copaBarra(); if(!$('copaSheet').hidden) copaPodio(true);
     if(prev&&!silencio) copaCambios(prev,COPA.rank); }
   catch(e){ COPA.ok=false; const b=$('copaBar'); if(b) b.hidden=true; }
@@ -127,8 +129,8 @@ function copaBarra(){
   const b=$('copaBar'); if(!b) return; const R=COPA.rank;
   if(!COPA.ok||!R){ b.hidden=true; return; } b.hidden=false;
   const pend=S.modo==='docente'&&!S.vistaComo?copaPend().length:0;
-  b.innerHTML=`<span class="ctr">🏆</span><div class="cttl">Copa STEM<small>${pend?`⚡ ${pend} ${pend>1?'actividades':'actividad'} con preguntas`:R.total?'Toca para ver el podio':'¡Aún nadie suma puntos!'}</small></div>
-   <div class="cmini">${R.top.slice(0,3).map((x,i)=>copaCara(x.avatar,['g','s','b'][i])).join('')}</div>${R.yo&&S.modo==='docente'?`<span class="cme">Tú ${R.yo.pos}.º</span>`:''}${pend?'<span class="cdot"></span>':''}`;
+  b.innerHTML=`<span class="ctr">🏆</span><div class="cttl">Copa STEM${copaLiga()==='mst'?' · Liga Master':''}<small>${pend?`⚡ ${pend} ${pend>1?'actividades':'actividad'} con preguntas`:R.total?'Toca para ver el podio':'¡Aún nadie suma puntos!'}</small></div>
+   <div class="cmini">${R.top.slice(0,3).map((x,i)=>copaCara(x.avatar,['g','s','b'][i])).join('')}</div>${R.yo&&copaYoCompite()?`<span class="cme">Tú ${R.yo.pos}.º</span>`:''}${pend?'<span class="cdot"></span>':''}`;
   b.onclick=()=>copaPodio();
 }
 function copaPodio(refresca){
@@ -136,14 +138,15 @@ function copaPodio(refresca){
   const pl=(r)=>{ const x=T[r]; if(!x) return `<div class="cpl p${r+1} vac"><div class="cblk">${r+1}</div></div>`;
     return `<div class="cpl p${r+1}">${r===0?'<span class="ccrown">👑</span>':''}${copaCara(x.avatar,'pod')}<div class="cnm">${escHTML(x.nombre)}</div><div class="cpt">${x.puntos} pts</div><div class="cblk">${r+1}</div></div>`; };
   const pend=S.modo==='docente'&&!S.vistaComo?copaPend():[];
-  sh.innerHTML=`<div class="cpodbg"><div class="cphd"><span class="x" id="cpX">✕</span><b>🏆 Copa STEM</b><small>En vivo · ${R.total||0} docentes en competencia</small></div>
+  sh.innerHTML=`<div class="cpodbg"><div class="cphd"><span class="x" id="cpX">✕</span><b>🏆 Copa STEM</b><small>En vivo · ${R.total||0} ${copaLiga()==='mst'?'Master':'docentes'} en competencia</small><div class="cligas"><span data-l="doc" class="${copaLiga()==='doc'?'on':''}">Docentes</span><span data-l="mst" class="${copaLiga()==='mst'?'on':''}">Liga Master</span></div></div>
     <div class="cstage">${pl(1)}${pl(0)}${pl(2)}</div></div>
     <div class="clst">${pend.length?`<button class="btn cgo" id="cpPend" style="margin:4px 0 10px">⚡ Responder preguntas pendientes (${pend.length})</button>`:''}
-    ${T.slice(3,10).map(x=>`<div class="cit ${R.yo&&R.yo.pos===x.pos&&S.modo==='docente'?'me':''}"><span class="n">${x.pos}</span>${copaCara(x.avatar)}<span class="nm">${escHTML(x.nombre)}</span><span class="p">${x.puntos}</span></div>`).join('')}
-    ${R.yo&&R.yo.pos>10&&S.modo==='docente'?`<div class="cit me"><span class="n">${R.yo.pos}</span>${copaCara(S.perfil.avatar)}<span class="nm">Tú</span><span class="p">${R.yo.puntos}</span></div>`:''}
-    ${!T.length?'<p class="sm" style="text-align:center;margin-top:20px">Aún nadie suma puntos. ¡Responde la encuesta de tu actividad para empezar!</p>':''}
-    <p class="sm" style="margin-top:12px;text-align:center">Puntos: encuesta 50 · rapidez hasta 40 · opinión 20 · cada pregunta correcta 25 + rapidez hasta 25 · las dos correctas +10</p></div>`;
-  $('cpX').onclick=()=>sh.hidden=true;
+    ${T.slice(3,10).map(x=>`<div class="cit ${R.yo&&R.yo.pos===x.pos&&copaYoCompite()?'me':''}"><span class="n">${x.pos}</span>${copaCara(x.avatar)}<span class="nm">${escHTML(x.nombre)}</span><span class="p">${x.puntos}</span></div>`).join('')}
+    ${R.yo&&R.yo.pos>10&&copaYoCompite()?`<div class="cit me"><span class="n">${R.yo.pos}</span>${copaCara(S.perfil.avatar)}<span class="nm">Tú</span><span class="p">${R.yo.puntos}</span></div>`:''}
+    ${!T.length?`<p class="sm" style="text-align:center;margin-top:20px">Aún nadie suma puntos. ${copaLiga()==='mst'?'¡Marca tu llegada a tu zona para empezar!':'¡Responde la encuesta de tu actividad para empezar!'}</p>`:''}
+    <p class="sm" style="margin-top:12px;text-align:center">${copaLiga()==='mst'?'Liga Master: llegada a tu zona hasta 40 · reporte 50 + rapidez hasta 30 · trivia de zona 25 + rapidez hasta 25 por pregunta · las dos +10 · cada Sello STEM 30 (máx. 6)':'Puntos: encuesta 50 · rapidez hasta 40 · opinión 20 · cada pregunta correcta 25 + rapidez hasta 25 · las dos correctas +10'}</p></div>`;
+  $('cpX').onclick=()=>{ sh.hidden=true; if(COPA.liga){ COPA.liga=null; copaRanking(true); } };
+  sh.querySelectorAll('.cligas [data-l]').forEach(e=>e.onclick=async()=>{ const def=(S.modo==='master'&&S.perfil.rol!=='admin')?'mst':'doc'; COPA.liga=e.dataset.l===def?null:e.dataset.l; await copaRanking(true); copaPodio(true); });
   if($('cpPend')) $('cpPend').onclick=()=>{ sh.hidden=true; copaPreguntas(pend[0]); };
   if(!refresca) sh.querySelectorAll('.cpl').forEach((e,i)=>e.animate([{transform:'translateY(40px)',opacity:0},{transform:'none',opacity:1}],{duration:600,delay:[150,0,300][i],easing:'cubic-bezier(.2,1.3,.3,1)',fill:'backwards'}));
 }
