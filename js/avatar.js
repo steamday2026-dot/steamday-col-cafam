@@ -4,16 +4,16 @@
 const PAL=['#2f6fde','#1f9d6b','#7b4bd6','#f2a900','#e5484d','#1b2333','#ffffff','#8a5a3b','#ec7fb0','#4fb3d9'];
 const OPT = {
   gender:['Hombre','Mujer'],
-  skin:['#f6d3b3','#e8b48a','#c98b5e','#8d5a3b','#5c3a24'],
-  hairH:['Corto','Rapado','Rizado','Peinado de lado'],
-  hairM:['Largo','Cola de caballo','Rizado','Melena corta'],
-  hairC:['#2b1d14','#6b3e1f','#b5651d','#e3c16f','#7a7f8a','#c0392b'],
+  skin:['#f6d3b3','#e8b48a','#c98b5e','#8d5a3b','#5c3a24','#fbe3cf','#a86f48'],
+  hairH:['Corto','Rapado','Rizado','Peinado de lado','Calvo','Afro','Mohicano'],
+  hairM:['Largo','Cola de caballo','Rizado','Melena corta','Calva','Moño alto','Trenzas'],
+  hairC:['#2b1d14','#6b3e1f','#b5651d','#e3c16f','#7a7f8a','#c0392b','#e9e9ee','#2f6fde','#7b4bd6'],
   styleH:['Casual','Formal','Deportivo','Bata de laboratorio'],
   styleM:['Casual','Formal','Deportivo','Bata de laboratorio'],
   shoe:['#1b2333','#ffffff','#8a5a3b','#e5484d','#2f6fde'],
-  head:['Ninguno','Gorra','Casco de ingeniería','Audífonos'],
-  face:['Ninguno','Gafas','Gafas de laboratorio'],
-  extra:['Reloj','Escarapela STEM','Chaleco de organizador']
+  head:['Ninguno','Gorra','Casco de ingeniería','Audífonos','Sombrero','Gorro de lana','Diadema'],
+  face:['Ninguno','Gafas','Gafas de laboratorio','Bigote','Barba','Gafas de sol'],
+  extra:['Reloj','Escarapela STEM','Chaleco de organizador','Mochila','Bufanda']
 };
 const AVATAR_DEF={gender:0,skin:1,hair:0,hairC:0,style:0,top:2,bot:5,shoe:1,head:0,face:2,extra:[1]};
 const TOPN={Casual:'Camiseta',Formal:'Camisa',Deportivo:'Buzo','Bata de laboratorio':'Ropa bajo la bata'};
@@ -37,7 +37,11 @@ function avatarPose(cfg,pose){
   const coat=style==='Bata de laboratorio', sleeve=coat?'#f4f6fa':top, longS=style!=='Casual';
   const st=`stroke="${OUT}" stroke-width="1.6" stroke-linejoin="round"`;
   let o=`<ellipse cx="0" cy="1" rx="${15-bob}" ry="4.5" fill="#000" opacity=".2"/>`;
+  const MS=c.mst||null;
+  if(MS&&MS.aura) o+=`<circle cx="0" cy="-48" r="48" fill="#f2b705" opacity=".18"/><circle cx="0" cy="-48" r="36" fill="#ffe066" opacity=".16"/>`;
   o+=`<g transform="translate(0,${-bob}) ${pose.flip?'scale(-1,1)':''}">`;
+  if(MS&&MS.capa&&!back) o+=`<path d="M-13,-57 Q0,-61 13,-57 L22,-8 Q0,0 -22,-8Z" fill="${MS.capa===1?'#d4a017':'#173d7a'}" stroke="${OUT}" stroke-width="1.4"/>`;
+  if(c.extra.includes(3)&&back) o+=`<rect x="-12" y="-58" width="24" height="26" rx="6" fill="${PAL[(c.top+5)%PAL.length]}" stroke="${OUT}" stroke-width="1.6"/><rect x="-8" y="-46" width="16" height="9" rx="3" fill="${_sh(PAL[(c.top+5)%PAL.length],.8)}"/>`;
   // piernas (giran desde la cadera)
   const leg=(x,a,front)=>`<g transform="translate(0,${-Math.max(0,(x<0?1:-1)*sw)*3.5}) rotate(${a} ${x} -30)">
       <rect x="${x-4.5}" y="-31" width="9" height="${skirt?24:26}" rx="4" fill="${skirt?s:bot}" ${st}/>
@@ -68,17 +72,28 @@ function avatarPose(cfg,pose){
     if(style==='Deportivo') o+=`<line x1="0" y1="-56" x2="0" y2="-31" stroke="${_sh(top,.6)}" stroke-width="1.4"/>`;
     if(c.extra.includes(1)) o+=`<path d="M-5,-58 L0,-44 L5,-58" fill="none" stroke="#e5484d" stroke-width="1.4"/><rect x="-5" y="-45" width="10" height="11" rx="1.5" fill="#fff" ${st}/><rect x="-3.4" y="-43.5" width="6.8" height="3" fill="#2f6fde"/>`;
   }
+  if(!back){
+    if(c.extra.includes(3)) o+=`<path d="M-9,-57 L-10,-34 M9,-57 L10,-34" stroke="${PAL[(c.top+5)%PAL.length]}" stroke-width="3.2" stroke-linecap="round"/>`;
+    if(c.extra.includes(4)) o+=`<path d="M-11,-58 Q0,-53 11,-58 L11,-54 Q0,-49 -11,-54Z" fill="#e5484d" stroke="${OUT}" stroke-width="1.2"/><rect x="4" y="-55" width="5" height="14" rx="2" fill="#e5484d" stroke="${OUT}" stroke-width="1.2"/>`;
+    if(MS&&MS.ins) o+=`<g transform="translate(-8,-47)"><circle r="5.6" fill="#173d7a" stroke="#f2b705" stroke-width="1.4"/><path d="M0,-3.4 L1,-1 L3.4,-1 L1.5,.6 L2.2,3 L0,1.6 L-2.2,3 L-1.5,.6 L-3.4,-1 L-1,-1Z" fill="#f2b705"/></g>`;
+  }
   if(!back) o+=armR+armL;
+  if(MS&&MS.mano===1&&!back) o+=`<g transform="translate(19,-32) rotate(8)"><rect x="-7" y="-10" width="14" height="19" rx="2.5" fill="#173d7a" stroke="${OUT}" stroke-width="1.2"/><rect x="-5" y="-8" width="10" height="13" rx="1" fill="#bfe1ff"/><path d="M-3,-4 h6 M-3,-1 h6 M-3,2 h4" stroke="#173d7a" stroke-width="1"/></g>`;
+  if(MS&&MS.mano===2&&!back) o+=`<g transform="translate(20,-34) rotate(-15)"><path d="M-4,-4 L8,-10 L8,10 L-4,4Z" fill="#f2b705" stroke="${OUT}" stroke-width="1.2"/><rect x="-8" y="-4" width="5" height="8" rx="1" fill="#e5484d" stroke="${OUT}" stroke-width="1.2"/></g>`;
   // cabeza grande (chibi)
   const hy=-74;
   if(M&&(c.hair===0||c.hair===3)) o+=`<path d="M-18,${hy-2} C-20,${hy-24} 20,${hy-24} 18,${hy-2} L19,${hy+(c.hair===0?20:12)} C10,${hy+24} -10,${hy+24} -19,${hy+(c.hair===0?20:12)}Z" fill="${h}" ${st}/>`;
   if(M&&c.hair===1) o+=`<path d="M14,${hy-8} C28,${hy-6} 27,${hy+14} 19,${hy+22} C17,${hy+12} 18,${hy+2} 12,${hy-4}Z" fill="${h}" ${st}/>`;
   if(M&&c.hair===2) o+=`<g fill="${h}" ${st}><circle cx="-17" cy="${hy+6}" r="8"/><circle cx="17" cy="${hy+6}" r="8"/></g>`;
+  if(M&&c.hair===6) o+=`<g fill="${h}" ${st}><rect x="-22" y="${hy}" width="7" height="26" rx="3.5"/><rect x="15" y="${hy}" width="7" height="26" rx="3.5"/></g><circle cx="-18.5" cy="${hy+27}" r="2.4" fill="#e5484d"/><circle cx="18.5" cy="${hy+27}" r="2.4" fill="#e5484d"/>`;
+  if(!M&&c.hair===5) o+=`<g fill="${h}" ${st}><circle cx="-14" cy="${hy-8}" r="10"/><circle cx="14" cy="${hy-8}" r="10"/><circle cx="0" cy="${hy-16}" r="12"/><circle cx="-17" cy="${hy+3}" r="7"/><circle cx="17" cy="${hy+3}" r="7"/></g>`;
+  if(M&&c.hair===5) o+=`<circle cx="0" cy="${hy-21}" r="7.5" fill="${h}" ${st}/>`;
   o+=`<rect x="-4" y="${hy+14}" width="8" height="6" fill="${s}"/>`;
   o+=`<circle cx="0" cy="${hy}" r="17" fill="${s}" ${st}/>`;
   o+=`<path d="M8,${hy-12} A17,17 0 0 1 8,${hy+12} A20,20 0 0 0 8,${hy-12}Z" fill="${_sh(s,.88)}"/>`;
+  const calvo=c.hair===4;
   if(back){ // nuca: el cabello cubre la cabeza
-    o+=`<path d="M-17.5,${hy+2} C-19,${hy-22} 19,${hy-22} 17.5,${hy+2} C12,${hy+12} -12,${hy+12} -17.5,${hy+2}Z" fill="${h}" ${st}/>`;
+    if(!calvo) o+=`<path d="M-17.5,${hy+2} C-19,${hy-22} 19,${hy-22} 17.5,${hy+2} C12,${hy+12} -12,${hy+12} -17.5,${hy+2}Z" fill="${h}" ${st}/>`;
   } else {
     // cara
     const bl=pose.blink, lk=(pose.look||0)*3;
@@ -93,16 +108,27 @@ function avatarPose(cfg,pose){
       if(c.hair===1) o+=`<path d="M-16.5,${hy-5} C-16,${hy-20} 16,${hy-20} 16.5,${hy-5} C11,${hy-11} -11,${hy-11} -16.5,${hy-5}Z" fill="${h}" opacity=".85" ${st}/>`;
       if(c.hair===2) o+=`<g fill="${h}" ${st}><circle cx="-12" cy="${hy-12}" r="7"/><circle cx="-3" cy="${hy-18}" r="7.5"/><circle cx="6" cy="${hy-18}" r="7.5"/><circle cx="13" cy="${hy-11}" r="7"/></g>`;
       if(c.hair===3) o+=`<path d="M-17,${hy-1} C-20,${hy-26} 20,${hy-26} 17,${hy-1} C15,${hy-9} 8,${hy-13} -3,${hy-14} C-10,${hy-12} -15,${hy-8} -17,${hy-1}Z" fill="${h}" ${st}/>`;
+      if(c.hair===6) o+=`<path d="M-5,${hy-16} C-6,${hy-26} 6,${hy-26} 5,${hy-16} L4,${hy-6} L-4,${hy-6}Z" fill="${h}" ${st}/>`;
     } else {
+      if(c.hair===5||c.hair===6) o+=`<path d="M-17.5,${hy-2} C-19,${hy-25} 19,${hy-25} 17.5,${hy-2} C12,${hy-12} -10,${hy-13} -17.5,${hy-2}Z" fill="${h}" ${st}/>`;
       if(c.hair===0||c.hair===3) o+=`<path d="M-18,${hy+1} C-20,${hy-25} 20,${hy-25} 18,${hy+1} C15,${hy-9} 5,${hy-14} -4,${hy-13} C-11,${hy-12} -16,${hy-7} -18,${hy+1}Z" fill="${h}" ${st}/>`;
       if(c.hair===1) o+=`<path d="M-17.5,${hy-2} C-19,${hy-25} 19,${hy-25} 17.5,${hy-2} C12,${hy-13} -10,${hy-14} -17.5,${hy-2}Z" fill="${h}" ${st}/><circle cx="14" cy="${hy-10}" r="3" fill="#e5484d"/>`;
       if(c.hair===2) o+=`<g fill="${h}" ${st}><circle cx="-12" cy="${hy-13}" r="7.5"/><circle cx="-3" cy="${hy-19}" r="8"/><circle cx="7" cy="${hy-19}" r="8"/><circle cx="14" cy="${hy-12}" r="7.5"/></g>`;
     }
     if(c.face===1) o+=`<g fill="none" stroke="${OUT}" stroke-width="1.5"><circle cx="${-5+lk}" cy="${hy+1}" r="4.6"/><circle cx="${5+lk}" cy="${hy+1}" r="4.6"/><line x1="${-.4+lk}" y1="${hy+1}" x2="${.4+lk}" y2="${hy+1}"/></g>`;
     if(c.face===2) o+=`<rect x="${-12.5+lk}" y="${hy-4}" width="25" height="10" rx="5" fill="#bde3ff" fill-opacity=".55" stroke="${OUT}" stroke-width="1.6"/>`;
+    if(calvo) o+=`<path d="M-8,${hy-13} q5,-3 10,-2" stroke="#fff" stroke-width="2" opacity=".55" fill="none" stroke-linecap="round"/>`;
+    if(c.face===3) o+=`<path d="M${-5+lk},${hy+5.5} q2.5,-2 5,0 q2.5,-2 5,0 q-2.5,2.2 -5,.6 q-2.5,1.6 -5,-.6z" fill="${h}" stroke="${OUT}" stroke-width=".8"/>`;
+    if(c.face===4) o+=`<path d="M-15,${hy+2} C-14,${hy+18} 14,${hy+18} 15,${hy+2} C11,${hy+10} 6,${hy+9} ${4+lk},${hy+8} Q${lk},${hy+11} ${-4+lk},${hy+8} C-6,${hy+9} -11,${hy+10} -15,${hy+2}Z" fill="${h}" ${st}/>`;
+    if(c.face===5) o+=`<g><rect x="${-11+lk}" y="${hy-3}" width="9" height="7" rx="3" fill="#1b2333"/><rect x="${2+lk}" y="${hy-3}" width="9" height="7" rx="3" fill="#1b2333"/><line x1="${-2+lk}" y1="${hy}" x2="${2+lk}" y2="${hy}" stroke="#1b2333" stroke-width="1.5"/></g>`;
   }
   if(c.head===1){ const g=PAL[(c.top+3)%PAL.length]; o+=`<path d="M-18,${hy-5} C-18,${hy-26} 18,${hy-26} 18,${hy-5}Z" fill="${g}" ${st}/>${back?'':`<path d="M10,${hy-7} L28,${hy-6} C28,${hy-2} 14,${hy-3} 10,${hy-4}Z" fill="${_sh(g,.8)}" ${st}/>`}`; }
   if(c.head===2) o+=`<path d="M-19,${hy-5} C-19,${hy-30} 19,${hy-30} 19,${hy-5}Z" fill="#f2c200" ${st}/><rect x="-21" y="${hy-7}" width="42" height="5" rx="2.5" fill="#f2c200" ${st}/>`;
+  if(c.head===4) o+=`<ellipse cx="0" cy="${hy-10}" rx="27" ry="5.5" fill="#c8a165" ${st}/><path d="M-15,${hy-11} C-15,${hy-30} 15,${hy-30} 15,${hy-11}Z" fill="#c8a165" ${st}/><rect x="-15" y="${hy-16}" width="30" height="4" fill="${PAL[c.top]}"/>`;
+  if(c.head===5){ const g=PAL[(c.top+2)%PAL.length]; o+=`<path d="M-18,${hy-6} C-18,${hy-28} 18,${hy-28} 18,${hy-6}Z" fill="${g}" ${st}/><rect x="-19" y="${hy-9}" width="38" height="6" rx="3" fill="${_sh(g,.8)}" ${st}/><circle cx="0" cy="${hy-27}" r="4.5" fill="#fff" ${st}/>`; }
+  if(c.head===6) o+=`<path d="M-17,${hy-6} C-15,${hy-20} 15,${hy-20} 17,${hy-6}" fill="none" stroke="${PAL[(c.top+4)%PAL.length]}" stroke-width="3.4" stroke-linecap="round"/>`;
+  if(MS&&MS.cab===1) o+=`<path d="M-13,${hy-15} L-13,${hy-25} L-6,${hy-19} L0,${hy-28} L6,${hy-19} L13,${hy-25} L13,${hy-15}Z" fill="#f2b705" ${st}/><circle cx="0" cy="${hy-20}" r="2" fill="#e5484d"/>`;
+  if(MS&&MS.cab===2) o+=`<path d="M-17,${hy-3} C-17,${hy-26} 17,${hy-26} 17,${hy-3}" fill="none" stroke="#173d7a" stroke-width="3.2"/><rect x="-22" y="${hy-8}" width="8" height="14" rx="4" fill="#f2b705" ${st}/><path d="M-18,${hy+6} Q-14,${hy+14} -4,${hy+12}" stroke="#173d7a" stroke-width="1.8" fill="none"/><circle cx="-4" cy="${hy+12}" r="2.2" fill="#173d7a"/>`;
   if(c.head===3) o+=`<path d="M-17,${hy-3} C-17,${hy-26} 17,${hy-26} 17,${hy-3}" fill="none" stroke="#1b2333" stroke-width="3.2"/><rect x="-22" y="${hy-8}" width="8" height="14" rx="4" fill="${PAL[c.top]}" ${st}/><rect x="14" y="${hy-8}" width="8" height="14" rx="4" fill="${PAL[c.top]}" ${st}/>`;
   o+='</g>';
   return o;
