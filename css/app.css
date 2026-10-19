@@ -253,7 +253,7 @@ table.t td input{width:100%;min-width:90px;padding:6px 8px;border:1px solid var(
 #p-ruta.esMaster>.progress,#p-ruta.esMaster>.card{display:none!important}
 
 /* ===== v6: lista, asistencia, en vivo, chat, organizador ===== */
-.nav.n6 span{font-size:9.8px}.nav.n6 span i.ic{width:30px}
+.nav.n6 span{font-size:9.8px}.nav.n6 span i.ic{width:30px}.nav.n6 span.on i.ic{width:44px}
 .nav span{position:relative}.nav span b.bd{position:absolute;top:-4px;right:14%;z-index:2;background:#e5484d;color:#fff;font-size:9.5px;border-radius:8px;padding:0 5px;font-style:normal}
 .pz{padding:12px 12px 24px;font-size:13px}.pz h3{font-size:16px;color:var(--brand);margin-bottom:2px}.pz .sub{color:var(--muted);font-size:12px;margin-bottom:10px}
 .segs{display:flex;gap:6px;margin-bottom:10px}.segs.wrap{flex-wrap:wrap}.segs span{flex:1;text-align:center;padding:7px 9px;border-radius:10px;background:#fff;border:1px solid var(--line);font-weight:700;font-size:12px;cursor:pointer}
@@ -567,3 +567,60 @@ html.ios-pwa .vcomo{padding-top:calc(16px + var(--safe-top))}
 .agtipos span.on{background:var(--c);border-color:var(--c);color:#fff}
 .agbtns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.b2.del{color:#a3271f;border-color:#e5b4b0}
 @media(max-width:900px){.aglay{flex-direction:column}.agform{width:100%;position:static}.agh>div:first-child,.agn{width:120px}}
+/* v29 · crear usuario a mano */
+.warnbox ul.ulc{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ulc li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid #f5d98a;border-radius:8px;padding:6px 8px}
+button.sm{font-size:12px;padding:6px 10px}
+.amb .field{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.amb .field label{font-size:12px;font-weight:700;color:#4a5366}
+.amb .field input,.amb .field select{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px}
+.amb .err{color:#b42318;font-size:13px}
+
+/* v30 · iPhone instalado: la ventana es más baja que la pantalla y se dibuja desde arriba.
+   La franja de abajo (donde está la barra de inicio) queda del color del menú y el menú no se corta. */
+html.ios-pwa,html.ios-pwa body{background:#fff}
+html.ios-pwa{--safe-bot:0px}
+.rolnote{background:#fff8e6;border:1px solid #f5d98a;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#5c3a1e}
+/* v30 · ventanas emergentes en el centro */
+#popBox .pop{position:fixed;inset:0;z-index:80;background:rgba(10,20,40,.55);display:flex;align-items:center;justify-content:center;padding:18px;animation:popfd .25s ease}
+#popBox .pbx{background:#fff;border-radius:22px;max-width:440px;width:100%;max-height:86vh;overflow:auto;padding:22px 20px 18px;box-shadow:0 30px 70px rgba(0,0,0,.35);border-top:6px solid var(--c);animation:popin .35s cubic-bezier(.2,1.3,.3,1)}
+#popBox .pic{font-size:42px;text-align:center;line-height:1}
+#popBox .pk{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--c);text-align:center;margin-top:8px}
+#popBox h3{font-size:20px;text-align:center;margin:6px 0 10px;color:#14203a}
+#popBox .pt{font-size:15px;line-height:1.5;color:#3d4760}
+#popBox .pt p{margin-bottom:8px}
+#popBox .pbt{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+#popBox .pbt .btn:not(.ghost){background:var(--c)}
+#popBox .vbox.pv{border-radius:12px;overflow:hidden;background:#000;aspect-ratio:9/16;max-height:60vh;margin-top:8px}
+#popBox .vbox.pv iframe,#popBox .vbox.pv video{width:100%;height:100%;border:0}
+@keyframes popfd{from{opacity:0}}@keyframes popin{from{transform:scale(.85);opacity:0}}
+.rpz img{display:block;width:auto;max-width:100%;max-height:42vh;margin:0 auto 8px;border-radius:12px}
+.rpz h4{font-size:14.5px;color:#5b2fb0;margin:10px 0 4px}
+.rpz ol{padding-left:20px;margin:0}.rpz li{margin:3px 0;font-size:14px;line-height:1.4}
+.sec.hacer{background:#eefaf3;border-radius:12px;padding:10px 12px;margin:8px 16px}
+.sec.hacer small{color:var(--muted);font-size:11.5px}
+/* v30 · llamado a lista por momentos */
+.moms{display:flex;gap:6px;overflow-x:auto;margin:2px -14px 10px;padding:2px 14px 4px;scrollbar-width:none}
+.moms span{flex:none;display:flex;flex-direction:column;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px 10px;font-size:10.5px;color:var(--muted);background:#fff;cursor:pointer;min-width:66px}
+.moms span b{font-size:13px;color:var(--ink)}
+.moms span.on{background:#1f9d6b;border-color:#1f9d6b;color:#fff}.moms span.on b{color:#fff}
+.moms span.fut{opacity:.55}
+.cnt.c2{grid-template-columns:1fr 1fr}
+.est .nm select{display:block;width:100%;margin-top:6px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff}
+.est .nm input{margin-top:6px}
+.st.s2 span{width:40px;height:34px;font-size:17px}
+details.fuera{margin:10px 0;background:#fff3f3;border-radius:10px;padding:8px 10px;font-size:13px}
+details.fuera summary{cursor:pointer;font-weight:700;color:#b42318}
+.dlbox{background:#eef3fb;border-radius:12px;padding:10px 12px;margin:12px 0}
+.dlbox>b{font-size:13.5px;display:block;margin-bottom:8px}.dlbox .row{display:flex;gap:6px;flex-wrap:wrap}
+.selsal{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-weight:700;margin-bottom:8px;background:#fff}
+.atabs .tmst.on{background:#d4a017;color:#fff}.atabs{overflow-x:auto;scrollbar-width:none}.atabs span{flex:1 0 auto;padding:11px 12px}
+/* v32 · ausencias anunciadas */
+.pvcard{display:flex;flex-direction:column;gap:2px;position:relative;background:#fff4e5;border:1px solid #f5c98a;border-radius:12px;padding:10px 34px 10px 12px;margin:10px 0;cursor:pointer}
+.pvcard b{font-size:14px;color:#9a5b00}.pvcard span{font-size:12px;color:#7a5a2a}.pvcard i{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;font-size:22px;color:#c98a2a}
+small.pvtag{display:block;color:#b45309!important;font-weight:600}
+.pvgr{margin:6px 0 10px}.pvgr>b{display:block;font-size:13px;color:var(--muted);margin:4px 0}
+.pvh .nm select,.pvh .nm input{display:block;width:100%;margin-top:6px;padding:8px;border:1px solid #d6dbe4;border-radius:8px;font:inherit;font-size:13px}
+.pvh .nm .b1{margin-top:6px}
+label.pvchk{display:block;padding:8px 10px;border:1px solid #e3e7ee;border-radius:10px;margin:6px 0;font-size:13px;background:#fff}
+label.pvchk small{display:block;color:var(--muted);margin-left:22px}
