@@ -624,3 +624,19 @@ small.pvtag{display:block;color:#b45309!important;font-weight:600}
 .pvh .nm .b1{margin-top:6px}
 label.pvchk{display:block;padding:8px 10px;border:1px solid #e3e7ee;border-radius:10px;margin:6px 0;font-size:13px;background:#fff}
 label.pvchk small{display:block;color:var(--muted);margin-left:22px}
+/* v33 · rotaciones del Coliseo */
+.colcard{animation:none!important;display:flex;gap:12px;align-items:center;border-left:5px solid var(--c)}
+.colL{flex:0 0 46px;height:46px;border-radius:12px;background:var(--c);color:#fff;font-weight:900;font-size:26px;display:grid;place-items:center}
+.rotcol{border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 10px;background:#fff}
+.rotcol.e-now{border:2px solid #f2a900;box-shadow:0 2px 10px rgba(242,169,0,.18)}.rotcol.e-ok{opacity:.6}
+.rotcol .rh{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;margin-bottom:8px}
+.rotcol .rh .st{font-size:11.5px;font-weight:700;color:var(--muted)}.rotcol.e-now .rh .st{color:#b07a00}
+.miesp{display:flex;gap:10px;align-items:center;background:color-mix(in srgb,var(--c) 14%,#fff);border:2px solid var(--c);border-radius:12px;padding:8px 10px}
+.miesp .cur{background:var(--c);color:#fff;font-weight:900;border-radius:8px;padding:6px 10px;font-size:16px}
+.miesp b{display:block;font-size:13.5px}.miesp small{display:block;font-size:11.5px;color:var(--muted)}
+.colgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.cg{display:flex;gap:8px;align-items:center;border:1px solid color-mix(in srgb,var(--c) 45%,#fff);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:10px;padding:6px 8px;min-width:0}
+.cg .l{flex:0 0 24px;height:24px;border-radius:7px;background:var(--c);color:#fff;font-weight:900;font-size:13px;display:grid;place-items:center}
+.cg div{min-width:0}.cg b{display:block;font-size:14px}.cg small{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cg.vac{opacity:.5}
+.colmini{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.colmini span{font-size:11.5px;border-radius:999px;padding:3px 8px;background:color-mix(in srgb,var(--c) 12%,#fff);border:1px solid color-mix(in srgb,var(--c) 40%,#fff)}.colmini b{color:var(--c)}
