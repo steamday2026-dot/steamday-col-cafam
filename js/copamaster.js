@@ -9,7 +9,9 @@
 const CM={ rep:{}, listo:false, ok:true };
 const SELLOS={equipo:['🤝','Trabajo en equipo'],entorno:['🌱','Cuidado del entorno'],creatividad:['💡','Creatividad'],convivencia:['💛','Convivencia']};
 const CM_FLUJO={fluido:'Fluido',lento:'Lento',represado:'Represado'}, CM_CONV={bien:'😊 Bien',regular:'😐 Regular',mal:'😟 Mal'};
-const esCompMaster=()=>S.modo==='master'&&S.perfil.rol!=='admin'&&!S.vistaComo;
+const esCompMaster=()=>S.modo==='master'&&S.perfil.rol!=='admin';
+const cmVista=()=>{ if(!S.vistaComo) return false; toast('Vista previa («Ver como»): así lo ve el Máster. Los puntos y los sellos solo se registran desde su propia cuenta.','',5000); return true; };
+const cmEsDia=()=>ahora().fecha===S.config.fecha_evento;
 const cmKey=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 
 async function cmCargar(){ try{ const r=await S.sb.from('sd_master_reportes').select('*').eq('perfil_id',S.perfil.id); if(r.error) throw r.error; CM.rep={}; (r.data||[]).forEach(x=>CM.rep[x.agenda_id]=x); CM.ok=true; }catch(e){ CM.ok=false; } }
@@ -22,6 +24,7 @@ function cmIniciar(){
     const ta=window.tickAgenda; window.tickAgenda=tickAgenda=function(){ ta(); cmTarjeta(); };
     setInterval(cmRecordar,30000); setTimeout(cmRecordar,5000);
   }
+  if(S.modo==='docente') setTimeout(cmSellosPendientes,6000);
   try{
     const ch=S.sb.channel('ligamaster');
     if(S.perfil.rol==='admin'||S.perfil.org_master) ch.on('postgres_changes',{event:'*',schema:'public',table:'sd_master_reportes'},p=>cmNovedad(p.new));
@@ -66,6 +69,7 @@ function cmRepintar(){ if(S.panel==='agenda') pintarAgenda(); tickAgenda(); }
 
 /* ---------- 📍 llegada ---------- */
 async function cmLlegue(b){
+  if(cmVista()) return;
   const r=await S.sb.rpc('sd_master_llegue',{p_agenda:b.id}); if(r.error) return toast(r.error.message,'bad',4500);
   await cmCargar(); cmRepintar();
   if(r.data&&r.data.repetida) return toast('Tu llegada ya estaba registrada.','ok');
@@ -86,7 +90,7 @@ function cmReporte(b){
       <button class="btn" id="cmEnv" style="background:#1f9d6b">Enviar reporte</button></div>`;
   $('cwX').onclick=copaCerrar;
   w.querySelectorAll('.cmops span').forEach(s=>s.onclick=()=>{ const k=s.parentNode.dataset.k; R[k]=s.dataset.v; s.parentNode.querySelectorAll('span').forEach(x=>x.classList.toggle('on',x===s)); if(k==='orden') $('cmNotaR').textContent=s.dataset.v==='0'?'(cuéntanos la novedad)':'(opcional)'; });
-  $('cmEnv').onclick=async()=>{ if(R.orden==null||!R.flujo||!R.conv) return toast('Responde las tres preguntas','bad');
+  $('cmEnv').onclick=async()=>{ if(cmVista()) return; if(R.orden==null||!R.flujo||!R.conv) return toast('Responde las tres preguntas','bad');
     $('cmEnv').disabled=true;
     const r=await S.sb.rpc('sd_master_reporte',{p_agenda:b.id,p_orden:R.orden==='1',p_flujo:R.flujo,p_conv:R.conv,p_nota:$('cmNota').value});
     if(r.error){ $('cmEnv').disabled=false; return toast(r.error.message,'bad',4500); }
@@ -100,11 +104,11 @@ function cmReporte(b){
 }
 
 /* ---------- ⚡ trivia de zona (mismo banco y reglas de la Copa) ---------- */
-function cmTrivia(b){ const z=cmClave(b); LS.set('cm_triv_'+b.id,true); cmRepintar();
+function cmTrivia(b){ if(cmVista()) return; const z=cmClave(b); LS.set('cm_triv_'+b.id,true); cmRepintar();
   copaPreguntas({curso:'M'+b.id,hora:b.hora_inicio,clave:z.clave,nombre:'Trivia de zona · '+z.nombre}); }
 
 /* ---------- 🏅 Sello STEM ---------- */
-function cmSello(){
+function cmSello(pre){ pre=pre||{};
   const sh=$('sheet'), m=minAhora(), b=(bloqueAhora()||{}).cur, k=b?cmKey(b.lugar):'';
   const cursos=[...new Set(S.prog.filter(r=>r.tipo==='actividad'&&/^\d/.test(r.curso||'')).map(r=>r.curso))].sort((a,c)=>a.localeCompare(c,'es',{numeric:true}));
   const cerca=b?[...new Set(S.prog.filter(r=>r.tipo==='actividad'&&toMin(r.hora_inicio)<=m&&m<toMin(r.hora_fin)&&cmKey(r.salon)&&(cmKey(r.salon).includes(k)||k.includes(cmKey(r.salon)))).map(r=>r.curso))]:[];
@@ -115,16 +119,19 @@ function cmSello(){
     <div id="slD"></div>
     <b style="display:block;margin:12px 0 6px;font-size:13px">Sello</b><div class="slops">${Object.entries(SELLOS).map(([k,[i,t]])=>`<span data-s="${k}"><i>${i}</i>${t}</span>`).join('')}</div>
     <b style="display:block;margin:12px 0 6px;font-size:13px">¿Qué viste?</b><textarea id="slTx" rows="3" maxlength="300" placeholder="Ej.: organizaron los materiales y ayudaron a otro curso a terminar el reto"></textarea>
+    ${cmEsDia()?'':'<div class="warnbox" style="margin-top:10px">📅 Los sellos se otorgan el <b>viernes 23 de octubre</b>. Hoy puedes ver cómo funciona, pero aún no se pueden enviar.</div>'}
     <button class="btn" id="slOk" style="background:#b45309;margin-top:10px">Otorgar sello</button><div id="slMis"></div></div>`;
   sh.classList.add('open'); delete sh.dataset.tur; $('shX').onclick=cerrarSheet;
-  let tipo='curso', sello=null;
+  let tipo=pre.tipo||'curso', sello=null;
+  sh.querySelectorAll('#slT span').forEach(x=>x.classList.toggle('on',x.dataset.t===tipo));
   const dest=()=>{ $('slD').innerHTML=tipo==='curso'?`<select id="slC" class="cmsel"><option value="">Elige el curso…</option>${cerca.length?`<optgroup label="En tu zona ahora">${cerca.map(c=>`<option>${escHTML(c)}</option>`).join('')}</optgroup>`:''}<optgroup label="Todos">${cursos.map(c=>`<option>${escHTML(c)}</option>`).join('')}</optgroup></select>`
       :tipo==='estudiante'?`<input id="slN" class="cmsel" maxlength="80" placeholder="Nombre del estudiante"><select id="slC" class="cmsel"><option value="">Curso…</option>${cerca.concat(cursos.filter(c=>!cerca.includes(c))).map(c=>`<option>${escHTML(c)}</option>`).join('')}</select>`
       :`<input id="slN" class="cmsel" list="slDL" maxlength="80" placeholder="Nombre del docente"><datalist id="slDL">${docentes.map(d=>`<option value="${escHTML(d)}">`).join('')}</datalist>`; };
-  dest();
+  dest(); if(pre.curso&&$('slC')) $('slC').value=pre.curso; if(pre.nombre&&$('slN')) $('slN').value=pre.nombre;
   sh.querySelectorAll('#slT span').forEach(s=>s.onclick=()=>{ tipo=s.dataset.t; sh.querySelectorAll('#slT span').forEach(x=>x.classList.toggle('on',x===s)); dest(); });
   sh.querySelectorAll('.slops span').forEach(s=>s.onclick=()=>{ sello=s.dataset.s; sh.querySelectorAll('.slops span').forEach(x=>x.classList.toggle('on',x===s)); });
-  $('slOk').onclick=async()=>{ const c=$('slC')?$('slC').value:'', n=$('slN')?$('slN').value.trim():'';
+  $('slOk').onclick=async()=>{ if(cmVista()) return; const c=$('slC')?$('slC').value:'', n=$('slN')?$('slN').value.trim():'';
+    if(!cmEsDia()) return toast('Los sellos se otorgan el viernes 23 de octubre.','bad',4000);
     const destino=tipo==='curso'?c:n; if(!destino) return toast(tipo==='curso'?'Elige el curso':'Escribe el nombre','bad'); if(tipo==='estudiante'&&!c) return toast('Elige el curso del estudiante','bad'); if(!sello) return toast('Elige el sello','bad');
     $('slOk').disabled=true;
     const r=await S.sb.rpc('sd_master_sello',{p_tipo:tipo,p_destino:destino,p_curso:tipo==='docente'?null:c,p_sello:sello,p_desc:$('slTx').value});
@@ -136,7 +143,7 @@ window.cmSello=cmSello;
 
 /* ---------- recordatorios del Master ---------- */
 function cmRecordar(){
-  const a=ahora(); if(a.fecha!==S.config.fecha_evento||!esCompMaster()||!CM.ok) return;
+  const a=ahora(); if(a.fecha!==S.config.fecha_evento||!esCompMaster()||!CM.ok||S.vistaComo) return;
   (S.agenda||[]).forEach(b=>{ const ini=toMin(b.hora_inicio), r=CM.rep[b.id]||{};
     if(!r.llegada_en&&a.min>=ini-2&&a.min<ini+10){ const k='cm_rll_'+b.id; if(!LS.get(k,false)){ LS.set(k,true);
       ventana({icono:'📍',kicker:'Ronda de vigía · Liga Master',titulo:`¿Ya estás en ${escHTML(lugarTxt(b.lugar))}?`,color:'#173d7a',html:'<p>Marca tu llegada: <b>+40 puntos</b> si es hasta 5 minutos después del inicio.</p>',botones:[{t:'📍 Llegué a mi zona',fn:()=>cmLlegue(b)},{t:'Más tarde',ghost:true}]}); } }
@@ -151,12 +158,36 @@ function cmNovedad(x){
   if(window.sonarTono) sonarTono(prefs().tono);
   ventana({icono:'⚠️',kicker:'Novedad reportada · Liga Master',titulo:escHTML(lugarTxt(x.lugar||'')),color:'#c2410c',html:`<p><b>${escHTML(nom)}</b> · ${x.en_orden===false?'Hay novedad':'Todo en orden'} · Flujo: ${CM_FLUJO[x.flujo]||'—'} · Convivencia: ${CM_CONV[x.convivencia]||'—'}</p>${x.nota?`<p>«${escHTML(x.nota)}»</p>`:''}`});
 }
+function cmEsMio(x){
+  if(!x) return false; if(x.curso&&(S.cursos||[]).includes(x.curso)) return true;
+  if(x.destino_tipo==='docente'){ const a=nrmN(x.destino).split(' ').filter(w=>w.length>2), b=nrmN(S.perfil.nombre).split(' '); return a.length>=2&&a.filter(w=>b.includes(w)).length>=Math.min(2,a.length); }
+  return false; }
 function cmSelloRecibido(x){
-  if(!x||S.modo!=='docente'||!x.curso||!(S.cursos||[]).includes(x.curso)) return; const k='cm_sello_'+x.id; if(LS.get(k,false)) return; LS.set(k,true);
+  if(!x||S.modo!=='docente'||S.vistaComo||!cmEsMio(x)) return; const k='cm_sello_'+x.id; if(LS.get(k,false)) return; LS.set(k,true);
   const s=SELLOS[x.sello]||['🏅','Sello STEM']; if(window.copaSonar) copaSonar('podio');
-  ventana({icono:s[0],kicker:`Sello STEM · Curso ${escHTML(x.curso)}`,titulo:x.destino_tipo==='curso'?`¡Tu curso recibió el sello «${s[1]}»!`:`${escHTML(x.destino)} recibió el sello «${s[1]}»`,color:'#b45309',
-    html:`${x.descripcion?`<p>«${escHTML(x.descripcion)}»</p>`:''}<p class="sm">Otorgado por ${escHTML(firstName(x.otorgado_por||'un Master'))}. ¡Cuéntaselo a tus estudiantes!</p>`});
+  const tit=x.destino_tipo==='curso'?`¡Tu curso recibió el sello «${s[1]}»!`:x.destino_tipo==='docente'?`¡Recibiste el sello «${s[1]}»!`:`${escHTML(x.destino)} recibió el sello «${s[1]}»`;
+  ventana({icono:s[0],kicker:`Sello STEM${x.curso?' · Curso '+escHTML(x.curso):''}`,titulo:tit,color:'#b45309',
+    html:`${x.descripcion?`<p>«${escHTML(x.descripcion)}»</p>`:''}<p class="sm">Otorgado por ${escHTML(firstName(x.otorgado_por||'un Máster'))}.${x.destino_tipo==='docente'?' ¡Gracias por tu trabajo!':' ¡Cuéntaselo a tus estudiantes!'}</p>`,
+    botones:[{t:'Entendido'},{t:'Ver los sellos de mi curso',ghost:true,fn:()=>cmMisSellos()}]});
 }
+async function cmLeerMios(){ try{ const r=await S.sb.from('sd_sellos').select('*').order('creado_en',{ascending:false}).limit(500); if(r.error) return []; return (r.data||[]).filter(cmEsMio); }catch(e){ return []; } }
+async function cmSellosPendientes(){ if(S.vistaComo) return; const L=await cmLeerMios(); L.filter(x=>!LS.get('cm_sello_'+x.id,false)).slice(0,3).reverse().forEach(cmSelloRecibido); }
+async function cmMisSellos(){
+  const sh=$('sheet'); sh.innerHTML=`<div class="sh" style="background:#b45309"><span class="x" id="shX">✕ Cerrar</span><div style="font-size:12px;opacity:.85">Reconocimientos de los Máster</div><h3>🏅 Sellos de mi curso</h3></div><div class="sb" id="msB"><p class="sm">Cargando…</p></div>`;
+  sh.classList.add('open'); delete sh.dataset.tur; $('shX').onclick=cerrarSheet;
+  const L=await cmLeerMios();
+  $('msB').innerHTML=L.length?`<p class="sm" style="margin:0 0 8px">Sellos que tu curso, tus estudiantes o tú han recibido durante el STEM Day.</p>`+L.map(x=>{ const s=SELLOS[x.sello]||['🏅','Sello']; return `<div class="cmnov sl"><b>${s[0]} ${escHTML(s[1])} · ${escHTML(x.destino_tipo==='curso'?'Curso '+x.destino:x.destino)}${x.destino_tipo==='estudiante'&&x.curso?' ('+escHTML(x.curso)+')':''}</b>${x.descripcion?`<i>«${escHTML(x.descripcion)}»</i>`:''}<span>Otorgado por ${escHTML(firstName(x.otorgado_por||''))} · ${hDe(minDe(x.creado_en))}</span></div>`; }).join('')
+    :'<div class="okbox">Aún no hay sellos para tu curso. Los Máster los otorgan durante la jornada cuando ven algo destacado.</div>';
+}
+window.cmMisSellos=cmMisSellos;
+/* desde Asistencia → curso: botones para otorgar el sello al curso o a un estudiante */
+function cmAsisHook(el,c){
+  if(!esCompMaster()) return; const h=el.querySelector('h3'); if(!h) return;
+  h.insertAdjacentHTML('afterend',`<button class="b2 sm" id="cmSC" style="margin:6px 0 4px;border-color:#b45309;color:#b45309">🏅 Otorgar Sello STEM al curso ${escHTML(c)}</button><p class="sm" style="margin:0 0 6px">o toca 🏅 junto a un estudiante.</p>`);
+  $('cmSC').onclick=()=>cmSello({tipo:'curso',curso:c});
+  el.querySelectorAll('.est[data-sn]').forEach(e=>{ e.insertAdjacentHTML('beforeend',`<button class="cmsb" title="Otorgar Sello STEM">🏅</button>`); e.querySelector('.cmsb').onclick=()=>cmSello({tipo:'estudiante',curso:c,nombre:e.dataset.sn}); });
+}
+window.cmAsisHook=cmAsisHook;
 
 /* ---------- panel de resultados (administrador y Org. Master) ---------- */
 async function cmPanelHTML(){
