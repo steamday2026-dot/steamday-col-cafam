@@ -160,24 +160,32 @@ function lineasTablero(t){ const w=String(t||'').split(/\s+/), out=['']; w.forEa
 /* v30 · el escenario cambia según el lugar: aula, laboratorio de química (143 y 144), laboratorio de microbiología (138),
    Aula de Cristal (paredes de vidrio) y Coliseo (cancha con los espacios A–H) */
 function tipoLugar(salon){ const k=String(salon||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
-  if(/^14[34]\b/.test(k)) return 'quim'; if(/^138\b/.test(k)) return 'micro'; if(/cristal/.test(k)) return 'cristal'; if(/coliseo/.test(k)) return 'coliseo'; return 'aula'; }
-const _desks=()=>[[62,208],[132,208],[202,208],[272,208],[40,256],[118,256],[198,256],[276,256]].map(([x,y],i)=>`<g><rect x="${x-26}" y="${y-12}" width="52" height="14" rx="3" fill="#e8d6b5" stroke="#a88a5c"/><rect x="${x-22}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x+18}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x-14}" y="${y-18}" width="7" height="7" rx="1.5" fill="${['#e5484d','#2f6fde','#f2a900','#7b4bd6'][i%4]}"/></g>`).join('');
+  if(/^14[34]\b/.test(k)) return 'quim'; if(/^138\b/.test(k)) return 'micro'; if(/coliseo/.test(k)) return 'coliseo'; if(/cancha/.test(k)) return 'cancha';
+  if(/\bcre\b|biblioteca/.test(k)) return 'cre'; if(/zona verde|jardin|patio|media torta|plazoleta|parque|huerta/.test(k)) return 'verde'; if(/\bhall\b/.test(k)) return 'hall';
+  if(/cristal/.test(k)) return 'cristal'; return 'aula'; }
+const _desks=()=>[[146,208],[206,208],[266,208],[318,208],[136,256],[198,256],[260,256],[318,256]].map(([x,y],i)=>`<g><rect x="${x-26}" y="${y-12}" width="52" height="14" rx="3" fill="#e8d6b5" stroke="#a88a5c"/><rect x="${x-22}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x+18}" y="${y+2}" width="4" height="14" fill="#a88a5c"/><rect x="${x-14}" y="${y-18}" width="7" height="7" rx="1.5" fill="${['#e5484d','#2f6fde','#f2a900','#7b4bd6'][i%4]}"/></g>`).join('');
 function _tablero(titulo,area,x,w){ x=x||72; w=w||196; const cx=x+w/2;
   return `<rect x="${x}" y="28" width="${w}" height="90" rx="5" fill="#1f5b46" stroke="#7a5a30" stroke-width="5"/>`+
    lineasTablero(titulo).map((l,i,arr)=>`<text x="${cx}" y="${(arr.length>1?54:62)+i*16}" text-anchor="middle" style="font:800 ${w<180?11:12.5}px system-ui;fill:#fff">${escHTML(l)}</text>`).join('')+
    `<text x="${cx}" y="96" text-anchor="middle" style="font:700 10px system-ui;fill:#ffe9a6">${escHTML(LID_AREA_N[area]||'')} · ¡Bienvenidos!</text>`; }
 function _piso(){ return `<rect width="340" height="290" fill="#f4efe6"/><rect width="340" height="146" fill="#e9eef7"/><rect y="142" width="340" height="6" fill="#c9d2e3"/><path d="M0,148 L340,148 L340,290 L0,290Z" fill="#d8c4a3"/>${Array.from({length:9},(_,i)=>`<path d="M${i*40-20},290 L${170+(i*40-180)*.35},148" stroke="#c7b08b"/>`).join('')}`; }
-const _pill=(sal,col)=>`<rect x="283" y="14" width="52" height="14" rx="7" fill="${col}"/><text x="309" y="24.5" text-anchor="middle" style="font:800 8.5px system-ui;fill:#fff">${escHTML(String(sal||'').slice(0,18))}</text>`;
-function _mesaLab(y,micro){ let s=`<rect x="18" y="${y}" width="304" height="16" rx="3" fill="#2b3446"/><rect x="24" y="${y+16}" width="292" height="26" fill="#9aa3b5"/>${[60,130,200,270].map(x=>`<rect x="${x-14}" y="${y+20}" width="28" height="18" rx="2" fill="#b7bfcd" stroke="#8a94a8"/><circle cx="${x}" cy="${y+29}" r="1.6" fill="#5b6577"/>`).join('')}`;
-  [40,95,150,205,260,305].forEach((x,i)=>{ if(micro){ if(i%2===0) s+=`<g transform="translate(${x},${y-2})"><rect x="-9" y="-2" width="18" height="3" fill="#5b6577"/><path d="M4,-2 C9,-10 9,-18 3,-22" fill="none" stroke="#5b6577" stroke-width="3"/><rect x="-5" y="-26" width="6" height="15" rx="2" fill="#dfe7f2" stroke="#5b6577" transform="rotate(-18 -2 -18)"/><rect x="-6" y="-8" width="10" height="2" fill="#9aa3b5"/></g>`;
+let _pctx=null; const _anchoTxt=(s,f)=>{ try{ _pctx=_pctx||document.createElement('canvas').getContext('2d'); _pctx.font=f; return _pctx.measureText(s).width; }catch(e){ return String(s).length*5.4; } };
+/* v39: etiqueta del lugar arriba a la derecha; el recuadro se ajusta al texto (y pasa a dos líneas si es muy largo) */
+function _pill(sal,col){ const F='800 8.5px system-ui', txt=String(sal||'').replace(/\s+/g,' ').trim(); let L=[txt];
+  if(_anchoTxt(txt,F)>190){ const w=txt.split(' '); let best=1,dif=1e9; for(let i=1;i<w.length;i++){ const d=Math.abs(_anchoTxt(w.slice(0,i).join(' '),F)-_anchoTxt(w.slice(i).join(' '),F)); if(d<dif){ dif=d; best=i; } } L=[w.slice(0,best).join(' '),w.slice(best).join(' ')]; }
+  const W=Math.min(326,Math.ceil(Math.max(...L.map(x=>_anchoTxt(x,F)))+16)), H=L.length>1?25:15, x=334-W;
+  return `<rect x="${x}" y="8" width="${W}" height="${H}" rx="${H/2>8?8:7.5}" fill="${col}" stroke="#fff" stroke-width="1.2"/>`+L.map((l,i)=>`<text x="${x+W/2}" y="${18.5+i*10.5}" text-anchor="middle" style="font:${F};fill:#fff">${escHTML(l)}</text>`).join(''); }
+function _mesaLab(y,micro){ let s=`<rect x="128" y="${y}" width="202" height="16" rx="3" fill="#2b3446"/><rect x="134" y="${y+16}" width="190" height="26" fill="#9aa3b5"/>${[160,207,254,301].map(x=>`<rect x="${x-14}" y="${y+20}" width="28" height="18" rx="2" fill="#b7bfcd" stroke="#8a94a8"/><circle cx="${x}" cy="${y+29}" r="1.6" fill="#5b6577"/>`).join('')}`;
+  [142,178,214,250,286,318].forEach((x,i)=>{ if(micro){ if(i%2===0) s+=`<g transform="translate(${x},${y-2})"><rect x="-9" y="-2" width="18" height="3" fill="#5b6577"/><path d="M4,-2 C9,-10 9,-18 3,-22" fill="none" stroke="#5b6577" stroke-width="3"/><rect x="-5" y="-26" width="6" height="15" rx="2" fill="#dfe7f2" stroke="#5b6577" transform="rotate(-18 -2 -18)"/><rect x="-6" y="-8" width="10" height="2" fill="#9aa3b5"/></g>`;
       else s+=`<ellipse cx="${x-6}" cy="${y-1}" rx="7" ry="2.4" fill="#f6e7ff" stroke="#b083d6"/><ellipse cx="${x+6}" cy="${y-1}" rx="7" ry="2.4" fill="#e8ffe9" stroke="#7fc98a"/><circle cx="${x-7}" cy="${y-1.4}" r="1.1" fill="#b083d6"/><circle cx="${x+5}" cy="${y-1.6}" r="1" fill="#2e9d4a"/>`; }
     else { const c=['#32d27a','#2f8fdd','#e5484d','#f2a900','#b083d6','#32d27a'][i]; s+=i%2?`<g transform="translate(${x},${y})"><path d="M-3,-16 h6 v6 l6,9 a2,2 0 0 1 -2,3 h-14 a2,2 0 0 1 -2,-3 l6,-9z" fill="#eaf6ff" stroke="#8aa0bf"/><path d="M-7,-4 h14 l2,3 a2,2 0 0 1 -2,3 h-14 a2,2 0 0 1 -2,-3z" fill="${c}"/></g>`:`<g transform="translate(${x},${y})"><rect x="-6" y="-14" width="5" height="14" rx="2" fill="#eaf6ff" stroke="#8aa0bf"/><rect x="-5.5" y="-7" width="4" height="7" rx="2" fill="${c}"/><rect x="2" y="-12" width="5" height="12" rx="2" fill="#eaf6ff" stroke="#8aa0bf"/><rect x="2.5" y="-5" width="4" height="5" rx="2" fill="${['#f2a900','#2f8fdd','#e5484d'][i%3]}"/><path d="M10,-2 q2,-8 0,-14" stroke="#cfd8e6" stroke-width="2" fill="none" opacity=".7"/></g>`; } });
-  [50,110,170,230,290].forEach(x=>{ s+=`<g><rect x="${x-8}" y="${y+46}" width="16" height="4" rx="2" fill="#1b2333"/><rect x="${x-1.5}" y="${y+50}" width="3" height="16" fill="#5b6577"/><rect x="${x-7}" y="${y+64}" width="14" height="2.5" rx="1" fill="#5b6577"/></g>`; });
+  [152,200,248,296].forEach(x=>{ s+=`<g><rect x="${x-8}" y="${y+46}" width="16" height="4" rx="2" fill="#1b2333"/><rect x="${x-1.5}" y="${y+50}" width="3" height="16" fill="#5b6577"/><rect x="${x-7}" y="${y+64}" width="14" height="2.5" rx="1" fill="#5b6577"/></g>`; });
   return s; }
 function escenaEstacion(titulo,salon,area,letra){
   const col=LID_AREA[area]||'#1f9d6b', tipo=tipoLugar(salon);
-  LIDE.esc={ lid:[58,238,1.12], ent:[300,160], dst:[220,220], k:.78 };
+  LIDE.esc={ lid:[50,268,1.08], ent:[300,160], dst:[94,206], k:.78 };   // v39: pasillo libre a la izquierda
   if(tipo==='coliseo') return escenaColiseo(titulo,salon,letra);
+  if(tipo==='cancha'||tipo==='verde'||tipo==='hall'||tipo==='cre') return escenaAbierta(tipo,titulo,salon,area,col);
   let s=`<svg viewBox="0 0 340 290" class="estsc">${LID_DEFS}${_piso()}`;
   if(tipo==='aula'||tipo==='cristal'){
     if(tipo==='cristal'){   // todas las paredes de vidrio: se ve el exterior
@@ -201,7 +209,59 @@ function escenaEstacion(titulo,salon,area,letra){
     s+=`<rect x="70" y="124" width="190" height="8" rx="2" fill="#a0703f"/>`+[90,120,150,180,210,240].map((x,i)=>`<rect x="${x-5}" y="${micro?110:108}" width="10" height="${micro?14:16}" rx="2" fill="${micro?['#f6e7ff','#e8ffe9'][i%2]:['#32d27a','#2f8fdd','#e5484d'][i%3]}" stroke="#8aa0bf"/>`).join('');
     s+=_mesaLab(176,micro)+_mesaLab(238,micro);
     s+=`<rect x="6" y="122" width="${micro?96:92}" height="16" rx="8" fill="${micro?'#7b4bd6':'#1f9d6b'}"/><text x="${micro?54:52}" y="133" text-anchor="middle" style="font:800 8px system-ui;fill:#fff">${micro?'LAB. MICROBIOLOGÍA':'LAB. DE QUÍMICA'}</text>`;
-    LIDE.esc={ lid:[58,196,1.0], ent:[330,150], dst:[250,170], k:.72 };
+    LIDE.esc={ lid:[44,274,1.0], ent:[330,156], dst:[94,204], k:.72 };   // v39: el líder queda en el pasillo, no encima de las mesas
+  }
+  return s+`<g class="eLid"></g><g class="eDoc"></g></svg>`;
+}
+/* v39 · espacios abiertos: cancha de fútbol, zona verde, halls y CRE (biblioteca) */
+function _pendon(titulo,area,x,w,fondo,borde,colgado){ x=x||86; w=w||168; const cx=x+w/2, L=lineasTablero(titulo);
+  return (colgado?`<path d="M${x+14},0 L${x+14},22 M${x+w-14},0 L${x+w-14},22" stroke="#7a5a30" stroke-width="1.6"/>`:`<rect x="${x+6}" y="20" width="4" height="108" fill="#7a5a30"/><rect x="${x+w-10}" y="20" width="4" height="108" fill="#7a5a30"/>`)+
+    `<rect x="${x}" y="22" width="${w}" height="72" rx="6" fill="${fondo||'#fff'}" stroke="${borde||'#f2a900'}" stroke-width="4"/>`+
+    L.map((l,i,a)=>`<text x="${cx}" y="${(a.length>1?46:54)+i*15}" text-anchor="middle" style="font:800 ${w<170?11:12}px system-ui;fill:#173d7a">${escHTML(l)}</text>`).join('')+
+    `<text x="${cx}" y="84" text-anchor="middle" style="font:700 9.5px system-ui;fill:#b45309">${escHTML(LID_AREA_N[area]||'')} · ¡Bienvenidos!</text>`; }
+function escenaAbierta(tipo,titulo,salon,area,col){
+  let s=`<svg viewBox="0 0 340 290" class="estsc">${LID_DEFS}`;
+  if(tipo==='cancha'||tipo==='verde'){
+    s+=`<defs><linearGradient id="cielo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd0ff"/><stop offset="1" stop-color="#dff2ff"/></linearGradient></defs><rect width="340" height="130" fill="url(#cielo)"/>
+      <g fill="#fff" opacity=".9"><ellipse cx="44" cy="20" rx="22" ry="7"/><ellipse cx="60" cy="16" rx="14" ry="8"/><ellipse cx="286" cy="30" rx="24" ry="7"/></g>
+      ${[18,52,92,250,292,326].map((x,i)=>`<circle cx="${x}" cy="${104+i%2*4}" r="${15+i%3*4}" fill="${i%2?'#3f9b52':'#4caf50'}"/>`).join('')}
+      <rect y="112" width="340" height="178" fill="${tipo==='cancha'?'#5cb85c':'#7cc96b'}"/>`;
+    if(tipo==='cancha'){
+      s+=Array.from({length:6},(_,i)=>`<path d="M0,${130+i*28} L340,${130+i*28} L340,${144+i*28} L0,${144+i*28}Z" fill="#53ad53" opacity=".7"/>`).join('')+
+        `<g fill="none" stroke="#fff" stroke-width="2.4" opacity=".95"><path d="M8,124 L332,124"/><path d="M170,124 L170,290"/><ellipse cx="170" cy="214" rx="56" ry="26"/><path d="M332,150 L284,158 L284,236 L332,248"/></g><circle cx="170" cy="214" r="2.6" fill="#fff"/>
+        <g transform="translate(300,150)"><path d="M18,0 L18,60 M18,0 L-6,6 L-6,62" stroke="#fff" stroke-width="3.2" fill="none"/><path d="M-6,6 L18,0 L18,60 L-6,62Z" fill="#fff" opacity=".25"/>${Array.from({length:5},(_,i)=>`<path d="M${-6+i*6},${6-i*1.5} L${-6+i*6},${62-i*.5}" stroke="#fff" stroke-width=".6" opacity=".7"/>`).join('')}</g>
+        ${[[110,262],[236,262],[118,170]].map(([x,y])=>`<path d="M${x-6},${y} L${x},${y-15} L${x+6},${y}Z" fill="#f97316" stroke="#c2410c"/><rect x="${x-7}" y="${y-1}" width="14" height="3" rx="1" fill="#c2410c"/>`).join('')}
+        <circle cx="210" cy="250" r="7" fill="#fff" stroke="#1b2333" stroke-width="1.2"/><path d="M206,247 l4,-1 l3,3 l-2,4 l-4,0z" fill="#1b2333"/>`;
+    } else {
+      s+=`<path d="M0,170 C60,160 120,176 190,166 C250,158 300,170 340,164 L340,290 L0,290Z" fill="#6bbd5c"/>`+
+        [[30,250],[300,236],[250,280]].map(([x,y])=>`<g><circle cx="${x}" cy="${y}" r="13" fill="#3f9b52"/><circle cx="${x+10}" cy="${y+3}" r="10" fill="#4caf50"/></g>`).join('')+
+        [[90,206],[140,268],[200,214],[280,196]].map(([x,y],i)=>`<g transform="translate(${x},${y})">${[0,72,144,216,288].map(a=>`<ellipse cx="0" cy="-3" rx="2" ry="3" fill="${['#ffd166','#ff8fab','#fff'][i%3]}" transform="rotate(${a})"/>`).join('')}<circle r="1.6" fill="#f2a900"/></g>`).join('')+
+        `<g transform="translate(250,150)"><rect x="-26" y="0" width="52" height="5" rx="2" fill="#a0703f"/><rect x="-24" y="-12" width="48" height="4" rx="2" fill="#a0703f"/><rect x="-22" y="5" width="3" height="10" fill="#7a5a30"/><rect x="19" y="5" width="3" height="10" fill="#7a5a30"/></g>`;
+    }
+    s+=_pendon(titulo,area,86,168,'#fff','#f2a900')+_pill(salon,col);
+    LIDE.esc={ lid:[56,252,1.12], ent:[330,214], dst:[214,236], k:.78 };
+  } else if(tipo==='hall'){
+    s+=`<rect width="340" height="150" fill="#f3ead8"/><rect y="0" width="340" height="12" fill="#e2d4b8"/>
+      ${[20,120,220,320].map(x=>`<rect x="${x-9}" y="12" width="18" height="138" fill="#e9dcc0" stroke="#cdbb95"/><rect x="${x-12}" y="140" width="24" height="10" fill="#d8c7a2"/>`).join('')}
+      ${[70,170,270].map(x=>`<rect x="${x-32}" y="26" width="64" height="70" rx="3" fill="#cfe9ff" stroke="#b9a785" stroke-width="3"/><line x1="${x}" y1="26" x2="${x}" y2="96" stroke="#b9a785" stroke-width="2"/>`).join('')}
+      <rect y="148" width="340" height="142" fill="#e7dfcf"/>${Array.from({length:8},(_,r)=>Array.from({length:10},(_,c)=>(r+c)%2?`<path d="M${c*34+(r*4)-16},${150+r*18} h34 l4,18 h-34z" fill="#d9cfbb"/>`:'').join('')).join('')}
+      <path d="M0,150 L340,150" stroke="#c9b994" stroke-width="2"/>
+      ${[[40,170],[300,170]].map(([x,y])=>`<g transform="translate(${x},${y})"><path d="M-12,22 L-9,40 L9,40 L12,22Z" fill="#c4683a" stroke="#8a4a26"/><ellipse cx="0" cy="12" rx="16" ry="14" fill="#4caf50"/><ellipse cx="-6" cy="4" rx="9" ry="10" fill="#5cbf60"/></g>`).join('')}
+      ${[[118,196],[222,196]].map(([x,y],i)=>`<g transform="translate(${x},${y})"><path d="M-2,0 L-14,42 M2,0 L14,42 M0,4 L0,42" stroke="#7a5a30" stroke-width="2.4"/><rect x="-26" y="-34" width="52" height="38" rx="2" fill="#fff" stroke="#9aa3b5" stroke-width="2"/><rect x="-21" y="-29" width="20" height="14" fill="${['#bde3ff','#ffe4b5'][i]}"/><path d="M3,-26 h18 M3,-21 h14 M3,-16 h16 M-21,-9 h42" stroke="#9aa3b5" stroke-width="1.6"/></g>`).join('')}`;
+    s+=_pendon(titulo,area,86,168,'#fffaf0',col,true)+_pill(salon,col);
+    LIDE.esc={ lid:[56,258,1.1], ent:[330,190], dst:[196,240], k:.76 };
+  } else { // CRE · biblioteca
+    const libros=(x,y,w)=>{ let o='', xx=x; let i=0; while(xx<x+w-4){ const bw=4+((i*7)%4), bh=16+((i*5)%6); o+=`<rect x="${xx}" y="${y-bh}" width="${bw}" height="${bh}" fill="${['#e5484d','#2f6fde','#f2a900','#1f9d6b','#7b4bd6','#ec7fb0','#8a5a3b'][i%7]}"/>`; xx+=bw+1; i++; } return o; };
+    s+=`<rect width="340" height="150" fill="#f2e6d0"/>`+
+      [[4,62],[274,62]].map(([x,w])=>`<g><rect x="${x}" y="14" width="${w}" height="134" fill="#8a5a3b" stroke="#6b4423" stroke-width="2"/>${[42,74,106,138].map(y=>`<rect x="${x+4}" y="${y-26}" width="${w-8}" height="26" fill="#f6ead2"/>${libros(x+5,y,w-10)}<rect x="${x+2}" y="${y}" width="${w-4}" height="4" fill="#6b4423"/>`).join('')}</g>`).join('')+
+      `<rect x="120" y="10" width="100" height="16" rx="8" fill="#173d7a"/><text x="170" y="21.5" text-anchor="middle" style="font:800 8.5px system-ui;fill:#fff;letter-spacing:.5px">CRE · BIBLIOTECA</text>
+      <rect x="84" y="30" width="172" height="90" rx="4" fill="#c8945a" stroke="#7a5a30" stroke-width="4"/>${[[92,38,'#fff7a8'],[230,40,'#bde3ff']].map(([x,y,c])=>`<rect x="${x}" y="${y}" width="16" height="13" fill="${c}" transform="rotate(${(x%7)-3} ${x} ${y})"/>`).join('')}
+      ${lineasTablero(titulo).map((l,i,a)=>`<text x="170" y="${(a.length>1?66:72)+i*14}" text-anchor="middle" style="font:800 11.5px system-ui;fill:#fff;paint-order:stroke;stroke:#5b3b1a;stroke-width:2.5px">${escHTML(l)}</text>`).join('')}
+      <text x="170" y="112" text-anchor="middle" style="font:700 9px system-ui;fill:#fff3c4">${escHTML(LID_AREA_N[area]||'')} · ¡Bienvenidos!</text>
+      <rect y="148" width="340" height="142" fill="#c9a77c"/>${Array.from({length:9},(_,i)=>`<path d="M${i*40-20},290 L${170+(i*40-180)*.35},148" stroke="#b8956a"/>`).join('')}<rect y="146" width="340" height="4" fill="#8a5a3b"/>
+      ${[[170,196],[268,250]].map(([x,y])=>`<g><ellipse cx="${x}" cy="${y+16}" rx="40" ry="8" fill="#000" opacity=".12"/>${[[-34,-2],[34,-2],[-22,14],[22,14]].map(([dx,dy])=>`<rect x="${x+dx-7}" y="${y+dy-6}" width="14" height="12" rx="3" fill="#2f6fde" stroke="#1e4fa8"/>`).join('')}<ellipse cx="${x}" cy="${y}" rx="34" ry="11" fill="#e8d6b5" stroke="#a88a5c" stroke-width="1.5"/><rect x="${x-3}" y="${y+6}" width="6" height="14" fill="#a88a5c"/><rect x="${x-12}" y="${y-6}" width="12" height="7" fill="#e5484d" transform="rotate(-8 ${x} ${y})"/><rect x="${x+4}" y="${y-5}" width="11" height="6" fill="#2f6fde"/></g>`).join('')}`;
+    s+=_pill(salon,col);
+    LIDE.esc={ lid:[54,256,1.1], ent:[330,172], dst:[110,214], k:.76 };
   }
   return s+`<g class="eLid"></g><g class="eDoc"></g></svg>`;
 }
