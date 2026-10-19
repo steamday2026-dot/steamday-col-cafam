@@ -49,7 +49,7 @@
         <button class="b2" id="admVolver">← Volver a la app</button></div>
       <div class="desk"><div class="tabs" id="admTabs">
         <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span><span data-t="lideres">⭐ Líderes</span><span data-t="agenda">📅 Agenda Master</span>
-        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="copa">🏆 Copa STEM</span><span data-t="conexiones">🟢 Conexiones</span><span data-t="mensajes">💬 Mensajes</span><span data-t="final">📝 Encuesta final</span><span data-t="config">Configuración</span></div>
+        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="copa">🏆 Copa STEM</span><span data-t="ligam">🏅 Liga Master</span><span data-t="conexiones">🟢 Conexiones</span><span data-t="mensajes">💬 Mensajes</span><span data-t="final">📝 Encuesta final</span><span data-t="config">Configuración</span></div>
         <div class="tbody" id="admTab"></div></div>`;
     $('admVolver').onclick = async () => { show('s-main'); if(window.recargarApp) await window.recargarApp(); };
     $('admTabs').querySelectorAll('span').forEach(s => s.onclick = () => irTab(s.dataset.t));
@@ -57,7 +57,7 @@
   }
   function irTab(t){
     tab=t; $('admTabs').querySelectorAll('span').forEach(s=>s.classList.toggle('on', s.dataset.t===t));
-    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, lideres:tLideres, agenda:tAgenda, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, conexiones:tConexiones, mensajes:tMensajes, final:tFinal, config:tConfig}[t];
+    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, lideres:tLideres, agenda:tAgenda, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, ligam:async()=>{ $('admTab').innerHTML=window.cmPanelHTML?await cmPanelHTML():'Recarga la app.'; if(window.cmBindPanel) cmBindPanel($('admTab')); }, conexiones:tConexiones, mensajes:tMensajes, final:tFinal, config:tConfig}[t];
     $('admTab').innerHTML='<p class="sm">Cargando…</p>'; f().catch(e=>{ $('admTab').innerHTML=`<div class="warnbox">Error: ${escHTML(e.message)}</div>`; });
   }
 
