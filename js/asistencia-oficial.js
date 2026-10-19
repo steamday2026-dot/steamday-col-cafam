@@ -20,7 +20,27 @@
   const kids=(el,name)=>{ const o=[]; for(let c=el.firstChild;c;c=c.nextSibling) if(c.nodeType===1&&(c.localName||c.nodeName)===name) o.push(c); return o; };
   const hora=min=>{ const h=Math.floor(min/60), m=min%60, h12=((h+11)%12)+1; return `${h12}:${String(m).padStart(2,'0')} ${h<12?'a.m.':'p.m.'}`; };
 
-  async function llenar(buf, recs, o){
+  // Empareja filas del archivo con estudiantes de la app: matrícula, nombre exacto, mismas palabras o la mayoría de palabras
+  function emparejador(recs){
+    const porDoc={}, porCur={}, porNom={};
+    recs.forEach(r=>{ r.cur=grupoACurso(r.curso); r.nn=nrm(r.nombre); r.tk=r.nn.split(' ').filter(Boolean); r.srt=r.tk.slice().sort().join(' ');
+      if(r.documento) porDoc[String(r.documento).replace(/\D/g,'')]=r; (porCur[r.cur]=porCur[r.cur]||[]).push(r); (porNom[r.srt]=porNom[r.srt]||[]).push(r); });
+    const f=(cur,nom,doc)=>{ if(doc&&porDoc[doc]) return porDoc[doc]; const L=porCur[cur]||[]; const n=nrm(nom);
+      let r=L.find(x=>x.nn===n); if(r) return r; const tk=n.split(' '), srt=tk.slice().sort().join(' ');
+      r=L.find(x=>x.srt===srt); if(r) return r;
+      const sc=L.map(x=>({x,s:x.tk.filter(t=>tk.includes(t)).length})).filter(z=>z.s>=Math.min(3,z.x.tk.length,tk.length)&&z.s>=2).sort((a,b)=>b.s-a.s);
+      return sc.length&&(sc.length===1||sc[0].s>sc[1].s)?sc[0].x:null; };
+    f.otroCurso=nom=>{ const srt=nrm(nom).split(' ').sort().join(' '); const L=porNom[srt]||[]; return L.length===1?L[0]:null; };
+    return f;
+  }
+  // Lee las ausencias ya marcadas (X) en la columna del día del evento, con su observación
+  async function leerNovedades(buf, o){
+    const A=await abrir(buf,o), out=[];
+    A.rows.slice(1).forEach(row=>{ const C=A.celdas(row), x=A.val(C[A.cF]); if(!x||nrm(x)!=='X') return;
+      out.push({grupo:A.val(C[A.cG]),curso:grupoACurso(A.val(C[A.cG])),nombre:A.val(C[A.cN]),matricula:A.cM?String(A.val(C[A.cM])||'').replace(/\D/g,''):'',obs:A.cO?String(A.val(C[A.cO])||'').trim():''}); });
+    return out;
+  }
+  async function abrir(buf, o){
     const D=o.deps||g, Zip=D.JSZip, P=new D.DOMParser(), X=new D.XMLSerializer();
     const zip=await Zip.loadAsync(buf);
     const leer=async p=>{ const f=zip.file(p); if(!f) throw new Error('El archivo no parece un Excel válido (.xlsx).'); return P.parseFromString(await f.async('string'),'application/xml'); };
@@ -46,6 +66,10 @@
       else if(v===ser||String(parseFloat(v))===ser) cF=k; });
     if(!cF) throw new Error(`No encontré la columna del ${dd} en la hoja «${hoja.getAttribute('name')}».`);
     if(!cG||!cN) throw new Error('No encontré las columnas «Grupo» y «NOMBRE» en la primera fila.');
+    return {zip,leer,X,fecha,dd,mes,wbx,hoja,ruta,sh,rows,val,celdas,cG,cN,cM,cO,cF};
+  }
+  async function llenar(buf, recs, o){
+    const A=await abrir(buf,o), {zip,leer,X,fecha,dd,wbx,hoja,ruta,sh,rows,val,celdas,cG,cN,cM,cO,cF}=A;
     // 4. estilos: hora (formato h:mm) y retardo (amarillo)
     const stx=await leer('xl/styles.xml'), fills=stx.getElementsByTagNameNS(NS,'fills')[0], xfs=stx.getElementsByTagNameNS(NS,'cellXfs')[0], XF=kids(xfs,'xf');
     let fillAm=null; const cache={};
@@ -57,13 +81,7 @@
       if(amarillo){ x.setAttribute('fillId',String(fillAm)); x.setAttribute('applyFill','1'); }
       xfs.appendChild(x); const n=kids(xfs,'xf').length-1; xfs.setAttribute('count',String(n+1)); return cache[k]=n; };
     // 5. índice de estudiantes de la app
-    const porDoc={}, porCur={};
-    recs.forEach(r=>{ r.cur=grupoACurso(r.curso); r.nn=nrm(r.nombre); r.tk=r.nn.split(' ').filter(Boolean); if(r.documento) porDoc[String(r.documento).replace(/\D/g,'')]=r; (porCur[r.cur]=porCur[r.cur]||[]).push(r); });
-    const buscar=(cur,nom,doc)=>{ if(doc&&porDoc[doc]) return porDoc[doc]; const L=porCur[cur]||[]; const n=nrm(nom);
-      let r=L.find(x=>x.nn===n); if(r) return r; const tk=n.split(' '), srt=tk.slice().sort().join(' ');
-      r=L.find(x=>x.tk.slice().sort().join(' ')===srt); if(r) return r;
-      const sc=L.map(x=>({x,s:x.tk.filter(t=>tk.includes(t)).length})).filter(z=>z.s>=Math.min(3,z.x.tk.length,tk.length)&&z.s>=2).sort((a,b)=>b.s-a.s);
-      return sc.length&&(sc.length===1||sc[0].s>sc[1].s)?sc[0].x:null; };
+    const buscar=emparejador(recs);
     // 6. escribir
     const R={aus:0,asis:0,ret:0,per:0,cambiadas:[],sinFila:[],sinMarca:{}}, usados=new Set();
     const cursosApp=new Set(recs.map(r=>r.cur));
@@ -73,7 +91,7 @@
       while(c.firstChild) c.removeChild(c.firstChild); c.removeAttribute('t'); fn(c); return c; };
     const texto=(c,t)=>{ c.setAttribute('t','inlineStr'); const is=sh.createElementNS(NS,'is'), te=sh.createElementNS(NS,'t'); te.setAttributeNS('http://www.w3.org/XML/1998/namespace','xml:space','preserve'); te.textContent=t; is.appendChild(te); c.appendChild(is); };
     const numero=(c,n)=>{ const v=sh.createElementNS(NS,'v'); v.textContent=String(n); c.appendChild(v); };
-    const reObs=new RegExp('\\s*(\\|\\s*)?(Retardo|Permiso de salida) '+dd.replace('/','\\/')+'[^|]*','g');
+    const reObs=new RegExp('\\s*(\\|\\s*)?(Retardo|Permiso de salida|Ausencia reportada) '+dd.replace('/','\\/')+'[^|]*','g');
     rows.slice(1).forEach(row=>{ const C=celdas(row), gr=val(C[cG]), nom=val(C[cN]); if(!gr||!nom) return;
       const cur=grupoACurso(gr), r=buscar(cur,nom,cM?String(val(C[cM])||'').replace(/\D/g,''):'');
       if(!r){ if(cursosApp.has(cur)) R.sinMarca[cur]=(R.sinMarca[cur]||0)+1; return; }
@@ -86,6 +104,7 @@
         if(r.estado==='A') R.asis++; if(r.estado==='T') R.ret++; if(r.estado==='P') R.per++; }
       if(cO){ let obs=String(val(C[cO])||'').replace(reObs,'').trim();
         let nota=''; if(r.estado==='T') nota=`Retardo ${dd} (llegó ${hora(r.min)}, ${r.retardo} min): ${[r.motivo,r.detalle].filter(Boolean).join(' – ')||'sin motivo'}`;
+        if(r.estado==='N'&&r.previa&&!nrm(obs).includes(nrm(r.previa))) nota=`Ausencia reportada ${dd}: ${r.previa}`;
         if(r.estado==='P') nota=`Permiso de salida ${dd}: ${[r.motivo,r.detalle].filter(Boolean).join(' – ')||'sin motivo'}`;
         const nuevo=[obs,nota].filter(Boolean).join(' | '), antes=String(val(C[cO])||'');
         if(nuevo!==antes){ const s2=(C[cO]&&C[cO].getAttribute('s'))||null; poner(row,cO,c=>{ if(s2) c.setAttribute('s',s2); if(nuevo) texto(c,nuevo); }); } } });
@@ -97,5 +116,5 @@
     const out=await zip.generateAsync({type:o.tipo||'blob',compression:'DEFLATE',compressionOptions:{level:6},mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     R.hoja=hoja.getAttribute('name'); R.columna=colLet(cF); return {archivo:out,resumen:R};
   }
-  g.AsisOficial={llenar,grupoACurso,gradoDe,nrm};
+  g.AsisOficial={llenar,leerNovedades,emparejador,grupoACurso,gradoDe,nrm};
 })(typeof window!=='undefined'?window:module.exports);
