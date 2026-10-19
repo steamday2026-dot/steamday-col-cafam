@@ -672,3 +672,31 @@ small.turq{display:block;font-size:11.5px;margin-top:2px}small.turq.ok{color:#14
 .sheet[data-tur] .sb,.sheet .sb:has(.slops),.sheet .sb:has(.cmnov),.sheet .sb:has(.turb),.sheet .sb:has(.turc),#cmPB{padding:12px 14px calc(16px + var(--safe-bot))}
 .sheet .sb #slTx{width:100%;border:1px solid #d6dbe4;border-radius:10px;padding:8px;font:inherit;font-size:13px}
 .cmsb{margin-left:auto;border:1.5px solid #e8d2b0;background:#fffaf2;border-radius:10px;font-size:18px;padding:4px 8px;cursor:pointer;flex:none}
+/* ===== v38 · editor de avatar ===== */
+.stage{height:230px}
+.stage .avPrev{width:190px;height:220px;border-radius:18px;box-shadow:0 6px 18px rgba(23,61,122,.12)}
+.avbar{display:flex;gap:5px;justify-content:center;padding:8px 8px;background:#f6f8fc;border-bottom:1px solid var(--line);flex:none}
+.avbar button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 10px;font-size:12.5px;font-weight:700;color:var(--brand);cursor:pointer;white-space:nowrap}
+.avbar button[data-a=rnd]{background:var(--accent);border-color:var(--accent);color:#1b2333}
+.avbar button:disabled{opacity:.4}
+.avthumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px}
+.avt{display:flex;flex-direction:column;align-items:center;border:2px solid var(--line);border-radius:12px;background:#fff;padding:4px 2px 5px;cursor:pointer;user-select:none}
+.avt svg{width:100%;height:58px;display:block}
+.avt i{font-style:normal;font-size:10.5px;line-height:1.15;color:var(--muted);text-align:center;margin-top:2px}
+.avt.on{border-color:var(--brand);background:#e9effa}.avt.on i{color:var(--brand);font-weight:700}
+.opt h4 small{text-transform:none;letter-spacing:0;font-weight:400}
+.sw.auto{display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--muted);background:#f1f3f8}
+.avnota{background:#fff8e1;border:1px solid #f5d77a;border-radius:10px;padding:8px 10px;margin-bottom:10px}
+.cav{position:relative;overflow:visible}.cav svg{border-radius:50%}
+.cav.lid{border-color:#f97316}.cav.mst{border-color:#d4a017}
+.cav .cbadge{position:absolute;right:-5px;bottom:-4px;font-style:normal;font-size:11px;line-height:1;background:#fff;border-radius:50%;padding:1px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.cav.pod .cbadge,.cav.lg .cbadge{font-size:15px}
+.cav.g,.cav.gold{border-color:#f5b700}.cav.s{border-color:#a9b4c6}.cav.b{border-color:#d08a4c}
+/* v38: barra de 7 botones y Top 10 de la Liga Master */
+.nav.n7 span{font-size:9.2px;letter-spacing:-.1px}.nav.n7 span i.ic{width:28px}.nav.n7 span.on i.ic{width:42px;height:42px}
+.cmtoplnk{display:block;width:100%;margin:8px 0 4px;border:1px dashed #d4a017;background:#fffbea;color:#7a5a00;border-radius:10px;padding:8px;font-weight:700;font-size:13px;cursor:pointer}
+.cmtop{margin-top:16px;border:1px solid var(--line);border-radius:14px;padding:12px;background:linear-gradient(#fffdf3,#fff)}
+.cmtop h4{font-size:15px;color:var(--brand);margin-bottom:8px}.cmtop h4 small{display:block;font-size:11px;font-weight:500;color:var(--muted)}
+.cmtr{display:flex;align-items:center;gap:9px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:14px}
+.cmtr .n{width:30px;text-align:center;font-weight:800;color:var(--muted)}.cmtr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cmtr b{color:var(--brand)}
+.cmtr.me{background:#fff4cc;border-radius:8px}.cmtsep{text-align:center;color:var(--muted);line-height:1}
