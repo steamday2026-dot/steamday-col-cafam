@@ -580,15 +580,22 @@ function abrirAyuda(){
       <div class="sb hsel"><p class="sm">Elige el grado y el curso que vas a acompañar. Si eres codirector de dos cursos, marca ambos (pueden ser de grados distintos).</p>
       <h4>Grado</h4><div class="row">${grados.map(g=>`<span class="chip ${h.grado===g?'on':''}" data-g="${escHTML(g)}">${escHTML(g)}</span>`).join('')}</div>
       <h4>Curso (máximo 2)</h4><div class="row">${[...G[h.grado]].sort().map(c=>`<span class="chip ${h.cursos.includes(c)?'on':''}" data-c="${escHTML(c)}">${escHTML(c)}</span>`).join('')}</div>
+      ${S.perfil.cursos_solicitud?`<div class="warnbox" style="margin:8px 0">⏳ Tu solicitud ${S.perfil.cursos_solicitud.length?'de cambiar a <b>'+escHTML(S.perfil.cursos_solicitud.join(' y '))+'</b>':'de volver a lo que dice la programación'} está <b>pendiente</b> de aprobación del administrador.</div>`:S.perfil.cursos_respuesta==='rechazada'?'<div class="warnbox" style="margin:8px 0">Tu última solicitud no se aprobó.</div>':''}
       <h4>Seleccionados</h4><p>${h.cursos.length?escHTML(h.cursos.join(' y ')):'<span class="pend">Ninguno</span>'}</p>
-      <button class="btn" style="margin-top:14px" id="hOk" ${h.cursos.length?'':'disabled'}>Actualizar mi ruta</button>
-      ${S.perfil.cursos_manual?'<button class="btn ghost" style="margin-top:8px" id="hReset">Volver a lo que dice la programación</button>':''}
-      <p class="sm" style="margin-top:10px">El administrador verá esta corrección para ajustar el Excel.</p></div>`;
+      <button class="btn" style="margin-top:14px" id="hOk" ${h.cursos.length?'':'disabled'}>Enviar la solicitud al administrador</button>
+      ${S.perfil.cursos_manual?'<button class="btn ghost" style="margin-top:8px" id="hReset">Pedir volver a lo que dice la programación</button>':''}
+      <p class="sm" style="margin-top:10px">Tu ruta no cambia hasta que el administrador apruebe la solicitud. Te llegará un aviso con la respuesta.</p></div>`;
     $('shX').onclick=cerrarSheet;
     sh.querySelectorAll('[data-g]').forEach(e=>e.onclick=()=>{ h.grado=e.dataset.g; pintar(); });
     sh.querySelectorAll('[data-c]').forEach(e=>e.onclick=()=>{ const c=e.dataset.c, k=h.cursos.indexOf(c); if(k>=0) h.cursos.splice(k,1); else { if(h.cursos.length>=2) h.cursos.shift(); h.cursos.push(c); } pintar(); });
-    $('hOk').onclick=async()=>{ if(await guardarPerfil({cursos_manual:h.cursos})){ definirModo(); S.curso=h.cursos[0]; cerrarSheet(); pintarRuta(true); toast('Tu ruta se actualizó: '+h.cursos.join(' y '),'ok'); } };
-    if($('hReset')) $('hReset').onclick=async()=>{ if(await guardarPerfil({cursos_manual:null})){ definirModo(); cerrarSheet(); pintarRuta(true); toast('Se restauró tu asignación original','ok'); } };
+    // v51: queda como solicitud; el administrador la aprueba o la rechaza
+    const pedir=async cur=>{ if(S.vistaComo){ avisoVista(); return; }
+      const {error}=await S.sb.from('sd_perfiles').update({cursos_solicitud:cur}).eq('id',S.perfil.id);
+      if(error) return toast('No se pudo enviar: '+(/cursos_solicitud/.test(error.message)?'falta ejecutar el archivo 28 en Supabase.':error.message),'bad',5000);
+      Object.assign(S.perfil,{cursos_solicitud:cur,cursos_respuesta:null}); cerrarSheet();
+      ventana({icono:'⏳',titulo:'Solicitud enviada',html:`<p>${cur.length?`Pediste acompañar a <b>${escHTML(cur.join(' y '))}</b>.`:'Pediste volver a lo que dice la programación.'} Tu ruta no cambia hasta que el administrador la apruebe. Te llegará un aviso con la respuesta.</p>`,botones:[{t:'Entendido'}]}); };
+    $('hOk').onclick=()=>pedir(h.cursos);
+    if($('hReset')) $('hReset').onclick=()=>pedir([]);
   };
   pintar(); $('sheet').classList.add('open');
 }
@@ -678,6 +685,8 @@ async function pintarLista2(){
   }
   dibujarLista('');
 }
+// v51: los directores y codirectores llaman a lista solo el día del evento
+function listaBloqueada(){ const a=ahora(); return !!(S.config&&a.fecha!==S.config.fecha_evento); }
 function dibujarLista(filtro){
   const el=$('listaPz'), L=S.listaLocal, ini=L.mom==='inicial';
   const ms=momentosLista(L.curso), a=ahora(), hoy=a.fecha===S.config.fecha_evento, antes=a.fecha<S.config.fecha_evento;
@@ -720,7 +729,9 @@ function dibujarLista(filtro){
     const fuera=L.filas.filter(x=>x.fuera); if(fuera.length) h+=`<details class="fuera"><summary>No asistieron a la jornada (${fuera.length})</summary>${fuera.map(x=>`<div class="est"><div class="nm">${escHTML(x.nombre)}<small>Marcado en el llamado de las 7:00</small></div></div>`).join('')}</details>`;
     h+=`<button class="pbtn" id="lGuardar" ${fut&&!antes?'disabled':''}>Guardar llamado de esta actividad</button>`;
   }
+  if(listaBloqueada()) h=`<div class="alertbox" style="margin-bottom:10px">🔒 El llamado a lista se habilita el <b>${escHTML(fechaLarga(S.config.fecha_evento))}</b>, día del STEM Day. Mientras tanto puedes revisar la lista de tu curso.</div>`+h;
   const st=$('p-lista').scrollTop; el.innerHTML=h; $('p-lista').scrollTop=st; bindSegs(); bindMoms();
+  if(listaBloqueada()){ el.classList.add('lbloq'); el.querySelectorAll('#lGuardar,#lTodos').forEach(b=>{ b.disabled=true; }); return; } else el.classList.remove('lbloq');
   el.querySelectorAll('.st span').forEach(e=>e.onclick=()=>{ const x=L.filas[+e.dataset.i];
     if(ini){ const nv=x.v===e.dataset.v?null:e.dataset.v; if((nv==='A'||nv==='T')&&!x.hl) x.hl=ahoraISO(); if(!nv||nv==='N') x.hl=null; if(nv!=='T'&&nv!=='P'){ x.m=''; x.d=''; } x.v=nv; }
     else { x.v=e.dataset.v; if(x.v==='A'){ x.m=''; x.det={}; } }
@@ -737,6 +748,7 @@ function dibujarLista(filtro){
 function bindSegs(){ $('listaPz').querySelectorAll('.segs [data-c]').forEach(e=>e.onclick=()=>{ if(S.listaLocal&&S.listaLocal.cambios&&S.listaLocal.mom==='inicial'&&!confirm('Hay cambios sin guardar. ¿Cambiar de curso de todas formas?')) return; S.listaCurso=e.dataset.c; S.listaLocal=null; S.listaMom=null; pintarLista2(); }); }
 function bindMoms(){ $('listaPz').querySelectorAll('.moms [data-m]').forEach(e=>e.onclick=()=>{ S.listaMom=e.dataset.m; S.listaLocal=null; pintarLista2(); }); }
 async function guardarLista(){
+  if(listaBloqueada()) return toast('El llamado a lista se habilita el día del evento.','bad');
   const L=S.listaLocal, falta=L.filas.filter(x=>x.v==='T'&&!x.m);
   if(falta.length) return toast(`Elige el motivo del retardo de ${falta.length===1?falta[0].nombre:falta.length+' estudiantes'}.`,'bad',3800);
   const filas=L.filas.filter(x=>x.v).map(x=>{ const hl=(x.v==='A'||x.v==='T')?(x.hl||ahoraISO()):null;
@@ -754,6 +766,7 @@ async function guardarLista(){
   toast(pend?`Guardado. Faltan ${pend} por marcar.`:'Llamado a lista guardado ✓','ok',3500); dibujarLista('');
 }
 async function guardarListaAct(){
+  if(listaBloqueada()) return toast('El llamado a lista se habilita el día del evento.','bad');
   const L=S.listaLocal, dentro=L.filas.filter(x=>!x.fuera), falta=dentro.filter(x=>x.v==='N'&&!x.m);
   if(falta.length) return toast(`Elige por qué no está ${falta.length===1?falta[0].nombre:'cada estudiante marcado con ✗'}.`,'bad',3800);
   const inc=dentro.filter(x=>x.v==='N'&&/STEM/.test(x.m)&&(!(x.det||{}).docente||!(x.det||{}).lugar));
@@ -801,7 +814,17 @@ async function pintarAsis(grado){
     <p class="sm" style="margin:4px 0 8px">Elige el Excel de asistencia del año (el mismo de siempre). La app llena la hoja de <b>octubre</b>, columna del <b>23 de octubre</b>: <b>X</b> = no asistió · <b>hora</b> = asistió (hora del llamado) · <b>hora en amarillo</b> = retardo, con el motivo en OBSERVACIÓN. El archivo no sale de este equipo.</p>
     <button class="b1" id="ofiBtn">📂 Elegir el archivo y descargarlo lleno</button><input type="file" id="ofiFx" accept=".xlsx" hidden><div id="ofiRes"></div>
     <details style="margin-top:10px"><summary class="sm">Otras descargas (resumen de la app)</summary><div class="row" style="margin-top:6px"><button class="b2" data-dl="todo">Completa</button>${grado!=='Todos'?`<button class="b2" data-dl="grado">${escHTML(grado)}</button>`:''}<button class="b2" data-dl="cursos">Una hoja por curso</button></div></details></div>`;
+  if(S.perfil.rol==='admin'&&!S.vistaComo) h+=`<div class="dlbox" style="margin-top:12px;border-color:#f3c0c0;background:#fff6f6"><b>🗑 Borrar llamados a lista</b>
+    <p class="sm" style="margin:4px 0 8px">Para limpiar pruebas o repetir un llamado. Las ausencias anunciadas por la secretaría se conservan. No se puede deshacer.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="blC"><option value="">Todos los cursos</option>${cursos.map(c=>`<option>${escHTML(c)}</option>`).join('')}</select>
+    <select id="blQ"><option value="todo">Llamado de las 7:00 y de cada actividad</option><option value="inicio">Solo el llamado de las 7:00</option><option value="actividades">Solo los llamados por actividad</option></select>
+    <button class="b2" id="blOk" style="border-color:#e5484d;color:#e5484d">Borrar</button></div></div>`;
   el.innerHTML=h;
+  if($('blOk')) $('blOk').onclick=async()=>{ const c=$('blC').value, q=$('blQ').value, txt={todo:'todos los llamados',inicio:'el llamado de las 7:00',actividades:'los llamados por actividad'}[q];
+    if(!confirm(`¿Borrar ${txt} de ${c?'el curso '+c:'TODOS los cursos'}? No se puede deshacer.`)) return;
+    const r=await S.sb.rpc('sd_borrar_llamados',{p_cursos:c?[c]:null,p_que:q});
+    if(r.error) return toast('No se pudo borrar: '+(/sd_borrar_llamados/.test(r.error.message)?'falta ejecutar el archivo 28 en Supabase.':r.error.message),'bad',5000);
+    toast(`Borrado: ${r.data.inicio} del llamado de las 7:00 · ${r.data.actividades} de actividades`,'ok',4500); S.asisSucia=true; S.listaLocal=null; pintarAsis(); };
   el.querySelectorAll('[data-g]').forEach(e=>e.onclick=()=>pintarAsis(e.dataset.g));
   el.querySelectorAll('[data-c]').forEach(e=>e.onclick=()=>{ S.asisCurso=e.dataset.c; detalleAsis(e.dataset.c); });
   if($('ofiBtn')){ $('ofiBtn').onclick=()=>$('ofiFx').click(); $('ofiFx').onchange=()=>{ const f=$('ofiFx').files[0]; $('ofiFx').value=''; if(f) llenarOficial(f); }; }
@@ -1303,25 +1326,26 @@ async function entrarVista(id){
 }
 function salirVista(){ try{ sessionStorage.removeItem(VC_KEY); }catch(e){} location.reload(); }
 function irVista(id){ try{ sessionStorage.setItem(VC_KEY,id); }catch(e){ return toast('Este navegador no permite cambiar de vista.','bad'); } location.reload(); }
-const VC_ROL={ docente:'Docente', organizador:'Organizador', master:'Master', admin:'Administrador', lider:'Líder de estación', secretario:'Secretario' };
+const VC_ROL={ docente:'Docente', organizador:'Organizador', organizador_m:'Organizador Master', master:'Master', admin:'Administrador', lider:'Líder de estación', secretario:'Secretario' };
 function pintarFranjaVista(){
   const f=$('vcomo'); if(!f) return;
   if(!S.vistaComo){ f.hidden=true; return; }
   f.hidden=false;
-  f.innerHTML=`<span class="ojo">👁</span><div><small>Estás viendo la app como</small><b>${escHTML(VC_ROL[S.perfil.rol]||S.perfil.rol)} · ${escHTML(S.perfil.nombre||'')}</b></div><button id="vcCambiar">Cambiar</button><button id="vcSalir" class="fin">Salir</button>`;
+  f.innerHTML=`<span class="ojo">👁</span><div><small>Estás viendo la app como</small><b>${escHTML(S.perfil.rol==='organizador'&&S.perfil.org_lista?'Organizador Master':S.perfil.rol==='master'&&S.perfil.org_master?'Máster Coordinador':VC_ROL[S.perfil.rol]||S.perfil.rol)} · ${escHTML(S.perfil.nombre||'')}</b></div><button id="vcCambiar">Cambiar</button><button id="vcSalir" class="fin">Salir</button>`;
   $('vcCambiar').onclick=abrirVerComo; $('vcSalir').onclick=salirVista;
 }
 async function abrirVerComo(){
   const m=$('vcModal'); m.hidden=false;
   m.innerHTML=`<div class="vcbox"><div class="vchead"><div><b>Ver la app como…</b><small>Elige un perfil para ver su interfaz. Solo para revisar: no se guarda ningún cambio.</small></div><button class="vcx" id="vcX">✕</button></div>
-    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['lider','Líderes'],['organizador','Org.'],['master','Master'],['secretario','Secret.']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
+    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['lider','Líderes'],['organizador','Org.'],['orgm','Org. Master'],['master','Master'],['mcoord','Máster Coord.'],['secretario','Secret.']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
     <input id="vcBus" class="vcbus" placeholder="Buscar por nombre o curso…" autocomplete="off">
     <div class="vclist" id="vcList"><p class="sm" style="padding:14px">Cargando perfiles…</p></div>
     ${S.vistaComo?'<button class="btn" id="vcMio">Volver a mi perfil de administrador</button>':''}</div>`;
   m.onclick=e=>{ if(e.target===m) m.hidden=true; }; $('vcX').onclick=()=>m.hidden=true;
   if($('vcMio')) $('vcMio').onclick=salirVista;
   if(!S._vcLista){
-    const { data, error } = await S.sb.from('sd_perfiles').select('id,nombre,nombre_n,rol,experiencia,cursos_manual').neq('rol','admin').order('nombre');
+    let { data, error } = await S.sb.from('sd_perfiles').select('id,nombre,nombre_n,rol,experiencia,cursos_manual,org_master,org_lista').neq('rol','admin').order('nombre');
+    if(error&&/org_lista/.test(error.message)) ({ data, error } = await S.sb.from('sd_perfiles').select('id,nombre,nombre_n,rol,experiencia,cursos_manual,org_master').neq('rol','admin').order('nombre'));
     if(error){ $('vcList').innerHTML=`<p class="sm" style="padding:14px">No se pudieron leer los perfiles: ${escHTML(error.message)}</p>`; return; }
     const ac={}, ap={};
     S.prog.forEach(r=>{ if(r.tipo!=='actividad') return; if(r.acompanante_n) (ac[r.acompanante_n]=ac[r.acompanante_n]||new Set()).add(r.curso); if(r.apoyo_n) (ap[r.apoyo_n]=ap[r.apoyo_n]||new Set()).add(r.curso); });
@@ -1330,14 +1354,16 @@ async function abrirVerComo(){
         det = p.cursos_manual&&p.cursos_manual.length ? 'Cursos: '+p.cursos_manual.join(', ') : a.length ? 'Director de '+a.join(', ')+(b.length?' · codirector de '+b.join(', '):'') : b.length ? 'Codirector de '+b.join(', ') : 'Sin curso en la programación'; }
       else if(p.rol==='master') det='Experiencia: '+(AREA_N[p.experiencia]||'sin elegir');
       else if(p.rol==='lider'){ const fs=S.prog.filter(r=>(r.lideres||[]).includes(p.id)); det=fs.length?'Lidera '+[...new Set(fs.map(r=>r.titulo?titA(r.titulo):r.area))].join(', ')+' · '+[...new Set(fs.map(r=>r.salon))].join(', '):'Sin estación asignada'; }
+      else if(p.rol==='organizador'&&p.org_lista) det='Organizador Master · también llama a lista a 10° y 11°';
       else det='Organización del evento';
       return { ...p, det }; });
   }
   let rol='docente';
   const pintar=()=>{ const q=($('vcBus').value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const l=S._vcLista.filter(p=>p.rol===rol && (!q || ((p.nombre||'')+' '+p.det).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q)));
+    const en=p=>rol==='orgm'?(p.rol==='organizador'&&p.org_lista):rol==='mcoord'?(p.rol==='master'&&p.org_master):rol==='organizador'?(p.rol==='organizador'&&!p.org_lista):p.rol===rol;
+    const l=S._vcLista.filter(p=>en(p) && (!q || ((p.nombre||'')+' '+p.det).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q)));
     $('vcList').innerHTML = l.length ? l.slice(0,200).map(p=>`<div class="vcit ${S.vistaComo&&S.perfil.id===p.id?'on':''}" data-id="${p.id}"><i>${escHTML((p.nombre||'?').trim()[0]||'?')}</i><div><b>${escHTML(p.nombre||'Sin nombre')}</b><small>${escHTML(p.det)}</small></div><span>Ver ›</span></div>`).join('')
-      : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':rol==='lider'?'líderes de estación':'organizadores'} ${q?'con esa búsqueda':'registrados'}.</p>`;
+      : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':rol==='lider'?'líderes de estación':rol==='orgm'?'Organizadores Master':rol==='mcoord'?'Máster Coordinadores':'organizadores'} ${q?'con esa búsqueda':'registrados'}.${rol==='orgm'&&!q?' Asígnalo en Administración → Usuarios, eligiendo el perfil «Organizador Master».':''}</p>`;
     $('vcList').querySelectorAll('.vcit').forEach(e=>e.onclick=()=>irVista(e.dataset.id)); };
   $('vcTabs').querySelectorAll('span').forEach(t=>t.onclick=()=>{ rol=t.dataset.r; $('vcTabs').querySelectorAll('span').forEach(x=>x.classList.toggle('on',x===t)); pintar(); });
   $('vcBus').oninput=pintar; pintar();
@@ -1350,7 +1376,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='50';
+const VERSION_APP='51';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
