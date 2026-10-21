@@ -296,10 +296,11 @@
     $('admTab').innerHTML=`
       <div class="dlbox"><b>⏱ ¿Cuándo sale la trivia?</b>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span>Sale</span><input id="cpAntes" type="number" min="1" max="60" value="${+cfg.copa_antes||10}" style="width:70px"><span>minutos antes de que termine cada actividad.</span><button class="b1 sm" id="cpAntesG">Guardar</button></div>
-        <p class="sm" style="margin:6px 0 0">La encuesta sale 5 minutos antes del final. El cambio les llega en vivo a los docentes.</p></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><span><b>Liga Master:</b> sale</span><input id="cpAntesM" type="number" min="1" max="60" value="${+cfg.copa_antes_master||10}" style="width:70px"><span>minutos antes de que termine cada bloque de su agenda.</span><button class="b1 sm" id="cpAntesMG">Guardar</button></div>
+        <p class="sm" style="margin:6px 0 0">La encuesta de los docentes sale 5 minutos antes del final. Los cambios les llegan en vivo a docentes y Master.</p></div>
       <div class="dlbox" style="margin-top:12px"><b>⚡ Lanzar la trivia ahora</b>
         <p class="sm" style="margin:4px 0 8px">Les aparece de inmediato a los directores y codirectores cuyo curso esté en ese momento en la actividad (solo el día del evento). Quien ya la respondió no la vuelve a ver.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="cpLzA"><option value="*">Todas las actividades que están en curso</option>${ACT.map(a=>`<option value="${escHTML(a.k)}">${escHTML(a.area)} · ${escHTML(a.nombre)}</option>`).join('')}</select><button class="b1" id="cpLz">⚡ Lanzar ahora</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="cpLzA"><option value="*">Docentes · todas las actividades que están en curso</option><option value="M*">🏆 Liga Master · todos los Master en su bloque actual</option>${ACT.map(a=>`<option value="${escHTML(a.k)}">${escHTML(a.area)} · ${escHTML(a.nombre)}</option>`).join('')}</select><button class="b1" id="cpLz">⚡ Lanzar ahora</button></div>
         ${CP.lz===null?'<p class="sm" style="color:#b45309">Falta ejecutar el archivo 26-copa-admin-preguntas.sql en Supabase.</p>':CP.lz.length?`<p class="sm" style="margin:8px 0 0">Últimos lanzamientos: ${CP.lz.map(l=>`${new Date(l.creado_en).toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit'})} · ${escHTML(l.nombre||'Todas')}`).join(' — ')}</p>`:''}</div>
       <h3 style="margin:22px 0 8px">Preguntas cargadas</h3><div id="cpQ"></div>
       <h3 style="margin:22px 0 8px">Cargar el banco desde Excel</h3>
@@ -315,7 +316,10 @@
     $('cpAntesG').onclick=async()=>{ const n=Math.round(+$('cpAntes').value); if(!(n>=1&&n<=60)) return aviso('Escribe un número de minutos entre 1 y 60','bad');
       const {error}=await sb().from('sd_config').update({copa_antes:n}).eq('id',1); if(error) return aviso('No se pudo guardar: '+(/copa_antes/.test(error.message)?'falta ejecutar el archivo 26-copa-admin-preguntas.sql en Supabase':error.message),'bad');
       if(S()&&S().config) S().config.copa_antes=n; aviso(`La trivia saldrá ${n} minutos antes del final`,'ok'); };
-    $('cpLz').onclick=async()=>{ const k=$('cpLzA').value, a=ACT.find(x=>x.k===k), nom=k==='*'?'Todas las actividades en curso':a.area+' · '+a.nombre;
+    $('cpAntesMG').onclick=async()=>{ const n=Math.round(+$('cpAntesM').value); if(!(n>=1&&n<=60)) return aviso('Escribe un número de minutos entre 1 y 60','bad');
+      const {error}=await sb().from('sd_config').update({copa_antes_master:n}).eq('id',1); if(error) return aviso('No se pudo guardar: '+(/copa_antes_master/.test(error.message)?'falta ejecutar el archivo 27-liga-master-trivia.sql en Supabase':error.message),'bad');
+      if(S()&&S().config) S().config.copa_antes_master=n; aviso(`Liga Master: la trivia saldrá ${n} minutos antes del final de cada bloque`,'ok'); };
+    $('cpLz').onclick=async()=>{ const k=$('cpLzA').value, a=ACT.find(x=>x.k===k), nom=k==='*'?'Docentes · todas las actividades en curso':k==='M*'?'Liga Master · todos los Master':a.area+' · '+a.nombre;
       if(!confirm(`¿Lanzar la trivia ahora a: ${nom}?`)) return;
       const {error}=await sb().from('sd_copa_lanzar').insert({clave:k,nombre:nom,creado_por:S().perfil.id}); if(error) return aviso('No se pudo lanzar: '+(/sd_copa_lanzar/.test(error.message)?'falta ejecutar el archivo 26-copa-admin-preguntas.sql en Supabase':error.message),'bad');
       aviso('Trivia lanzada: '+nom,'ok'); tCopa(); };
@@ -331,6 +335,8 @@
     const st=S(); if(!st||!st.prog||!window.copaClave) return [];
     const act={}; st.prog.filter(r=>r.tipo==='actividad'&&!/direcci[oó]n de (grupo|curso)/i.test((r.area||'')+' '+(r.titulo||''))).forEach(r=>{ const k=copaClave(r);
       const a=act[k]=act[k]||{k,area:String(r.area||'').replace(/\.$/,''),nombre:k==='tec'?'Desastres naturales':(r.titulo?(window.tituloA?tituloA(r.titulo):r.titulo):r.area)}; });
+    act.hacer_pri={k:'hacer_pri',area:'Actividad del hacer',nombre:'Cambio climático · Primaria (solo Liga Master)'};
+    act.hacer_bach={k:'hacer_bach',area:'Actividad del hacer',nombre:'Cambio climático · Bachillerato (solo Liga Master)'};
     return Object.values(act).sort((a,b)=>a.area.localeCompare(b.area,'es')||a.nombre.localeCompare(b.nombre,'es'));
   }
   function pintarPregs(){
@@ -343,7 +349,7 @@
         <input id="cpBus" placeholder="Buscar en las preguntas…" value="${escHTML(CP.bus||'')}" style="flex:1;min-width:180px"><button class="b1" id="cpNueva">＋ Nueva pregunta</button><button class="b2" id="cpRx">⬇ Respuestas (Excel)</button></div>
       <p class="sm">${CP.RS.length} respuestas de ${docs.size} docentes · ${CP.RS.filter(r=>r.correcta).length} aciertos</p>
       <div class="twrap"><table class="t"><tr><th>Actividad</th><th>Pregunta</th><th>Correcta</th><th>Respondida</th><th></th></tr>
-      ${L.map(q=>{ const r=resp[q.id]||[]; return `<tr><td class="sm">${escHTML(q.area||'')}<br><b>${escHTML(nomAct(q.clave))}</b></td><td>${escHTML(q.pregunta)}<div class="sm">${['a','b','c','d'].filter(x=>q['op_'+x]).map(x=>`<span style="${q.correcta===x.toUpperCase()?'color:#1f9d6b;font-weight:700':''}">${x.toUpperCase()}) ${escHTML(q['op_'+x])}</span>`).join(' · ')}</div></td>
+      ${L.map(q=>{ const r=resp[q.id]||[]; return `<tr><td class="sm">${escHTML(q.area||'')}<br><b>${escHTML(nomAct(q.clave))}</b></td><td>${q.solo_master?'<span class="sm" style="color:#b45309;font-weight:700">🏆 Solo Liga Master · </span>':''}${escHTML(q.pregunta)}<div class="sm">${['a','b','c','d'].filter(x=>q['op_'+x]).map(x=>`<span style="${q.correcta===x.toUpperCase()?'color:#1f9d6b;font-weight:700':''}">${x.toUpperCase()}) ${escHTML(q['op_'+x])}</span>`).join(' · ')}</div></td>
         <td style="text-align:center;font-weight:700">${q.correcta}</td><td style="text-align:center">${r.length?`<a href="#" data-qr="${q.id}">${r.length} · ✓${r.filter(x=>x.correcta).length}</a>`:'—'}</td>
         <td style="white-space:nowrap"><button class="b2 sm" data-qe="${q.id}">✏️ Editar</button> <button class="b2 sm" data-qd="${q.id}" title="Borrar">🗑</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="sm">No hay preguntas con ese filtro.</td></tr>'}</table></div>`;
     $('cpF').onchange=e=>{ CP.f=e.target.value; pintarPregs(); };
@@ -376,6 +382,7 @@
       <div class="field"><label>Actividad</label><select id="peK"><option value="general" ${q.clave==='general'?'selected':''}>General (sirve para cualquier actividad)</option>${ACT.map(a=>`<option value="${escHTML(a.k)}" ${q.clave===a.k?'selected':''}>${escHTML(a.area)} · ${escHTML(a.nombre)}</option>`).join('')}${q.clave&&q.clave!=='general'&&!ACT.some(a=>a.k===q.clave)?`<option value="${escHTML(q.clave)}" selected>${escHTML(q.actividad||q.clave)} (no está en la programación)</option>`:''}</select></div>
       <div class="field"><label>Pregunta</label><textarea id="peP" rows="3">${escHTML(q.pregunta)}</textarea></div>
       ${['a','b','c','d'].map(x=>`<div class="field"><label>Opción ${x.toUpperCase()}${x>'b'?' (opcional)':''}</label><input id="pe${x}" value="${escHTML(q['op_'+x]||'')}"></div>`).join('')}
+      <label class="sm" style="display:block;margin:0 0 10px"><input type="checkbox" id="peM" ${q.solo_master?'checked':''}> 🏆 Solo para la Liga Master (los docentes no la ven)</label>
       <div class="field"><label>Respuesta correcta</label><select id="peC">${['A','B','C','D'].map(x=>`<option ${q.correcta===x?'selected':''}>${x}</option>`).join('')}</select></div>
       <div class="err" id="peE"></div><div class="abtn"><button class="b2" id="peX">Cancelar</button><button class="b1" id="peOk">Guardar</button></div></div>`;
     const g=id=>m.querySelector('#'+id);
@@ -383,6 +390,7 @@
     g('peOk').onclick=async()=>{
       const k=g('peK').value, a=ACT.find(x=>x.k===k), f={clave:k,area:k==='general'?'General':(a?a.area:q.area),actividad:k==='general'?'General':(a?a.nombre:q.actividad),
         pregunta:g('peP').value.trim(),op_a:g('pea').value.trim(),op_b:g('peb').value.trim(),op_c:g('pec').value.trim()||null,op_d:g('ped').value.trim()||null,correcta:g('peC').value};
+      if(g('peM').checked||/^hacer_/.test(k)) f.solo_master=true; else if(q.solo_master) f.solo_master=false;
       if(!f.pregunta||!f.op_a||!f.op_b) return g('peE').textContent='Escribe la pregunta y al menos las opciones A y B.';
       if(!f['op_'+f.correcta.toLowerCase()]) return g('peE').textContent=`La respuesta correcta es la ${f.correcta}, pero esa opción está vacía.`;
       g('peOk').disabled=true;
