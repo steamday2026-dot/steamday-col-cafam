@@ -334,7 +334,7 @@ function principal(){
     lider:[['estacion','flag','Mi estación'],['rot','rotate-cw','Rotaciones'],['programa','calendar-days','Programa'],['avatar','smile','Avatar'],['alertas','ellipsis','Más']],
     org:[['vivo','radio','En vivo'],['ruta','map','Mapa'],['programa','calendar-days','Programa'],['chat','message-circle','Chat'],['asis','clipboard-list','Asistencia'],['alertas','ellipsis','Más']] };
   NAVS.admin=[['ruta','school','Colegio'],['vivo','radio','En vivo'],['programa','calendar-days','Programa'],['asis','clipboard-list','Asistencia'],['enc','chart-column','Encuestas'],['chat','message-circle','Chat'],['alertas','ellipsis','Más']];   // v38: + Programa
-  // v30: Organizador Master (Master con marca) y Secretaría
+  // v30: Máster Coordinador (Master con marca) y Secretaría
   NAVS.orgm=[['ruta','school','Colegio'],['vivo','radio','En vivo'],['agenda','notebook-pen','Mi agenda'],['programa','calendar-days','Programa'],['chat','message-circle','Chat'],['asis','clipboard-list','Asistencia'],['alertas','ellipsis','Más']];   // v38: + Programa
   NAVS.sec=[['asis','clipboard-list','Asistencia'],['vivo','radio','En vivo'],['programa','calendar-days','Programa'],['avatar','smile','Avatar'],['alertas','ellipsis','Más']];
   const nv=S.perfil.rol==='admin'?NAVS.admin:(S.modo==='master'&&S.perfil.org_master)?NAVS.orgm:NAVS[S.modo];
@@ -361,10 +361,11 @@ function principal(){
   if(window.copaIniciar) copaIniciar();
   if(window.cmIniciar) cmIniciar();
   if(window.v30Iniciar) v30Iniciar();
+  if(window.mayIniciar) mayIniciar();
 }
 function irPanel(p){
   S.panel=p;
-  ['ruta','programa','avatar','alertas','lista','asis','vivo','chat','enc','estacion','rot','agenda'].forEach(x=>$('p-'+x).hidden=x!==p);
+  ['ruta','programa','avatar','alertas','lista','asis','vivo','chat','enc','estacion','rot','agenda','may'].forEach(x=>{ const e=$('p-'+x); if(e) e.hidden=x!==p; });
   document.querySelectorAll('#nav span').forEach(n=>n.classList.toggle('on',n.dataset.p===p));
   $('btnVista').hidden=p!=='ruta'||S.modo!=='docente';
   cerrarSheet();
@@ -374,6 +375,7 @@ function irPanel(p){
   if(p==='alertas') pintarAlertas();
   if(p==='lista') pintarLista2();
   if(p==='asis') pintarAsis();
+  if(p==='may'&&window.pintarMayores) pintarMayores();
   if(p==='vivo') pintarVivo();
   if(p==='chat') abrirChat();
   if(p==='enc') pintarEncuestas();
@@ -413,7 +415,7 @@ function pintarRuta(rehacer){
   $('p-ruta').classList.toggle('esMaster',esM);
   if(esM){   // Master: Colegio vivo
     $('chips').hidden=true; $('btnColegio').hidden=true;
-    $('mHola').innerHTML=`Hola, ${nom} · ${S.perfil.rol==='admin'?'Administrador':S.modo==='org'?'Organizador':S.modo==='sec'?'Secretaría':'Master'}${S.perfil.org_master&&S.perfil.rol!=='admin'?' · Org. Master':''}`; $('mTit').textContent=S.modo==='org'?'STEM Day · Organización':S.modo==='sec'?'STEM Day · Secretaría':'Colegio vivo';
+    $('mHola').innerHTML=`Hola, ${nom} · ${S.perfil.rol==='admin'?'Administrador':S.modo==='org'?(S.perfil.org_lista?'Organizador Master':'Organizador'):S.modo==='sec'?'Secretaría':'Master'}${S.perfil.org_master&&S.perfil.rol!=='admin'?' · Máster Coord.':''}`; $('mTit').textContent=S.modo==='org'?'STEM Day · Organización':S.modo==='sec'?'STEM Day · Secretaría':'Colegio vivo';
     if(S.mapa&&S.mapa.svg.firstChild){ S.mapa.svg.innerHTML=''; S.mapa.road=null; }
     const cv=$('cv'); cv.hidden=false; cv.classList.remove('camino'); $('cvVolver').hidden=true;
     ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar);
@@ -778,6 +780,7 @@ async function pintarAsis(grado){
   if(S.asisVista==='act'&&esOrgM()) return pintarAsisAct();
   if(S.asisVista==='previas'&&(S.perfil.rol==='admin'||S.modo==='sec')) return pintarPrevias();
   if(S.asisVista==='stem'&&esOrgM()) return pintarEnStem();
+  if(S.asisVista==='may'&&window.mayPuedeTodos&&mayPuedeTodos()) return pintarMayores();
   if(S.asisCurso) return detalleAsis(S.asisCurso);
   const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})), GR={}; S.est.forEach(x=>GR[x.curso]=x.grado);
   const ORDG=['transicion','primero','segundo','tercero','cuarto','quinto','sexto','septimo','octavo','noveno','decimo','undecimo'], og=g=>{ const i=ORDG.indexOf(String(g).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()); return i<0?99:i; };
@@ -787,6 +790,7 @@ async function pintarAsis(grado){
   let h=(S.modo==='sec'?'':llegadasHTML())+(esOrgM()?`<div class="segs"><span class="on">🕖 Llamado de las 7:00</span><span id="aVAct">📋 Por actividad</span></div>`:'')+`<h3>Asistencia · inicio de la jornada</h3><div class="sub">Se actualiza en tiempo real a medida que los directores de curso guardan su lista.</div>`;
   if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
   if(S.perfil.rol==='admin'||S.modo==='sec'){ const np=S.est.filter(x=>(S.asis[x.id]||{}).previa).length; h+=`<div class="pvcard" id="aPrev"><b>📌 Ausencias anunciadas para el 23</b><span>${np?`${np} estudiante${np>1?'s':''} marcado${np>1?'s':''} · `:''}Marca a quienes ya se sabe que no vendrán. Le aparecen marcados al director de curso.</span><i>›</i></div>`; }
+  if(window.mayPuedeTodos&&mayPuedeTodos()){ const M=window.MAY||{}, n=(M.est||[]).length; h+=`<div class="pvcard maycard" id="aMay"><b>🎓 Décimo y undécimo · llamado a lista</b><span>${n?`${n} estudiantes · `:''}Dónde está cada estudiante (con su líder o en Logística) y su asistencia en cada momento.</span><i>›</i></div>`; }
   if(esOrgM()&&!S.vistaComo){ const ns=Object.keys(S.enStem||{}).length; h+=`<div class="pvcard stcard" id="aStem"><b>🔬 Estudiantes en actividades del STEM Day</b><span>${ns?`${ns} estudiante${ns>1?'s':''} marcado${ns>1?'s':''} · `:''}Marca a quienes estarán apoyando actividades. Su docente los ve en la lista con el aviso y como presentes.</span><i>›</i></div>`; }
   h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
     <div class="leg">⚪ Sin marcar: <b>${tot.S}</b> · Cursos: <b>${cs.length}</b></div>
@@ -805,8 +809,9 @@ async function pintarAsis(grado){
   if($('aVAct')) $('aVAct').onclick=()=>{ S.asisVista='act'; pintarAsis(); };
   if($('aPrev')) $('aPrev').onclick=()=>{ S.asisVista='previas'; pintarAsis(); };
   if($('aStem')) $('aStem').onclick=()=>{ S.asisVista='stem'; pintarAsis(); };
+  if($('aMay')) $('aMay').onclick=()=>{ S.asisVista='may'; pintarAsis(); };
 }
-/* v45 · Administración y Organizadores Master: estudiantes que estarán en actividades del STEM Day */
+/* v45 · Administración y Máster Coordinadores: estudiantes que estarán en actividades del STEM Day */
 function pintarEnStem(){
   const el=$('asisPz'), E=S.enStem||{}; S.stSel=S.stSel||new Set();
   const F=S.stF=S.stF||{lugar:'',modo:'dia',desde:'08:00',hasta:'10:00'};
@@ -956,7 +961,7 @@ async function descargarAsistencia(o){
     XLSX.writeFile(wb,`asistencia-stem-day-${o.grado?nrmN(o.grado).replace(/ /g,'-'):o.porCurso?'por-curso':'completa'}.xlsx`);
   }catch(e){ toast('No se pudo generar el Excel: '+e.message,'bad',5000); }
 }
-/* v30 · Organizador Master: llamado a lista en cada actividad */
+/* v30 · Máster Coordinador: llamado a lista en cada actividad */
 async function pintarAsisAct(){
   const el=$('asisPz');
   let R=[]; try{ for(let i=0;;i+=1000){ const r=await S.sb.from('sd_asistencia_act').select('*').range(i,i+999); if(r.error) throw r.error; R=R.concat(r.data||[]); if(!r.data||r.data.length<1000) break; } }
@@ -968,7 +973,7 @@ async function pintarAsisAct(){
   const nom=id=>((S.est||[]).find(e=>e.id===id)||{}).nombre||'Estudiante';
   const hechos=filas.filter(f=>porC[f.curso]), aus=de.filter(x=>x.estado==='N');
   let h=`<div class="segs"><span id="aVIni">🕖 Llamado de las 7:00</span><span class="on">📋 Por actividad</span></div>
-    <h3>Llamado a lista en cada actividad</h3><div class="sub">Solo lo ve el Organizador Master. Los directores de curso lo hacen 5 minutos después de llegar a cada lugar.</div>
+    <h3>Llamado a lista en cada actividad</h3><div class="sub">Solo lo ve el Máster Coordinador. Los directores de curso lo hacen 5 minutos después de llegar a cada lugar.</div>
     <div class="moms">${horas.map(x=>`<span data-h="${x}" class="${x===H?'on':''}"><b>${fmtHora(x).replace(' ','')}</b>${R.filter(y=>y.hora_inicio===x).length?'✓':''}</span>`).join('')}</div>
     <div class="cnt c2"><div><b style="color:#1f9d6b">${hechos.length} / ${filas.length}</b><small>cursos ya llamaron a lista</small></div><div><b style="color:#e5484d">${aus.length}</b><small>estudiantes no están</small></div></div>`;
   if(aus.length) h+=`<div class="dcard"><h4>Estudiantes que no están</h4>${aus.map(x=>{ const d=x.detalle||{}; return `<div class="est"><div class="nm"><b>${escHTML(x.curso)}</b> · ${escHTML(nom(x.estudiante_id))}<small>${escHTML(x.motivo||'')}${d.docente?' · apoya a '+escHTML(d.docente):''}${d.lugar?' · en '+escHTML(d.lugar):''}${d.texto?' · '+escHTML(d.texto):''}</small></div></div>`; }).join('')}</div>`;
@@ -1058,7 +1063,7 @@ function nuevoMensaje(m){
 }
 async function chatNueva(){
   await chatCargarGente().catch(()=>{}); const G=S.chatGente||[], adm=esOrgM()&&!S.vistaComo;
-  const html=`<input class="srch" id="cnBus" placeholder="Buscar persona…"><div class="cnl" id="cnL">${G.map(p=>`<button class="cnp" data-p="${p.id}" data-n="${escHTML(nrm30(p.nombre))}">👤 ${escHTML(p.nombre)}<small>${p.rol==='admin'?'Administración':p.org_master?'Organizador Master':'Organizador'}</small></button>`).join('')||'<p class="sm">No hay otras personas con chat.</p>'}</div>
+  const html=`<input class="srch" id="cnBus" placeholder="Buscar persona…"><div class="cnl" id="cnL">${G.map(p=>`<button class="cnp" data-p="${p.id}" data-n="${escHTML(nrm30(p.nombre))}">👤 ${escHTML(p.nombre)}<small>${p.rol==='admin'?'Administración':p.org_master?'Máster Coordinador':'Organizador'}</small></button>`).join('')||'<p class="sm">No hay otras personas con chat.</p>'}</div>
     ${adm?`<details class="cng"><summary><b>👪 Crear un grupo</b></summary><input id="cnNom" maxlength="60" placeholder="Nombre del grupo (ej. Logística Primaria)">
       <div class="cnl">${G.map(p=>`<label class="pvchk"><input type="checkbox" data-m="${p.id}"> ${escHTML(p.nombre)}</label>`).join('')}</div><button class="b1" id="cnCrear">Crear el grupo</button>
       ${(S.chatGrTodos||[]).length?`<h4 style="margin:12px 0 4px">Grupos creados</h4>${S.chatGrTodos.map(g=>`<div class="est"><div class="nm">${escHTML(g.nombre)}<small>${(g.miembros||[]).length} personas</small></div><button class="b2 sm" data-gx="${g.id}">Eliminar</button></div>`).join('')}`:''}</details>`:''}`;
@@ -1345,7 +1350,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='45';
+const VERSION_APP='46';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
