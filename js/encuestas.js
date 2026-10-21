@@ -46,15 +46,16 @@ async function revisarEncuestas(silencio){
   b.hidden=!p.length; $('encN').textContent=p.length; const mb=$('btnColegio'); if(mb&&mb.offsetTop) b.style.top=mb.offsetTop+'px';
   if(!p.length) return;
   // aviso automático solo para la actividad que acaba de terminar (máximo 30 min); las demás quedan en el botón 📝
-  const u=p.slice().sort((x,y)=>toMin(y.hora_fin)-toMin(x.hora_fin))[0], k='steam_encp_'+S.perfil.id+'_'+encClave(u.curso,u.hora_inicio), a=ahora();
+  let ens=''; try{ ens=typeof _sim!=='undefined'&&_sim?'_ens'+_sim:''; }catch(_){}
+  const u=p.slice().sort((x,y)=>toMin(y.hora_fin)-toMin(x.hora_fin))[0], k='steam_encp_'+S.perfil.id+'_'+encClave(u.curso,u.hora_inicio)+ens, a=ahora();
   const reciente=a.fecha===S.config.fecha_evento && a.min-toMin(u.hora_fin)<=30;
-  if(!silencio && reciente && !LS.get(k,false) && $('encW').hidden && !$('modalBox').innerHTML && S.panel==='ruta' && !(S.mapa&&S.mapa.busy) && !document.querySelector('.arrive.on')){
+  if(!silencio && reciente && !LS.get(k,false) && $('encW').hidden){
     LS.set(k,true);
-    $('modalBox').innerHTML=`<div class="modal"><div class="mbox"><div class="k" style="color:var(--brand)">📝 ${a.min<toMin(u.hora_fin)?'La actividad está por terminar':'Terminó una actividad'}</div><h3>${escHTML(nomAct(u))}</h3>
-      <p>Curso ${escHTML(u.curso)} · ${fmtHora(u.hora_inicio)} – ${fmtHora(u.hora_fin)}. Cuéntanos cómo te pareció y pregúntale a tu grupo qué opinó. Toma 2 minutos.</p>
-      <button class="btn" id="encYa">Responder ahora</button><button class="btn ghost" id="encLuego" style="margin-top:8px">Más tarde</button></div></div>`;
-    $('encYa').onclick=()=>{ $('modalBox').innerHTML=''; abrirEncuesta(u); };
-    $('encLuego').onclick=()=>{ $('modalBox').innerHTML=''; toast('Puedes responderla con el botón 📝 de Mi ruta.','',3500); };
+    const ab=()=>{ $('modalBox').innerHTML=''; abrirEncuesta(u); };
+    if(window.ventana) ventana({tag:'enc',prioridad:true,icono:'📝',kicker:a.min<toMin(u.hora_fin)?'La actividad está por terminar':'Terminó una actividad',titulo:escHTML(nomAct(u)),color:'#173d7a',
+      html:`<p>Curso ${escHTML(u.curso)} · ${fmtHora(u.hora_inicio)} – ${fmtHora(u.hora_fin)}. Cuéntanos cómo te pareció y pregúntale a tu grupo qué opinó. Toma 2 minutos.</p>`,
+      botones:[{t:'Responder ahora',fn:()=>{ setTimeout(ab,50); }},{t:'Más tarde',ghost:true,fn:()=>{ toast('Puedes responderla con el botón 📝 de Mi ruta.','',3500); }}]});
+    else ab();
   }
 }
 function listaPendientes(){
