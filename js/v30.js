@@ -63,15 +63,27 @@ function paraMi(m){ const p=S.perfil; if(m.destino==='todos') return true;
   if(m.destino==='roles'){ const R=m.roles||[], nv=p.rol==='docente'?nivelDocente():'';   // v43: docentes de Primaria / de Bachillerato
     return R.includes(p.rol)||(R.includes('orgmaster')&&esOrgM())||(R.includes('doc_pri')&&nv==='Primaria')||(R.includes('doc_bach')&&nv==='Bachillerato'); }
   return (m.personas||[]).includes(p.id); }
-async function cargarMensajes(){
+// v44: además del tiempo real, se revisa al volver a la app y cada 90 s
+// (el celular corta la conexión en vivo cuando la app queda en segundo plano o se apaga la pantalla).
+const MSG_YA=new Set(); let MSG_INI=false;
+async function revisarMensajes(){
+  if(!S.perfil||!S.sb) return;
   try{
     const [m,v]=await Promise.all([ S.sb.from('sd_mensajes').select('*').order('id').limit(200), S.sb.from('sd_mensajes_vistos').select('mensaje_id').eq('perfil_id',S.perfil.id) ]);
     if(m.error) return; const vistos=new Set((v.data||[]).map(x=>x.mensaje_id));
-    (m.data||[]).filter(x=>paraMi(x)&&!vistos.has(x.id)).forEach(mostrarMensaje);
-    S.sb.channel('mensajes').on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_mensajes'},p=>{ if(paraMi(p.new)){ const pr=prefs(); if(pr.sonido) sonarTono(pr.tono); mostrarMensaje(p.new); } }).subscribe();
+    const nuevos=(m.data||[]).filter(x=>paraMi(x)&&!vistos.has(x.id)&&!MSG_YA.has(x.id));
+    if(nuevos.length&&MSG_INI){ const pr=prefs(); if(pr.sonido) sonarTono(pr.tono); }
+    nuevos.forEach(mostrarMensaje);
   }catch(e){}
 }
-function mostrarMensaje(m){
+async function cargarMensajes(){
+  await revisarMensajes(); MSG_INI=true;
+  try{ S.sb.channel('mensajes').on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_mensajes'},p=>{ if(paraMi(p.new)&&!MSG_YA.has(p.new.id)){ const pr=prefs(); if(pr.sonido) sonarTono(pr.tono); mostrarMensaje(p.new); } }).subscribe(); }catch(e){}
+  setInterval(revisarMensajes,90000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(revisarMensajes,800); });
+  window.addEventListener('online',()=>setTimeout(revisarMensajes,1500));
+}
+function mostrarMensaje(m){ if(m&&m.id!=null){ if(MSG_YA.has(m.id)) return; MSG_YA.add(m.id); }
   ventana({ icono:'💬', kicker:'Mensaje del administrador', titulo:escHTML(m.titulo), color:'#173d7a',
     html:`<p style="white-space:pre-wrap">${escHTML(m.texto)}</p>${m.video?`<div class="vbox pv">${videoHTML(m.video)}</div>`:''}`,
     botones:[{t:'Entendido', fn:async()=>{ if(!S.vistaComo) await S.sb.from('sd_mensajes_vistos').upsert({mensaje_id:m.id,perfil_id:S.perfil.id},{onConflict:'mensaje_id,perfil_id'}); }}] });
