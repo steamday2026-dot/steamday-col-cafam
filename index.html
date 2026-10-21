@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#173d7a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="STEM Day">
+<title>STEM Day Cafam</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css?v=43">
+</head>
+<body>
+
+<div class="loading" id="loading"><div><img class="lload" src="icon-192.png" alt="" width="120" height="120"><div class="spin"></div>Cargando STEM Day…</div></div>
+<div class="toast" id="toast"></div>
+
+<!-- ============ INGRESO ============ -->
+<section class="screen" id="s-login" hidden>
+  <div class="hero" aria-hidden="true">
+    <svg class="sky" viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <radialGradient id="hG" cx="50%" cy="28%" r="70%"><stop offset="0" stop-color="#2a63b8"/><stop offset=".55" stop-color="#173d7a"/><stop offset="1" stop-color="#0d2550"/></radialGradient>
+        <linearGradient id="hW1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4fb3d9"/><stop offset="1" stop-color="#2f6fde"/></linearGradient>
+        <linearGradient id="hW2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#5cc98a"/><stop offset="1" stop-color="#1f9d6b"/></linearGradient>
+      </defs>
+      <rect width="400" height="700" fill="url(#hG)"/>
+      <!-- textura: hexágonos (moléculas), puntos y grano -->
+      <pattern id="hHex" width="28" height="48.5" patternUnits="userSpaceOnUse" patternTransform="scale(1.1)"><path d="M14 0 L28 8.1 L28 24.2 L14 32.3 L0 24.2 L0 8.1Z M14 32.3 L14 48.5" fill="none" stroke="#ffffff" stroke-width=".7"/><circle cx="14" cy="0" r="1.3" fill="#fff"/><circle cx="28" cy="24.2" r="1.3" fill="#fff"/></pattern>
+      <pattern id="hDot" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".7" fill="#fff"/></pattern>
+      <filter id="hNoise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0"/></filter>
+      <radialGradient id="hFade" cx="50%" cy="35%" r="65%"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".55" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></radialGradient>
+      <mask id="hMask"><rect width="400" height="700" fill="url(#hFade)"/></mask>
+      <rect width="400" height="700" fill="url(#hHex)" opacity=".09" mask="url(#hMask)"/>
+      <rect width="400" height="700" fill="url(#hDot)" opacity=".07"/>
+      <rect width="400" height="700" filter="url(#hNoise)" opacity=".06"/>
+      <!-- olas -->
+      <g><path d="M0 620 Q 50 600 100 620 T 200 620 T 300 620 T 400 620 T 500 620 T 600 620 T 700 620 T 800 620 V700 H0Z" fill="url(#hW1)" opacity=".55"/></g>
+      <g><path d="M0 645 Q 50 628 100 645 T 200 645 T 300 645 T 400 645 T 500 645 T 600 645 T 700 645 T 800 645 V700 H0Z" fill="url(#hW2)" opacity=".75"/></g>
+      </svg>
+  </div>
+  <div class="pad login">
+    <div class="emb">
+      <div class="orbit"><span style="--c:var(--mat)">∑</span><span style="--c:var(--cie)">⚗</span><span style="--c:var(--tec)">⚙</span></div>
+      <img class="emblem" src="icon-512.png" alt="Logo STEM Day 2026 · Colegio Cafam" width="200" height="200">
+    </div>
+    <div class="titl">
+      <div class="k">Colegio Cafam · STEM Day 2026</div>
+      <p>Aprovechando el conocimiento para la diversidad y la resiliencia</p>
+    </div>
+    <div class="cdown" id="cdown"><div><b id="cdD">–</b><small>días</small></div><div><b id="cdH">–</b><small>horas</small></div><div><b id="cdM">–</b><small>min</small></div><div class="lbl" id="loginFecha">Viernes 23 de octubre</div></div>
+    <form id="fLogin" class="lcard" autocomplete="on">
+      <div class="field" style="margin-bottom:12px"><label for="lCorreo">Correo institucional</label><input id="lCorreo" type="email" autocomplete="username" required placeholder="nombre@colegio.cafam.edu.co"></div>
+      <div class="field" style="margin-bottom:8px"><label for="lClave">Contraseña</label><input id="lClave" type="password" autocomplete="current-password" required></div>
+      <div class="err" id="lErr"></div>
+      <button class="btn" type="submit" id="lBtn">Ingresar</button>
+      <p class="note" style="margin-top:10px">¿Olvidaste tu contraseña? Escribe al coordinador de Tecnología.</p>
+    </form>
+    <div class="areas"><span style="--c:var(--mat)">Matemáticas</span><span style="--c:var(--cie)">Ciencias</span><span style="--c:var(--tec)">Tecnología</span></div>
+  </div>
+</section>
+
+<!-- ============ CAMBIO DE CONTRASEÑA (primer ingreso) ============ -->
+<section class="screen" id="s-clave" hidden>
+  <div class="ahead"><small>Primer ingreso</small><h2>Crea tu contraseña</h2></div>
+  <form class="pad" id="fClave">
+    <p>Por seguridad, cambia la contraseña temporal que recibiste por una personal de al menos 8 caracteres.</p>
+    <div class="field"><label for="c1">Nueva contraseña</label><input id="c1" type="password" minlength="8" autocomplete="new-password" required></div>
+    <div class="field"><label for="c2">Repite la contraseña</label><input id="c2" type="password" minlength="8" autocomplete="new-password" required></div>
+    <div class="err" id="cErr"></div>
+    <div class="bottom"><button class="btn" type="submit">Guardar y continuar</button></div>
+  </form>
+</section>
+
+<!-- ============ VIDEO ============ -->
+<section class="screen video" id="s-video" hidden>
+  <div class="pad">
+    <div class="sm" id="vKick" style="color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em">Bienvenida</div>
+    <h2 id="vTit">Así se vive el STEM Day 2026</h2>
+    <div class="vbox" id="vBox"></div>
+    <p id="vTxt">Este video aparece solo la primera vez. Puedes verlo de nuevo desde Alertas → Ver video.</p>
+    <div class="bottom"><button class="btn alt" id="vSeguir">Continuar</button><button class="btn ghostw" id="vSaltar">Saltar video</button></div>
+  </div>
+</section>
+
+<!-- ============ ROL / EXPERIENCIA ============ -->
+<section class="screen" id="s-rol" hidden><div class="pad" id="rolBody"></div></section>
+
+<!-- ============ AVATAR (primer ingreso) ============ -->
+<section class="screen" id="s-avatar" hidden>
+  <div class="ahead"><small>Primer ingreso</small><h2>Crea tu explorador STEM</h2></div>
+  <div class="avEditor" id="avFirst" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>
+  <div class="foot"><button class="btn" id="avGuardar1">Guardar mi avatar</button></div>
+</section>
+
+<!-- ============ PERMISO DE AVISOS (primer ingreso) ============ -->
+<section class="screen" id="s-permiso" hidden>
+  <div class="ahead"><small>Último paso</small><h2>Activa tus avisos</h2></div>
+  <div class="pad">
+    <div style="font-size:52px;text-align:center">🔔</div>
+    <p>La app te avisará antes de cada actividad: qué viene, a dónde debes ir y qué se hará. Para recibir los avisos aunque la app esté cerrada, el celular te pedirá permiso.</p>
+    <p class="sm" id="permIOS" hidden>En iPhone: primero agrega la app a la pantalla de inicio (botón Compartir → "Agregar a inicio") y ábrela desde ese ícono.</p>
+    <div class="bottom"><button class="btn" id="permSi">Activar avisos</button><button class="btn ghost" id="permNo">Ahora no</button></div>
+  </div>
+</section>
+
+<!-- ============ APP PRINCIPAL ============ -->
+<section class="screen" id="s-main" hidden>
+  <div class="vcomo" id="vcomo" hidden></div>
+  <div class="mtop">
+    <div style="min-width:0"><small id="mHola"></small><h2 id="mTit">Ruta STEM Day</h2></div>
+    <div class="right">
+      <button class="iconbtn" id="btnVer" title="Ver la app como otro perfil" hidden>👁</button>
+      <button class="iconbtn" id="btnAdmin" title="Administración" hidden>⚙</button>
+      <button class="iconbtn" id="btnVista" title="Ver como lista">☰</button>
+      <button class="iconbtn" id="btnHelp" title="Ayuda" hidden>?</button>
+    </div>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="panel" id="p-ruta">
+    <div class="chips" id="chips" hidden></div>
+    <div class="progress"><span id="pTxt"></span><div class="pbar"><i id="pBar"></i></div><span>⭐ <b id="pStars">0</b></span></div>
+    <div class="map" id="mapa"></div>
+    
+    <button class="mapbtn" id="btnColegio" hidden><svg viewBox="0 0 46 36"><path d="M3 9 L15 4 L31 9 L43 4 L43 27 L31 32 L15 27 L3 32Z" fill="#8fc77a" stroke="#173d7a" stroke-width="1.6" stroke-linejoin="round"/><path d="M15 4 L15 27 L31 32 L31 9Z" fill="#a9d794"/><path d="M15 4 L15 27 M31 9 L31 32" stroke="#173d7a" stroke-width="1.2"/><rect x="5.5" y="12" width="7" height="5" rx="1" fill="#bd6a43"/><rect x="33" y="17" width="7" height="6" rx="1" fill="#bd6a43"/><path d="M9 21 Q16 24 20 18 T36 14" fill="none" stroke="#f2a900" stroke-width="2" stroke-dasharray="3 2.2" stroke-linecap="round"/><path d="M36 15.5c-2.6-3-3.6-4.6-3.6-6.3a3.6 3.6 0 0 1 7.2 0c0 1.7-1 3.3-3.6 6.3z" fill="#e5484d" stroke="#fff" stroke-width=".9"/><circle cx="36" cy="9.3" r="1.3" fill="#fff"/></svg><span>Mapa del<br>colegio</span></button>
+    <button class="encbtn" id="btnEnc" hidden>📝 Evaluar actividad <b id="encN">1</b></button>
+    <div class="panel" id="lista" hidden><div class="lista" id="listaBody"></div></div>
+    <div class="card" id="card"><div class="k" id="cK"></div><div class="t" id="cT"></div><div class="m" id="cM"></div><span class="go">Ver ›</span></div>
+    <!-- Colegio vivo: mapa del colegio (Master) y camino a la estación (docente) -->
+    <div class="cv" id="cv" hidden>
+      <div class="cvbar"><b id="cvTit">Colegio vivo</b><div class="tb" id="cvTb"></div></div>
+      <div class="strip" id="cvStrip"></div>
+      <div class="cmap" id="cvMap"><div class="fade" id="cvFade"></div><div class="agcard" id="agCard" hidden></div><button class="cvBtn" id="btnUbic" hidden>📍 Marcar dónde estoy</button><button class="cvBtn dark" id="btnQuitar" hidden>✕ Quitar</button><div class="cvAviso" id="cvAviso" hidden></div><button class="mapbtn back" id="cvVolver" hidden><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="14" fill="rgba(255,255,255,.15)"/><path d="M17 9 L11 15 L17 21" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Mi ruta</span></button></div>
+      <div class="slider" id="cvSlider"><div class="row"><span>Línea de tiempo · <b id="cvHTxt"></b></span><span class="now" id="cvAhora">Ver ahora</span></div><input type="range" id="cvHora" min="420" max="900" step="5"><div class="ticks"><span>7:00</span><span>9:00</span><span>11:00</span><span>13:00</span><span>15:00</span></div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-programa" hidden>
+    <div class="gtabs" id="gtabs"><span class="on" data-n="Primaria">Primaria</span><span data-n="Bachillerato">Bachillerato</span></div>
+    <div class="legend2"><span><span class="dot" style="background:var(--mat)"></span>Matemáticas</span><span><span class="dot" style="background:var(--cie)"></span>Ciencias</span><span><span class="dot" style="background:var(--tec)"></span>Tecnología</span><span><span class="dot" style="background:var(--gen)"></span>General</span></div>
+    <div class="gwrap" id="gwrap"></div>
+  </div>
+
+  <div class="panel" id="p-lista" hidden><div class="pz" id="listaPz"></div></div>
+  <div class="panel" id="p-estacion" hidden><div class="pz" id="estPz"></div></div>
+  <div class="panel" id="p-rot" hidden><div class="pz" id="rotPz"></div></div>
+  <div class="panel" id="p-agenda" hidden><div class="pz" id="agPz"></div></div>
+  <div class="panel" id="p-asis" hidden><div class="pz" id="asisPz"></div></div>
+  <div class="panel" id="p-enc" hidden><div class="pz" id="encPz"></div></div>
+  <div class="panel" id="p-vivo" hidden><div class="pz" id="vivoPz"></div></div>
+  <div class="panel" id="p-chat" hidden><div class="chat"><div class="msgs" id="msgs"></div>
+    <div class="quick" id="quick"></div>
+    <div class="inp"><input id="chTxt" maxlength="1000" placeholder="Escribe al equipo de organizadores…"><button id="chEnv">➤</button></div></div></div>
+
+  <div class="panel" id="p-avatar" hidden>
+    <div class="avEditor" id="avMain" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>
+    <div class="foot"><button class="btn" id="avGuardar2">Guardar cambios</button></div>
+  </div>
+
+  <div class="panel" id="p-alertas" hidden>
+    <div class="opts" id="alertasBody"></div>
+  </div>
+
+  <div class="cbar" id="copaBar" hidden></div>
+  <div class="nav" id="nav"></div>
+  <div class="csheet" id="copaSheet" hidden></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="vcmodal" id="vcModal" hidden></div>
+  <div class="encw" id="encW" hidden></div>
+  <div id="modalBox"></div>
+</section>
+
+<!-- ============ ADMINISTRACIÓN ============ -->
+<section class="screen wide" id="s-admin" hidden>
+  <div class="adm" id="admBody"></div>
+</section>
+
+<template id="tplAvatar">
+  <div class="stage"><svg width="190" height="220" viewBox="-36 -112 72 120" class="avPrev"></svg></div>
+  <div class="atabs"><span class="on" data-t="cuerpo">Cuerpo</span><span data-t="ropa">Ropa</span><span data-t="acc">Accesorios</span></div>
+  <div class="opts">
+    <div class="pane" data-p="cuerpo">
+      <div class="opt"><h4>Avatar</h4><div class="row" id="optGender"></div></div>
+      <div class="opt"><h4>Tono de piel</h4><div class="row" id="optSkin"></div></div>
+      <div class="opt"><h4>Tipo de cabello</h4><div class="row" id="optHair"></div></div>
+      <div class="opt"><h4>Color del cabello</h4><div class="row" id="optHairC"></div></div>
+    </div>
+    <div class="pane" data-p="ropa" hidden>
+      <div class="opt"><h4>Estilo de ropa</h4><div class="row" id="optStyle"></div></div>
+      <div class="opt"><h4 id="lblTop">Prenda superior</h4><div class="row" id="optTop"></div></div>
+      <div class="opt"><h4 id="lblBot">Prenda inferior</h4><div class="row" id="optBot"></div></div>
+      <div class="opt"><h4>Zapatos</h4><div class="row" id="optShoe"></div></div>
+    </div>
+    <div class="pane" data-p="acc" hidden>
+      <div class="opt"><h4>En la cabeza</h4><div class="row" id="optHead"></div></div>
+      <div class="opt"><h4>En la cara</h4><div class="row" id="optFace"></div></div>
+      <div class="opt"><h4>Otros (puedes elegir varios)</h4><div class="row" id="optExtra"></div></div>
+    </div>
+  </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="js/config.js?v=43"></script>
+<script src="js/avatar.js?v=43"></script>
+<script src="js/actividades.js?v=43"></script>
+<script src="js/lider.js?v=43"></script>
+<script src="js/mapa.js?v=43"></script>
+<script src="js/colegio.js?v=43"></script>
+<script src="js/sonidos.js?v=43"></script>
+<script src="js/importar-excel.js?v=43"></script>
+<script src="js/app.js?v=43"></script>
+<script src="js/v30.js?v=43"></script>
+<script src="js/turnos.js?v=43"></script>
+<script src="js/asistencia-oficial.js?v=43"></script>
+<script src="js/encuestas.js?v=43"></script>
+<script src="js/copa.js?v=43"></script>
+<script src="js/copamaster.js?v=43"></script>
+<script src="js/admin.js?v=43"></script>
+</body>
+</html>
