@@ -3,7 +3,7 @@
    - Cada bloque del día dice quién estará con el curso: D, C o A (ambos).
    - Uno propone y el otro confirma. Se puede hacer días antes o el mismo día,
      pero un bloque que ya empezó no se puede cambiar (lo valida también Supabase).
-   - Lo ven en vivo: organizadores, Master, Org. Master, administrador y líderes.
+   - Lo ven en vivo: organizadores, Master, Máster Coord., administrador y líderes.
    ===================================================================== */
 const TUR={ m:{}, listo:false, cargado:false, vistos:{} };
 const TUR_N={D:'Director',C:'Codirector',A:'Ambos'};
@@ -82,7 +82,7 @@ function turAbrirDocente(curso,refresco){
   sh.querySelectorAll('[data-del]').forEach(e=>e.onclick=async ev=>{ ev.preventDefault(); const r=await S.sb.rpc('sd_turno_quitar',{p_curso:c,p_hora:e.dataset.del}); if(r.error) return toast(r.error.message,'bad',4500); await turCargar(); turRefrescar(); });
 }
 
-/* ---------- resumen para organizadores, Master, Org. Master, administrador y líderes ---------- */
+/* ---------- resumen para organizadores, Master, Máster Coord., administrador y líderes ---------- */
 function turAbrirResumen(refresco){
   const sh=$('sheet'), sc=refresco&&sh.querySelector('.sb')?sh.querySelector('.sb').scrollTop:0, a=ahora(), hoy=a.fecha===S.config.fecha_evento;
   const cursos=[...new Set(S.prog.filter(r=>r.tipo==='actividad'&&r.curso).map(r=>r.curso))].filter(c=>/^\d/.test(c)).sort((x,y)=>x.localeCompare(y,'es',{numeric:true}));
