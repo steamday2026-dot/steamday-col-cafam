@@ -1337,7 +1337,7 @@ function pintarFranjaVista(){
 async function abrirVerComo(){
   const m=$('vcModal'); m.hidden=false;
   m.innerHTML=`<div class="vcbox"><div class="vchead"><div><b>Ver la app como…</b><small>Elige un perfil para ver su interfaz. Solo para revisar: no se guarda ningún cambio.</small></div><button class="vcx" id="vcX">✕</button></div>
-    <div class="vctabs" id="vcTabs">${[['docente','Docentes'],['lider','Líderes'],['organizador','Org.'],['orgm','Org. Master'],['master','Master'],['mcoord','Máster Coord.'],['secretario','Secret.']].map(([k,t],i)=>`<span data-r="${k}" class="${i?'':'on'}">${t}</span>`).join('')}</div>
+    <label class="vclab" for="vcRol">Perfil</label><select class="vcsel" id="vcRol">${[['docente','Docentes'],['lider','Líderes de estación'],['organizador','Organizadores'],['orgm','Organizadores Master'],['master','Master'],['mcoord','Máster Coordinadores'],['secretario','Secretaría']].map(([k,t])=>`<option value="${k}">${t}</option>`).join('')}</select>
     <input id="vcBus" class="vcbus" placeholder="Buscar por nombre o curso…" autocomplete="off">
     <div class="vclist" id="vcList"><p class="sm" style="padding:14px">Cargando perfiles…</p></div>
     ${S.vistaComo?'<button class="btn" id="vcMio">Volver a mi perfil de administrador</button>':''}</div>`;
@@ -1365,7 +1365,7 @@ async function abrirVerComo(){
     $('vcList').innerHTML = l.length ? l.slice(0,200).map(p=>`<div class="vcit ${S.vistaComo&&S.perfil.id===p.id?'on':''}" data-id="${p.id}"><i>${escHTML((p.nombre||'?').trim()[0]||'?')}</i><div><b>${escHTML(p.nombre||'Sin nombre')}</b><small>${escHTML(p.det)}</small></div><span>Ver ›</span></div>`).join('')
       : `<p class="sm" style="padding:14px">No hay ${rol==='docente'?'docentes':rol==='master'?'usuarios master':rol==='lider'?'líderes de estación':rol==='orgm'?'Organizadores Master':rol==='mcoord'?'Máster Coordinadores':'organizadores'} ${q?'con esa búsqueda':'registrados'}.${rol==='orgm'&&!q?' Asígnalo en Administración → Usuarios, eligiendo el perfil «Organizador Master».':''}</p>`;
     $('vcList').querySelectorAll('.vcit').forEach(e=>e.onclick=()=>irVista(e.dataset.id)); };
-  $('vcTabs').querySelectorAll('span').forEach(t=>t.onclick=()=>{ rol=t.dataset.r; $('vcTabs').querySelectorAll('span').forEach(x=>x.classList.toggle('on',x===t)); pintar(); });
+  $('vcRol').onchange=e=>{ rol=e.target.value; pintar(); };   // v52: lista desplegable (en el celular las pestañas no cabían)
   $('vcBus').oninput=pintar; pintar();
 }
 
@@ -1376,7 +1376,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='51';
+const VERSION_APP='52';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
