@@ -14,7 +14,10 @@ const esOrgM = () => !!(S.perfil && (S.perfil.rol === 'admin' || S.perfil.org_ma
 const nrm30 = t => String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 
 /* ---------- ventana emergente (cola) ---------- */
-function ventana(o){ V30.cola.push(o); if(V30.cola.length===1) pintarVentana(); }
+function ventana(o){
+  if(o.tag) V30.cola=V30.cola.filter((x,i)=>i===0||x.tag!==o.tag);   // v49: una sola invitación de cada tipo en espera
+  if(o.prioridad&&V30.cola.length>1) V30.cola.splice(1,0,o); else V30.cola.push(o);
+  if(V30.cola.length===1) pintarVentana(); }
 function pintarVentana(){
   let b=document.getElementById('popBox'); if(!b){ b=document.createElement('div'); b.id='popBox'; document.body.appendChild(b); }
   const o=V30.cola[0]; if(!o){ b.innerHTML=''; return; }
