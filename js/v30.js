@@ -60,7 +60,8 @@ const PERFIL_N={docente:'Docente',lider:'Líder de estación',master:'Master',or
 
 /* ---------- mensajes del administrador ---------- */
 function paraMi(m){ const p=S.perfil; if(m.destino==='todos') return true;
-  if(m.destino==='roles') return (m.roles||[]).includes(p.rol)||((m.roles||[]).includes('orgmaster')&&esOrgM());
+  if(m.destino==='roles'){ const R=m.roles||[], nv=p.rol==='docente'?nivelDocente():'';   // v43: docentes de Primaria / de Bachillerato
+    return R.includes(p.rol)||(R.includes('orgmaster')&&esOrgM())||(R.includes('doc_pri')&&nv==='Primaria')||(R.includes('doc_bach')&&nv==='Bachillerato'); }
   return (m.personas||[]).includes(p.id); }
 async function cargarMensajes(){
   try{
@@ -128,14 +129,19 @@ function revisarRompecabezas(){
 function fichaExtraV30(f){
   let h='';
   if(esRompe(f)) h+=`<div class="sec">${rompecabezasHTML()}</div>`;
-  if(esHacer(f)){
+  if(esHacer(f)){ window._fhNivel=f.nivel||'';
     h+=`<div class="sec hacer"><h3>🌎 Actividad del hacer</h3><p>La dirigen <b>estudiantes de 10.° y 11.°</b> con el apoyo de los docentes de Ciencias <b>Diana Cardona</b> y <b>Javier Téllez</b>.</p>
       ${f.estudiantes?`<p><small>Estudiante${/,| y |  /.test(f.estudiantes)?'s':''} a cargo en tu salón</small><br><b>${escHTML(f.estudiantes)}</b></p>`:''}
       ${S.config&&S.config.video_hacer?`<button class="btn" id="vHacer">▶ Ver el video explicativo</button>`:'<p class="sm">📹 El video explicativo de esta actividad estará disponible aquí antes del 23 de octubre.</p>'}</div>`;
   }
   return h;
 }
-function bindFichaV30(){ const b=$('vHacer'); if(b) b.onclick=()=>verVideo('Actividades del hacer · Cambio climático',S.config.video_hacer); }
+/* v42: dos videos del hacer en el mismo campo de configuración: «Primaria | Bachillerato» */
+function videoHacer(nivel){ const U=String((S.config&&S.config.video_hacer)||'').split(/\s*\|\s*|\s+/).filter(x=>/^https?:/i.test(x)); if(!U.length) return '';
+  if(U.length===1) return U[0]; return /bach/i.test(nivel||'')?U[1]:U[0]; }
+function nivelDocente(){ const r=(S.prog||[]).find(x=>(S.cursos||[]).includes(x.curso)); return r?r.nivel:''; }
+window.videoHacer=videoHacer; window.nivelDocente=nivelDocente;
+function bindFichaV30(){ const b=$('vHacer'); if(b) b.onclick=()=>verVideo('Actividades del hacer · Cambio climático',videoHacer(window._fhNivel||nivelDocente())); }
 function verVideo(titulo,url){ ventana({icono:'▶',titulo:escHTML(titulo),html:`<div class="vbox pv">${videoHTML(url)}</div>`,botones:[{t:'Cerrar'}]}); }
 
 /* ---------- Encuesta final de la jornada (una por curso) ---------- */
