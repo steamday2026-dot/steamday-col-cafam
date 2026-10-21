@@ -1041,7 +1041,7 @@ async function pintarAlertas(){
   if($('aTurnos')) $('aTurnos').onclick=()=>turAbrirResumen(); if($('aSello')) $('aSello').onclick=()=>cmSello(); if($('aMisS')) $('aMisS').onclick=()=>cmMisSellos(); if($('aLigaM')) $('aLigaM').onclick=()=>cmAbrirPanel(); if($('aTurD')) $('aTurD').onclick=()=>turAbrirDocente();
   if($('aEncF')) $('aEncF').onclick=()=>abrirEncuestaFinal(S.curso);
   if($('aVAs')) $('aVAs').onclick=()=>verVideo('Cómo llamar asistencia',S.config.video_asistencia);
-  if($('aVHa')) $('aVHa').onclick=()=>verVideo('Actividades del hacer · Cambio climático',S.config.video_hacer);
+  if($('aVHa')) $('aVHa').onclick=()=>verVideo('Actividades del hacer · Cambio climático',window.videoHacer?videoHacer(nivelDocente()):S.config.video_hacer);   // v42: el de su nivel
   $('aSalir').onclick=async()=>{ if(S.vistaComo) return salirVista(); await S.sb.auth.signOut(); location.reload(); };
 }
 function revisarAlertas(){
@@ -1238,7 +1238,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='41';
+const VERSION_APP='43';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
