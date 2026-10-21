@@ -94,6 +94,7 @@ function copaInvitar(it,titulo){
 window.copaRevisar=copaRevisar;
 /* v48 · el administrador lanza la trivia cuando quiere: sale a los docentes que estén en esa actividad */
 function copaLanzada(L){
+  if(L&&L.clave==='M*'){ if(window.cmLanzada) cmLanzada(L); return; }   // v50: lanzamiento para la Liga Master
   if(!L||S.modo!=='docente'||!S.config) return;
   if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;   // solo lanzamientos recientes
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
@@ -112,7 +113,7 @@ function copaLanzada(L){
   copaInvitar(lista[0],'¡Es hora de la trivia!');
 }
 async function copaLanzamientos(){
-  if(S.modo!=='docente') return;
+  if(S.modo!=='docente'&&S.modo!=='master') return;
   try{ const r=await S.sb.from('sd_copa_lanzar').select('*').gte('creado_en',new Date(Date.now()-45*60000).toISOString()).order('id'); (r.data||[]).forEach(copaLanzada); }catch(_){}
 }
 
@@ -120,7 +121,11 @@ async function copaLanzamientos(){
 async function copaPreguntas(it){
   if(S.vistaComo){ copaCerrar(); toast('Vista previa («Ver como»): así le aparece la trivia al docente. Las respuestas solo se registran desde su propia cuenta.','',5000); return; }
   const w=copaW(); w.innerHTML='<div class="cwb center"><div class="spin"></div><p class="sm">Preparando tus preguntas…</p></div>';
-  let qs=[]; try{ const r=await S.sb.rpc('sd_copa_preguntas',{p_curso:it.curso,p_hora:it.hora,p_clave:it.clave}); if(r.error) throw r.error; qs=r.data||[]; }
+  let qs=[]; try{ let r;
+    if(it.claves&&it.claves.length){ r=await S.sb.rpc('sd_copa_preguntas_master',{p_curso:it.curso,p_hora:it.hora,p_claves:it.claves});   // v50: Liga Master, varias actividades de la zona
+      if(r.error&&/sd_copa_preguntas_master/.test(r.error.message)) r=await S.sb.rpc('sd_copa_preguntas',{p_curso:it.curso,p_hora:it.hora,p_clave:it.claves[Math.floor(Math.random()*it.claves.length)]}); }
+    else r=await S.sb.rpc('sd_copa_preguntas',{p_curso:it.curso,p_hora:it.hora,p_clave:it.clave});
+    if(r.error) throw r.error; qs=r.data||[]; }
   catch(e){ w.innerHTML=`<div class="cwb center"><p>No se pudieron cargar las preguntas: ${escHTML(e.message)}</p><button class="btn" id="cwC">Cerrar</button></div>`; $('cwC').onclick=copaCerrar; return; }
   const faltan=qs.filter(q=>!q.respondida);
   if(!qs.length){ copaSetPend(copaPend().filter(x=>!(x.curso===it.curso&&x.hora===it.hora))); w.innerHTML=`<div class="cwb center"><div style="font-size:48px">🗂️</div><h3>Aún no hay preguntas para esta actividad</h3><p class="sm">Tus puntos de la encuesta ya cuentan.</p><button class="btn" id="cwC">Entendido</button></div>`; $('cwC').onclick=copaCerrar; return; }
