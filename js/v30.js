@@ -34,7 +34,19 @@ function v30Iniciar(){
   }
   setTimeout(revisarV30,2500); setInterval(revisarV30,30000);
   if(window.turIniciar) turIniciar();
+  setTimeout(avisoVideoHacer,3500);
 }
+/* v48 · video del hacer: le aparece al docente al abrir la app (el de su nivel) hasta que toque «Ya lo vi» */
+function avisoVideoHacer(){
+  if(S.vistaComo||S.modo!=='docente'||!S.config) return;
+  const nv=nivelDocente(), url=videoHacer(nv); if(!url) return;
+  const a=ahora(); if(a.fecha>S.config.fecha_evento) return;
+  const k='steam_vhacer_'+S.perfil.id+'_'+url; if(LS.get(k,false)) return;
+  ventana({icono:'🌎',kicker:'Video para orientadores · '+(nv||'STEM Day'),titulo:'Actividad del hacer · Cambio climático',color:'#1f9d6b',
+    html:`<p>Antes del 23 de octubre, mira cómo se orienta la Actividad del hacer con tu curso.</p><div class="vbox pv">${videoHTML(url)}</div><p class="sm">También lo encuentras en <b>Alertas → Más</b> y en la ficha de la actividad en <b>Mi ruta</b>.</p>`,
+    botones:[{t:'Ya lo vi',fn:()=>{ LS.set(k,true); }},{t:'Verlo más tarde',ghost:true}]});
+}
+window.avisoVideoHacer=avisoVideoHacer;
 function latido(){ if(document.hidden||!S.perfil||S.vistaComo) return; S.sb.rpc('sd_latido',{p_sesion:V30.sesion}).then(()=>{},()=>{}); }
 
 /* personas en línea (Supabase Realtime Presence) */
