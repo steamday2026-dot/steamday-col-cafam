@@ -106,7 +106,7 @@ if (typeof window !== 'undefined') (function () {
 
   /* líder: pestaña «Lista 10°-11°» solo si tiene estudiantes asignados */
   window.mayIniciar = async function () {
-    if (!S.perfil || S.vistaComo) return;
+    if (!S.perfil) return;   // v51: también en «Ver como» (solo para mirar)
     try { await cargar(); } catch (_) { return; }
     if (!M.ok) return;
     if (!todos() && ['lider', 'docente', 'master'].includes(S.modo) && M.plan.some(p => String(p.lider_correo || '').toLowerCase() === yoCorreo())) {
