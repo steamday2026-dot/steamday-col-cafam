@@ -638,7 +638,12 @@ async function cargarEstudiantes(forzar){
   const [e,a]=await Promise.all([ todo('sd_estudiantes','id,grado,curso,nombre,orden',['curso','orden','id']), todo('sd_asistencia','*',['estudiante_id']) ]);
   if(e.error) throw e.error; if(a.error) throw a.error;
   S.est=e.data||[]; S.asis={}; (a.data||[]).forEach(x=>S.asis[x.estudiante_id]=x); S.asisSucia=false;
+  // v45: estudiantes en actividades del STEM Day (si aún no se ejecutó el SQL 23, la app sigue igual)
+  S.enStem={}; S.enStemOk=false; try{ const r=await todo('sd_en_stem','*',['estudiante_id']); if(!r.error){ S.enStemOk=true; (r.data||[]).forEach(x=>S.enStem[x.estudiante_id]=x); } }catch(_){}
 }
+/* v45 · ¿el estudiante está en una actividad del STEM Day entre h0 y h1? */
+function enStem(id,h0,h1){ const r=(S.enStem||{})[id]; if(!r) return null; if(!r.desde||!h0) return r; return (r.desde<(h1||h0)&&h0<(r.hasta||'23:59'))?r:null; }
+function stemTxt(r){ return `🔬 En actividad STEM Day: ${r.lugar}${r.desde?` · ${fmtHora(r.desde)} a ${fmtHora(r.hasta||'15:00')}`:' · todo el día'}`; }
 /* ---- docente: llamado a lista (v30: inicial con retardos + llamado en cada actividad) ---- */
 const MOT_RET=()=>(S.config&&S.config.motivos_retardo)||['Trancón','Cita médica','Calamidad doméstica','Otros'];
 const MOT_AUS=()=>(S.config&&S.config.motivos_ausencia)||['Se retira por cita médica','Participará en una actividad del STEM Day','Otros'];
@@ -657,15 +662,16 @@ async function pintarLista2(){
   if(!S.listaLocal||S.listaLocal.curso!==S.listaCurso||S.listaLocal.mom!==S.listaMom){
     const L=S.est.filter(x=>x.curso===S.listaCurso);
     if(S.listaMom==='inicial'){
-      S.listaLocal={curso:S.listaCurso, mom:'inicial', filas:L.map(x=>{ const a=S.asis[x.id]||{}; return {id:x.id,nombre:x.nombre,v:a.estado||null,m:a.motivo||'',d:a.detalle||'',hl:a.hora_llegada||null,pv:a.previa||null,pp:a.previa_por||null,cpv:'previa' in a}; }), cambios:false};
+      S.listaLocal={curso:S.listaCurso, mom:'inicial', filas:L.map(x=>{ const a=S.asis[x.id]||{}, st=enStem(x.id,'07:00','07:30'); return {id:x.id,nombre:x.nombre,v:a.estado||(st?'A':null),m:a.motivo||'',d:a.detalle||'',hl:a.hora_llegada||null,pv:a.previa||null,pp:a.previa_por||null,cpv:'previa' in a,st}; }), cambios:false};
+      S.listaLocal.cambios=S.listaLocal.filas.some(f=>f.st&&!S.asis[f.id]);   // v45: los que están en actividad STEM ya vienen como presentes
     } else {
       let act={}; try{ const r=await S.sb.from('sd_asistencia_act').select('*').eq('curso',S.listaCurso); (r.data||[]).forEach(x=>(act[x.hora_inicio]=act[x.hora_inicio]||{})[x.estudiante_id]=x); }catch(e){}
-      const prevs=momentosLista(S.listaCurso).map(s=>s.h).filter(h=>h<S.listaMom).reverse();
+      const prevs=momentosLista(S.listaCurso).map(s=>s.h).filter(h=>h<S.listaMom).reverse(), momF=(momentosLista(S.listaCurso).find(s=>s.h===S.listaMom)||{}).f;
       S.listaLocal={curso:S.listaCurso, mom:S.listaMom, filas:L.map(x=>{ const ini=S.asis[x.id]||{};
         if(ini.estado==='N') return {id:x.id,nombre:x.nombre,fuera:true,v:'N',m:'No asistió a la jornada'};
         const cur=(act[S.listaMom]||{})[x.id]; const ant=prevs.map(h=>(act[h]||{})[x.id]).find(Boolean);
         const base=cur||(ant&&ant.estado==='N'?ant:null);
-        return {id:x.id,nombre:x.nombre,v:base?base.estado:'A',m:base?base.motivo||'':'',det:base?base.detalle||{}:{},guardado:!!cur}; }), cambios:!Object.keys(act[S.listaMom]||{}).length};
+        return {id:x.id,nombre:x.nombre,v:base?base.estado:'A',m:base?base.motivo||'':'',det:base?base.detalle||{}:{},guardado:!!cur,st:enStem(x.id,S.listaMom,momF)}; }), cambios:!Object.keys(act[S.listaMom]||{}).length};
     }
   }
   dibujarLista('');
@@ -682,11 +688,12 @@ function dibujarLista(filtro){
     if(!L.filas.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes de este curso. El administrador la carga desde Administración → Estudiantes.</div>'; bindSegs(); return; }
     h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${c[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
       <div class="leg">${pend?`⚪ Sin marcar: <b>${pend}</b>`:'✔ Todos marcados'}${L.cambios?' · <b style="color:#b07a00">Cambios sin guardar</b>':''}</div>
+      ${L.filas.some(x=>x.st)?`<div class="stbox">🔬 <b>${L.filas.filter(x=>x.st).length}</b> estudiante${L.filas.filter(x=>x.st).length>1?'s están':' está'} en actividades del STEM Day: por eso no están en el salón. Ya aparecen como presentes.</div>`:''}
       <input class="srch" id="lBus" placeholder="Buscar estudiante…" value="${escHTML(filtro)}">
       <button class="pbtn alt" id="lTodos">✓ Marcar a los que faltan como "Asistió"</button><div style="height:8px"></div>`;
     L.filas.forEach((x,i)=>{ if(filtro&&!x.nombre.toLowerCase().includes(filtro.toLowerCase())) return;
       const hl=minDe(x.hl), tarde=x.v==='T'&&hl!=null?Math.max(0,hl-HORA0):null;
-      h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}${x.pv?`<small class="pvtag">📌 Reportado por secretaría: ${escHTML(x.pv)}</small>`:''}${x.v?`<small style="color:${EST_V[x.v][2]}">${x.v==='T'?'Retardo':EST_V[x.v][1]}${hl!=null&&(x.v==='A'||x.v==='T')?' · llegó '+hDe(hl):''}${tarde!=null?' · '+tarde+' min':''}</small>`:'<small>Sin marcar</small>'}
+      h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}${x.pv?`<small class="pvtag">📌 Reportado por secretaría: ${escHTML(x.pv)}</small>`:''}${x.st?`<small class="sttag">${escHTML(stemTxt(x.st))}</small>`:''}${x.v?`<small style="color:${EST_V[x.v][2]}">${x.v==='T'?'Retardo':EST_V[x.v][1]}${hl!=null&&(x.v==='A'||x.v==='T')?' · llegó '+hDe(hl):''}${tarde!=null?' · '+tarde+' min':''}</small>`:'<small>Sin marcar</small>'}
         ${x.v==='T'?`<select data-mr="${i}"><option value="">Motivo del retardo…</option>${MOT_RET().map(o=>`<option ${x.m===o?'selected':''}>${escHTML(o)}</option>`).join('')}</select>${x.m==='Otros'?`<input data-d="${i}" maxlength="200" placeholder="¿Por qué llegó tarde?" value="${escHTML(x.d)}">`:''}`:''}
         ${x.v==='P'?`<input data-m="${i}" maxlength="200" placeholder="Motivo del permiso (opcional)" value="${escHTML(x.m)}">`:''}</div>
         <div class="st">${Object.keys(EST_V).map(k=>`<span data-i="${i}" data-v="${k}" class="${x.v===k?'on':''}" title="${k==='T'?'Retardo':EST_V[k][1]}">${EST_V[k][0]}</span>`).join('')}</div></div>`; });
@@ -698,11 +705,12 @@ function dibujarLista(filtro){
     if(fut&&!antes) h+=`<div class="alertbox">Esta actividad aún no empieza. Podrás llamar a lista cuando lleguen a ${escHTML(s.salon||'la estación')}.</div>`;
     if(!L.filas.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes de este curso.</div>'; bindSegs(); bindMoms(); return; }
     h+=`<div class="cnt c2"><div><b style="color:#1f9d6b">${dentro.length-aus}</b><small>✓ Presentes</small></div><div><b style="color:#e5484d">${aus}</b><small>✗ No están</small></div></div>
+      ${L.filas.some(x=>x.st&&!x.fuera)?`<div class="stbox">🔬 <b>${L.filas.filter(x=>x.st&&!x.fuera).length}</b> en actividades del STEM Day a esta hora: no estarán en el salón y cuentan como presentes.</div>`:''}
       <div class="leg">Todos aparecen como presentes. Toca ✗ solo en quien no esté y elige el motivo.${L.cambios?' · <b style="color:#b07a00">Sin guardar</b>':''}</div>
       <input class="srch" id="lBus" placeholder="Buscar estudiante…" value="${escHTML(filtro)}">`;
     L.filas.forEach((x,i)=>{ if(x.fuera||(filtro&&!x.nombre.toLowerCase().includes(filtro.toLowerCase()))) return;
       const d=x.det||{};
-      h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}<small style="color:${x.v==='N'?'#e5484d':'#1f9d6b'}">${x.v==='N'?'No está':'Presente'}</small>
+      h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}${x.st?`<small class="sttag">${escHTML(stemTxt(x.st))}</small>`:''}<small style="color:${x.v==='N'?'#e5484d':'#1f9d6b'}">${x.v==='N'?'No está':'Presente'}</small>
         ${x.v==='N'?`<select data-ma="${i}"><option value="">¿Por qué no está?…</option>${MOT_AUS().map(o=>`<option ${x.m===o?'selected':''}>${escHTML(o)}</option>`).join('')}</select>
           ${/STEM/.test(x.m)?`<input data-dd="${i}" data-f="docente" maxlength="120" placeholder="Docente del STEM Day al que apoya" value="${escHTML(d.docente||'')}"><input data-dd="${i}" data-f="lugar" maxlength="120" placeholder="Lugar a donde se dirige" value="${escHTML(d.lugar||'')}">`:''}
           ${x.m==='Otros'?`<input data-dd="${i}" data-f="texto" maxlength="200" placeholder="Escribe el motivo" value="${escHTML(d.texto||'')}">`:''}`:''}</div>
@@ -769,6 +777,7 @@ async function pintarAsis(grado){
   try{ await cargarEstudiantes(); }catch(e){ el.innerHTML=`<div class="alertbox">No se pudo cargar: ${escHTML(e.message)}</div>`; return; }
   if(S.asisVista==='act'&&esOrgM()) return pintarAsisAct();
   if(S.asisVista==='previas'&&(S.perfil.rol==='admin'||S.modo==='sec')) return pintarPrevias();
+  if(S.asisVista==='stem'&&esOrgM()) return pintarEnStem();
   if(S.asisCurso) return detalleAsis(S.asisCurso);
   const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})), GR={}; S.est.forEach(x=>GR[x.curso]=x.grado);
   const ORDG=['transicion','primero','segundo','tercero','cuarto','quinto','sexto','septimo','octavo','noveno','decimo','undecimo'], og=g=>{ const i=ORDG.indexOf(String(g).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()); return i<0?99:i; };
@@ -778,6 +787,7 @@ async function pintarAsis(grado){
   let h=(S.modo==='sec'?'':llegadasHTML())+(esOrgM()?`<div class="segs"><span class="on">🕖 Llamado de las 7:00</span><span id="aVAct">📋 Por actividad</span></div>`:'')+`<h3>Asistencia · inicio de la jornada</h3><div class="sub">Se actualiza en tiempo real a medida que los directores de curso guardan su lista.</div>`;
   if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
   if(S.perfil.rol==='admin'||S.modo==='sec'){ const np=S.est.filter(x=>(S.asis[x.id]||{}).previa).length; h+=`<div class="pvcard" id="aPrev"><b>📌 Ausencias anunciadas para el 23</b><span>${np?`${np} estudiante${np>1?'s':''} marcado${np>1?'s':''} · `:''}Marca a quienes ya se sabe que no vendrán. Le aparecen marcados al director de curso.</span><i>›</i></div>`; }
+  if(esOrgM()&&!S.vistaComo){ const ns=Object.keys(S.enStem||{}).length; h+=`<div class="pvcard stcard" id="aStem"><b>🔬 Estudiantes en actividades del STEM Day</b><span>${ns?`${ns} estudiante${ns>1?'s':''} marcado${ns>1?'s':''} · `:''}Marca a quienes estarán apoyando actividades. Su docente los ve en la lista con el aviso y como presentes.</span><i>›</i></div>`; }
   h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
     <div class="leg">⚪ Sin marcar: <b>${tot.S}</b> · Cursos: <b>${cs.length}</b></div>
     <div class="segs wrap">${['Todos',...grados].map(g=>`<span data-g="${escHTML(g)}" class="${g===grado?'on':''}">${escHTML(g)}</span>`).join('')}</div>`;
@@ -794,6 +804,55 @@ async function pintarAsis(grado){
   el.querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>descargarAsistencia(b.dataset.dl==='grado'?{grado}:b.dataset.dl==='cursos'?{porCurso:true}:{}));
   if($('aVAct')) $('aVAct').onclick=()=>{ S.asisVista='act'; pintarAsis(); };
   if($('aPrev')) $('aPrev').onclick=()=>{ S.asisVista='previas'; pintarAsis(); };
+  if($('aStem')) $('aStem').onclick=()=>{ S.asisVista='stem'; pintarAsis(); };
+}
+/* v45 · Administración y Organizadores Master: estudiantes que estarán en actividades del STEM Day */
+function pintarEnStem(){
+  const el=$('asisPz'), E=S.enStem||{}; S.stSel=S.stSel||new Set();
+  const F=S.stF=S.stF||{lugar:'',modo:'dia',desde:'08:00',hasta:'10:00'};
+  const nq=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+  const q=S.stQ||'', qn=nq(q).trim(), cur=S.stCurso||'';
+  const lista=qn.length>=3?S.est.filter(x=>nq(x.curso+' '+x.nombre).includes(qn)).slice(0,40):cur?S.est.filter(x=>x.curso===cur):[];
+  const n=S.stSel.size;
+  let h=`<div class="sub"><a href="#" id="stVol">← Volver a la asistencia</a></div><h3>🔬 Estudiantes en actividades del STEM Day</h3>
+    <div class="sub">Elige a los estudiantes que el día del evento estarán apoyando una actividad. Su director de curso y su codirector los ven en la lista con el aviso <b>«En actividad STEM Day»</b> y ya marcados como presentes, solo en el horario que indiques.</div>
+    ${S.enStemOk?'':'<div class="warnbox">Falta ejecutar el archivo <b>23-estudiantes-stem-y-chat.sql</b> en Supabase. Sin él no se pueden guardar.</div>'}
+    <div class="stform"><b>1. Elige los estudiantes</b>
+      <select id="stCur"><option value="">Elige un curso…</option>${cursos.map(c=>`<option ${c===cur?'selected':''}>${escHTML(c)}</option>`).join('')}</select>
+      <input class="srch" id="stBus" placeholder="…o busca por nombre (mín. 3 letras)" value="${escHTML(q)}">
+      ${cur&&!qn?`<button class="b2 sm" id="stTodo">Seleccionar todo ${escHTML(cur)}</button>`:''}
+      <div class="stl">${lista.map(x=>`<label class="pvchk"><input type="checkbox" data-s="${x.id}" ${S.stSel.has(x.id)?'checked':''}> <b>${escHTML(x.curso)}</b> · ${escHTML(x.nombre)}${E[x.id]?`<small class="sttag">${escHTML(stemTxt(E[x.id]))}</small>`:''}</label>`).join('')}
+        ${qn.length>=3&&!lista.length?'<p class="sm">No encontré estudiantes con ese nombre.</p>':''}${!qn&&!cur?'<p class="sm">Elige un curso o escribe un nombre.</p>':''}</div>
+      <b>2. ¿En qué actividad y a qué hora?</b>
+      <input id="stLug" maxlength="160" placeholder="Actividad o lugar (ej. Apoyo en Robótica · Coliseo)" value="${escHTML(F.lugar)}">
+      <div class="stmodo"><label><input type="radio" name="stM" value="dia" ${F.modo==='dia'?'checked':''}> Todo el día</label><label><input type="radio" name="stM" value="horas" ${F.modo==='horas'?'checked':''}> Solo unas horas</label></div>
+      ${F.modo==='horas'?`<div class="sthoras">Desde <input type="time" id="stDe" min="07:00" max="15:30" step="300" value="${F.desde}"> hasta <input type="time" id="stHa" min="07:00" max="15:30" step="300" value="${F.hasta}"></div>`:''}
+      <div class="stsel">${n?`<b>${n}</b> seleccionado${n>1?'s':''} · <a href="#" id="stLimp">quitar selección</a>`:'Nadie seleccionado'}</div>
+      <button class="b1" id="stOk" ${n&&S.enStemOk?'':'disabled'}>Marcar ${n||''} estudiante${n===1?'':'s'}</button></div>`;
+  const M=S.est.filter(x=>E[x.id]), porC={}; M.forEach(x=>(porC[x.curso]=porC[x.curso]||[]).push(x));
+  h+=`<h4 style="margin:16px 0 6px">Marcados (${M.length})</h4>${M.length?'':'<p class="sm">Aún no hay estudiantes marcados.</p>'}`;
+  Object.keys(porC).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).forEach(c=>{ h+=`<div class="pvgr"><b>${escHTML(c)}</b>${porC[c].map(x=>`<div class="est"><div class="nm">${escHTML(x.nombre)}<small class="sttag">${escHTML(stemTxt(E[x.id]))}</small>${E[x.id].por_nombre?`<small>Marcado por ${escHTML(E[x.id].por_nombre)}</small>`:''}</div><button class="b2 sm" data-sq="${x.id}">Quitar</button></div>`).join('')}</div>`; });
+  el.innerHTML=h;
+  $('stVol').onclick=e=>{ e.preventDefault(); S.asisVista=null; pintarAsis(); };
+  $('stCur').onchange=e=>{ S.stCurso=e.target.value; S.stQ=''; pintarEnStem(); };
+  $('stBus').oninput=e=>{ S.stQ=e.target.value; pintarEnStem(); const b=$('stBus'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); };
+  if($('stTodo')) $('stTodo').onclick=()=>{ lista.forEach(x=>S.stSel.add(x.id)); pintarEnStem(); };
+  el.querySelectorAll('[data-s]').forEach(c=>c.onchange=()=>{ const id=+c.dataset.s; c.checked?S.stSel.add(id):S.stSel.delete(id); pintarEnStem(); });
+  $('stLug').oninput=e=>{ F.lugar=e.target.value; };
+  el.querySelectorAll('[name=stM]').forEach(r=>r.onchange=()=>{ F.modo=r.value; pintarEnStem(); });
+  if($('stDe')){ $('stDe').onchange=e=>{ F.desde=e.target.value; }; $('stHa').onchange=e=>{ F.hasta=e.target.value; }; }
+  if($('stLimp')) $('stLimp').onclick=e=>{ e.preventDefault(); S.stSel.clear(); pintarEnStem(); };
+  $('stOk').onclick=async()=>{
+    const lugar=F.lugar.trim(); if(!lugar) return toast('Escribe la actividad o el lugar','bad');
+    if(F.modo==='horas'&&!(F.desde&&F.hasta&&F.desde<F.hasta)) return toast('Revisa las horas: «hasta» debe ser después de «desde»','bad');
+    const filas=[...S.stSel].map(id=>S.est.find(x=>x.id===id)).filter(Boolean).map(x=>({estudiante_id:x.id,curso:x.curso,lugar:lugar.slice(0,160),desde:F.modo==='horas'?F.desde:null,hasta:F.modo==='horas'?F.hasta:null,registrado_por:S.perfil.id,por_nombre:S.perfil.nombre||null,creado_en:new Date().toISOString()}));
+    $('stOk').disabled=true; $('stOk').textContent='Guardando…';
+    const r=await S.sb.from('sd_en_stem').upsert(filas,{onConflict:'estudiante_id'});
+    if(r.error){ toast('No se pudo guardar: '+r.error.message,'bad',5000); pintarEnStem(); return; }
+    filas.forEach(f=>S.enStem[f.estudiante_id]=f); S.stSel.clear(); toast(`${filas.length} estudiante${filas.length>1?'s':''} marcado${filas.length>1?'s':''} ✓`,'ok'); pintarEnStem(); };
+  el.querySelectorAll('[data-sq]').forEach(b=>b.onclick=async()=>{ const id=+b.dataset.sq, x=S.est.find(e=>e.id===id); if(!confirm(`¿Quitar a ${x.nombre} de las actividades del STEM Day?`)) return;
+    const r=await S.sb.from('sd_en_stem').delete().eq('estudiante_id',id); if(r.error) return toast(r.error.message,'bad'); delete S.enStem[id]; pintarEnStem(); });
 }
 /* v32 · Secretaría: ausencias anunciadas antes del 23 (aparecen marcadas en la lista del director de curso) */
 const MOT_PREV=['Viaje familiar','Permiso deportivo','Incapacidad médica','Calamidad doméstica','Otros'];
@@ -850,7 +909,7 @@ function detalleAsis(c){
   const el=$('asisPz'), L=S.est.filter(x=>x.curso===c);
   let h=`<h3>${escHTML(c)} · ${escHTML((L[0]||{}).grado||'')}</h3><div class="sub"><a href="#" id="aVol">← Volver al resumen</a></div>`;
   ['N','P','T','A'].forEach(k=>{ const ls=L.filter(x=>(S.asis[x.id]||{}).estado===k); if(!ls.length) return;
-    h+=`<h4 style="color:${EST_V[k][2]};margin:12px 0 4px">${EST_V[k][0]} ${EST_V[k][1]} (${ls.length})</h4>`+ls.map(x=>{ const a=S.asis[x.id], hl=minDe(a.hora_llegada); return `<div class="est" data-sn="${escHTML(x.nombre)}"><div class="nm">${escHTML(x.nombre)}<small>${[hl!=null?'Llegó '+hDe(hl):'',k==='T'&&a.retardo_min!=null?a.retardo_min+' min tarde':'',a.motivo||'',a.detalle||''].filter(Boolean).map(escHTML).join(' · ')}</small></div></div>`; }).join(''); });
+    h+=`<h4 style="color:${EST_V[k][2]};margin:12px 0 4px">${EST_V[k][0]} ${EST_V[k][1]} (${ls.length})</h4>`+ls.map(x=>{ const a=S.asis[x.id], hl=minDe(a.hora_llegada); return `<div class="est" data-sn="${escHTML(x.nombre)}"><div class="nm">${escHTML(x.nombre)}${(S.enStem||{})[x.id]?`<small class="sttag">${escHTML(stemTxt(S.enStem[x.id]))}</small>`:''}<small>${[hl!=null?'Llegó '+hDe(hl):'',k==='T'&&a.retardo_min!=null?a.retardo_min+' min tarde':'',a.motivo||'',a.detalle||''].filter(Boolean).map(escHTML).join(' · ')}</small></div></div>`; }).join(''); });
   const sin=L.filter(x=>!S.asis[x.id]); if(sin.length) h+=`<h4 style="color:var(--muted);margin:12px 0 4px">⚪ Sin marcar (${sin.length})</h4>`+sin.map(x=>`<div class="est" data-sn="${escHTML(x.nombre)}"><div class="nm">${escHTML(x.nombre)}</div></div>`).join('');
   el.innerHTML=h; $('aVol').onclick=e=>{ e.preventDefault(); S.asisCurso=null; pintarAsis(); }; if(window.cmAsisHook) cmAsisHook(el,c);
 }
@@ -944,31 +1003,77 @@ function pintarVivo(){
   el.querySelectorAll('.fila').forEach(e=>e.onclick=()=>{ const f=S.prog.find(x=>String(x.id)===e.dataset.id); if(f) verEnMapa([f]); });
 }
 
-/* ================= Organizador: chat interno ================= */
+/* ================= Chat interno · v45: todos, grupos y mensajes a una persona ================= */
+const salaDe=m=>m.sala||'todos';
+const puedeChat=()=>S.modo==='org'||S.perfil.rol==='admin'||esOrgM();
+const salaPar=id=>'p:'+[S.perfil.id,id].sort().join('|');
+const otroDe=k=>k.slice(2).split('|').find(x=>x!==S.perfil.id)||'';
+function nomCorto(n){ const w=String(n||'').replace(/^⭐\s*/,'').trim().split(/\s+/); return w.length>=3?w[2]+' '+w[0]:w.join(' '); }
+function nomPersona(id){ const p=(S.chatGente||[]).find(x=>x.id===id); if(p) return nomCorto(p.nombre); const m=(S.chat||[]).find(x=>x.perfil_id===id); return m?nomCorto(m.nombre):'Persona'; }
+async function chatCargarGente(){ if(S.chatGente) return; const r=await S.sb.from('sd_perfiles').select('id,nombre,rol,org_master').or('rol.in.(organizador,admin),org_master.eq.true');
+  S.chatGente=(r.data||[]).filter(p=>p.id!==S.perfil.id).sort((x,y)=>String(x.nombre).localeCompare(y.nombre,'es')); }
+async function chatRecargarGrupos(){ const r=await S.sb.from('sd_chat_grupos').select('*').order('id'); S.chatGrOk=!r.error;
+  S.chatGrTodos=r.error?[]:(r.data||[]); S.chatGr=S.chatGrTodos.filter(g=>(g.miembros||[]).includes(S.perfil.id));
+  if(S.chatSala&&S.chatSala.startsWith('g:')&&!S.chatGr.some(g=>'g:'+g.id===S.chatSala)) S.chatSala='todos';
+  if(S.panel==='chat') pintarChat(); }
+window.chatRecargarGrupos=chatRecargarGrupos;
+function chatSalas(){ const L=[{k:'todos',t:'👥 Todos'}]; (S.chatGr||[]).forEach(g=>L.push({k:'g:'+g.id,t:'👪 '+g.nombre}));
+  const dm=new Set((S.chat||[]).map(salaDe).filter(k=>k.startsWith('p:'))); if(S.chatSala&&S.chatSala.startsWith('p:')) dm.add(S.chatSala);
+  dm.forEach(k=>L.push({k,t:'👤 '+nomPersona(otroDe(k))})); return L; }
+function chatNombreSala(k){ if(k==='todos') return 'todos'; if(k.startsWith('g:')){ const g=(S.chatGr||[]).find(x=>'g:'+x.id===k); return g?'el grupo '+g.nombre:'el grupo'; } return nomPersona(otroDe(k)); }
 async function abrirChat(){
-  S.chatNo=0; marcarNav();
-  if(!S.chat){ const {data,error}=await S.sb.from('sd_chat').select('*').order('creado_en',{ascending:false}).limit(150);
+  S.chatSala=S.chatSala||'todos'; S.chatNoS=S.chatNoS||{};
+  if(!S.chat){ const {data,error}=await S.sb.from('sd_chat').select('*').order('creado_en',{ascending:false}).limit(400);
     if(error){ $('msgs').innerHTML=`<div class="alertbox">No se pudo abrir el chat: ${escHTML(error.message)}</div>`; return; } S.chat=(data||[]).reverse(); }
-  pintarChat();
+  await Promise.all([chatCargarGente().catch(()=>{}), S.chatGr?null:chatRecargarGrupos().catch(()=>{})]);
+  S.chatNoS[S.chatSala]=0; chatTotal(); pintarChat();
   $('quick').innerHTML=['Todo en orden ✅','Necesito apoyo en ','Curso retrasado: ','¿Dónde queda '].map(q=>`<span>${escHTML(q)}</span>`).join('');
   $('quick').querySelectorAll('span').forEach(q=>q.onclick=()=>{ $('chTxt').value=q.textContent; $('chTxt').focus(); });
   const enviar=async()=>{ const v=$('chTxt').value.trim(); if(!v) return; $('chTxt').value='';
-    const {data,error}=await S.sb.from('sd_chat').insert({perfil_id:S.perfil.id,nombre:S.perfil.nombre,mensaje:v.slice(0,1000)}).select().single();
-    if(error){ toast('No se envió: '+error.message,'bad',4000); $('chTxt').value=v; return; } if(data) nuevoMensaje(data); };
+    const fila={perfil_id:S.perfil.id,nombre:S.perfil.nombre,mensaje:v.slice(0,1000)}; if(S.chatSala!=='todos') fila.sala=S.chatSala;
+    const {data,error}=await S.sb.from('sd_chat').insert(fila).select().single();
+    if(error){ toast('No se envió: '+(/sala/.test(error.message)?'falta ejecutar el archivo 23-estudiantes-stem-y-chat.sql en Supabase.':error.message),'bad',5000); $('chTxt').value=v; return; } if(data) nuevoMensaje(data); };
   $('chEnv').onclick=enviar; $('chTxt').onkeydown=e=>{ if(e.key==='Enter') enviar(); };
 }
 const COLS=['#1f9d6b','#7b4bd6','#e5484d','#2f6fde','#b07a00','#0f8a8a'];
 function pintarChat(){
-  const box=$('msgs'), fij=S.chat.filter(m=>m.fijado), resto=S.chat.filter(m=>!m.fijado);
+  const box=$('msgs'), sala=S.chatSala||'todos', M=(S.chat||[]).filter(m=>salaDe(m)===sala), fij=M.filter(m=>m.fijado), resto=M.filter(m=>!m.fijado);
+  const bar=$('chSalas'); if(bar){ bar.innerHTML=`<span class="nv" id="chNueva">＋ Nueva</span>`+chatSalas().map(x=>`<span data-k="${escHTML(x.k)}" class="${x.k===sala?'on':''}">${escHTML(x.t)}${(S.chatNoS||{})[x.k]?`<b>${S.chatNoS[x.k]}</b>`:''}</span>`).join('');
+    bar.querySelectorAll('[data-k]').forEach(e=>e.onclick=()=>{ S.chatSala=e.dataset.k; S.chatNoS[S.chatSala]=0; chatTotal(); pintarChat(); });
+    $('chNueva').onclick=chatNueva; const on=bar.querySelector('.on'); if(on) on.scrollIntoView({inline:'nearest',block:'nearest'}); }
+  const inp=$('chTxt'); if(inp) inp.placeholder=sala==='todos'?'Escribe a todo el equipo…':'Escribe a '+chatNombreSala(sala)+'…';
   box.innerHTML=[...fij,...resto].map(m=>{ const yo=m.perfil_id===S.perfil.id, c=COLS[(String(m.nombre).length)%COLS.length];
-    return `<div class="m ${yo?'yo':''} ${m.fijado?'fij':''}" style="--c:${c}">${yo?'':`<small>${m.fijado?'📌 ':''}${escHTML(m.nombre)}</small>`}${escHTML(m.mensaje)}<em>${new Date(m.creado_en).toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit'})}</em></div>`; }).join('')||'<p class="sm" style="padding:10px">Aún no hay mensajes. Escribe el primero.</p>';
+    return `<div class="m ${yo?'yo':''} ${m.fijado?'fij':''}" style="--c:${c}">${yo?'':`<small>${m.fijado?'📌 ':''}${escHTML(m.nombre)}</small>`}${escHTML(m.mensaje)}<em>${new Date(m.creado_en).toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit'})}</em></div>`; }).join('')
+    ||`<p class="sm" style="padding:10px">${sala==='todos'?'Aún no hay mensajes. Escribe el primero.':'Aún no hay mensajes en esta conversación. Solo '+(sala.startsWith('g:')?'los miembros del grupo':'ustedes dos')+' la pueden ver.'}</p>`;
   box.scrollTop=box.scrollHeight;
 }
+function chatTotal(){ S.chatNo=Object.values(S.chatNoS||{}).reduce((a,b)=>a+(b||0),0); marcarNav(); }
 function nuevoMensaje(m){
-  if(S.modo!=='org'&&S.perfil.rol!=='admin') return;
+  if(!puedeChat()) return;
+  const sala=salaDe(m); S.chatNoS=S.chatNoS||{};
   if(S.chat){ if(S.chat.some(x=>x.id===m.id)) return; S.chat.push(m); }
-  if(S.chat&&S.panel==='chat'&&!document.hidden) pintarChat();
-  else if(m.perfil_id!==S.perfil.id){ S.chatNo=(S.chatNo||0)+1; marcarNav(); const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('💬 '+m.nombre+': '+m.mensaje.slice(0,60),'',4000); }
+  if(S.chat&&S.panel==='chat'&&!document.hidden&&(S.chatSala||'todos')===sala) pintarChat();
+  else if(m.perfil_id!==S.perfil.id){ S.chatNoS[sala]=(S.chatNoS[sala]||0)+1; chatTotal(); if(S.panel==='chat') pintarChat();
+    const p=prefs(); if(p.sonido) sonarTono(p.tono); toast('💬 '+(sala==='todos'?'':sala.startsWith('p:')?'(privado) ':'('+chatNombreSala(sala).replace('el grupo ','')+') ')+m.nombre+': '+m.mensaje.slice(0,60),'',4000); }
+}
+async function chatNueva(){
+  await chatCargarGente().catch(()=>{}); const G=S.chatGente||[], adm=esOrgM()&&!S.vistaComo;
+  const html=`<input class="srch" id="cnBus" placeholder="Buscar persona…"><div class="cnl" id="cnL">${G.map(p=>`<button class="cnp" data-p="${p.id}" data-n="${escHTML(nrm30(p.nombre))}">👤 ${escHTML(p.nombre)}<small>${p.rol==='admin'?'Administración':p.org_master?'Organizador Master':'Organizador'}</small></button>`).join('')||'<p class="sm">No hay otras personas con chat.</p>'}</div>
+    ${adm?`<details class="cng"><summary><b>👪 Crear un grupo</b></summary><input id="cnNom" maxlength="60" placeholder="Nombre del grupo (ej. Logística Primaria)">
+      <div class="cnl">${G.map(p=>`<label class="pvchk"><input type="checkbox" data-m="${p.id}"> ${escHTML(p.nombre)}</label>`).join('')}</div><button class="b1" id="cnCrear">Crear el grupo</button>
+      ${(S.chatGrTodos||[]).length?`<h4 style="margin:12px 0 4px">Grupos creados</h4>${S.chatGrTodos.map(g=>`<div class="est"><div class="nm">${escHTML(g.nombre)}<small>${(g.miembros||[]).length} personas</small></div><button class="b2 sm" data-gx="${g.id}">Eliminar</button></div>`).join('')}`:''}</details>`:''}`;
+  ventana({icono:'💬',titulo:'Nueva conversación',html,botones:[{t:'Cerrar',ghost:true}],alAbrir:b=>{
+    const cerrar=()=>{ V30.cola.shift(); pintarVentana(); };
+    $('cnBus').oninput=e=>{ const q=nrm30(e.target.value); b.querySelectorAll('[data-n]').forEach(x=>x.hidden=q&&!x.dataset.n.includes(q)); };
+    b.querySelectorAll('[data-p]').forEach(x=>x.onclick=()=>{ S.chatSala=salaPar(x.dataset.p); cerrar(); pintarChat(); });
+    if($('cnCrear')) $('cnCrear').onclick=async()=>{ const nom=$('cnNom').value.trim(), mi=[...b.querySelectorAll('[data-m]:checked')].map(x=>x.dataset.m);
+      if(!nom) return toast('Escribe el nombre del grupo','bad'); if(!mi.length) return toast('Elige al menos una persona','bad');
+      $('cnCrear').disabled=true; const r=await S.sb.from('sd_chat_grupos').insert({nombre:nom,miembros:[S.perfil.id,...mi],creado_por:S.perfil.id}).select().single();
+      if(r.error){ $('cnCrear').disabled=false; return toast('No se creó: '+(/sd_chat_grupos/.test(r.error.message)?'falta ejecutar el archivo 23-estudiantes-stem-y-chat.sql en Supabase.':r.error.message),'bad',5000); }
+      await chatRecargarGrupos(); S.chatSala='g:'+r.data.id; toast('Grupo «'+nom+'» creado ✓','ok'); cerrar(); pintarChat(); };
+    b.querySelectorAll('[data-gx]').forEach(x=>x.onclick=async()=>{ const g=S.chatGrTodos.find(z=>z.id===+x.dataset.gx); if(!confirm(`¿Eliminar el grupo «${g.nombre}»? Sus mensajes dejarán de verse.`)) return;
+      const r=await S.sb.from('sd_chat_grupos').delete().eq('id',g.id); if(r.error) return toast(r.error.message,'bad'); await chatRecargarGrupos(); cerrar(); pintarChat(); });
+  }});
 }
 function marcarNav(){ const n=document.querySelector('#nav span[data-p=chat]'); if(!n) return; let b=n.querySelector('b.bd'); if(!S.chatNo){ if(b) b.remove(); return; } if(!b){ b=document.createElement('b'); b.className='bd'; n.appendChild(b); } b.textContent=S.chatNo; }
 
@@ -1144,6 +1249,8 @@ function suscribirTiempoReal(){
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_encuestas'},()=>{ S.encSucia=true; if(S.panel==='enc'){ clearTimeout(S._enT); S._enT=setTimeout(pintarEncuestas,1000); } })
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_asistencia'},()=>{ S.asisSucia=true; if(S.panel==='asis') { clearTimeout(S._asT); S._asT=setTimeout(pintarAsis,800); } })
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_estudiantes'},()=>{ S.est=null; S.asisSucia=true; })
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_en_stem'},()=>{ S.asisSucia=true; if(S.panel==='lista'&&S.listaLocal&&!S.listaLocal.cambios){ clearTimeout(S._stT); S._stT=setTimeout(()=>{ S.listaLocal=null; pintarLista2(); },900); } })
+    .on('postgres_changes',{event:'*',schema:'public',table:'sd_chat_grupos'},()=>{ if(window.chatRecargarGrupos) chatRecargarGrupos(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_asistencia_act'},()=>{ if(S.panel==='asis'&&S.asisVista==='act'){ clearTimeout(S._aaT); S._aaT=setTimeout(pintarAsisAct,900); } })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_chat'},payload=>nuevoMensaje(payload.new))
     .on('postgres_changes',{event:'*',schema:'public',table:'sd_llegadas'},()=>{ clearTimeout(S._llT); S._llT=setTimeout(async()=>{ await cargarLlegadas(); if(S.panel==='estacion') pintarEstacion(); if(S.panel==='asis') pintarAsis(); },700); })
@@ -1238,7 +1345,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='44';
+const VERSION_APP='45';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
