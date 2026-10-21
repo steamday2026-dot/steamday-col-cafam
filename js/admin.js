@@ -609,15 +609,32 @@
 
   /* ---------------- 4. Correcciones de curso ---------------- */
   async function tCorrecciones(){
-    const { data, error } = await sb().from('sd_perfiles').select('nombre,nombre_n,correo,cursos_manual,cursos_manual_en').not('cursos_manual','is',null).order('cursos_manual_en',{ascending:false});
-    if(error) throw error;
-    const prog=S().prog;
-    const segunExcel = n => { const s=new Set(); prog.forEach(r=>{ if(r.tipo==='actividad' && (r.acompanante_n===n||r.apoyo_n===n)) s.add(r.curso); }); return [...s].sort().join(', ')||'No aparece'; };
-    $('admTab').innerHTML = (data&&data.length) ? `
-      <p class="sm" style="margin-bottom:10px">Docentes que eligieron su curso con el botón de ayuda. Corrige el Excel y vuelve a cargarlo; su elección se mantiene hasta que ellos toquen "Volver a lo que dice la programación".</p>
-      <div class="twrap"><table class="t"><tr><th>Docente</th><th>Según el Excel</th><th>Eligió</th><th>Fecha</th></tr>
-      ${data.map(p=>`<tr><td><b>${escHTML(p.nombre)}</b><br><span class="sm">${escHTML(p.correo)}</span></td><td>${escHTML(segunExcel(p.nombre_n))}</td><td><b>${escHTML((p.cursos_manual||[]).join(', '))}</b></td><td class="sm">${p.cursos_manual_en?new Date(p.cursos_manual_en).toLocaleString('es-CO'):''}</td></tr>`).join('')}</table></div>`
-      : '<div class="okbox">Ningún docente ha corregido su curso.</div>';
+    // v51: las solicitudes quedan pendientes hasta que el administrador las apruebe
+    let r=await sb().from('sd_perfiles').select('id,nombre,nombre_n,correo,cursos_manual,cursos_manual_en,cursos_solicitud,cursos_solicitud_en,cursos_respuesta').or('cursos_manual.not.is.null,cursos_solicitud.not.is.null').order('nombre');
+    const sin28=!!(r.error&&/cursos_solicitud/.test(r.error.message));
+    if(sin28) r=await sb().from('sd_perfiles').select('id,nombre,nombre_n,correo,cursos_manual,cursos_manual_en').not('cursos_manual','is',null).order('nombre');
+    if(r.error) throw r.error;
+    const data=r.data||[], prog=S().prog;
+    const segunExcel = n => { const s=new Set(); prog.forEach(x=>{ if(x.tipo==='actividad' && (x.acompanante_n===n||x.apoyo_n===n)) s.add(x.curso); }); return [...s].sort().join(', ')||'No aparece'; };
+    const P=data.filter(p=>p.cursos_solicitud), A=data.filter(p=>p.cursos_manual&&p.cursos_manual.length);
+    const pide=p=>p.cursos_solicitud.length?p.cursos_solicitud.join(', '):'Volver a la programación';
+    $('admTab').innerHTML=`${sin28?'<div class="warnbox">Falta ejecutar el archivo <b>28-lista-dia-evento-y-correcciones.sql</b> en Supabase: hasta entonces, el cambio de curso de los docentes se aplica sin aprobación.</div>':''}
+      <h3 style="margin-bottom:6px">⏳ Solicitudes pendientes (${P.length})</h3>
+      <p class="sm" style="margin-bottom:8px">El docente pidió cambiar su curso con «¿Tu curso no aparece bien?». Su ruta no cambia hasta que apruebes. Al responder, le llega un aviso.</p>
+      ${P.length?`<div class="twrap"><table class="t"><tr><th>Docente</th><th>Según el Excel</th><th>Ahora</th><th>Pide</th><th>Fecha</th><th></th></tr>
+      ${P.map(p=>`<tr><td><b>${escHTML(p.nombre)}</b><br><span class="sm">${escHTML(p.correo)}</span></td><td>${escHTML(segunExcel(p.nombre_n))}</td><td>${escHTML((p.cursos_manual||[]).join(', ')||'Lo del Excel')}</td><td><b>${escHTML(pide(p))}</b></td><td class="sm">${p.cursos_solicitud_en?new Date(p.cursos_solicitud_en).toLocaleString('es-CO'):''}</td>
+        <td style="white-space:nowrap"><button class="b1 sm" data-ok="${p.id}">✓ Aprobar</button> <button class="b2 sm" data-no="${p.id}">✗ Rechazar</button></td></tr>`).join('')}</table></div>`:'<div class="okbox">No hay solicitudes pendientes.</div>'}
+      <h3 style="margin:22px 0 6px">Cursos corregidos (aprobados)</h3>
+      ${A.length?`<div class="twrap"><table class="t"><tr><th>Docente</th><th>Según el Excel</th><th>Acompaña</th><th></th></tr>
+      ${A.map(p=>`<tr><td><b>${escHTML(p.nombre)}</b><br><span class="sm">${escHTML(p.correo)}</span></td><td>${escHTML(segunExcel(p.nombre_n))}</td><td><b>${escHTML(p.cursos_manual.join(', '))}</b></td><td><button class="b2 sm" data-qx="${p.id}">Volver a lo del Excel</button></td></tr>`).join('')}</table></div>`:'<p class="sm">Ningún docente tiene un curso corregido.</p>'}`;
+    const resolver=async(id,ok)=>{ const p=data.find(x=>x.id===id);
+      if(!confirm(`${ok?'¿Aprobar':'¿Rechazar'} la solicitud de ${p.nombre}: ${pide(p)}?`)) return;
+      const {error}=await sb().rpc('sd_resolver_curso',{p_id:id,p_ok:ok}); if(error) return aviso('No se pudo: '+error.message,'bad');
+      aviso(ok?`Aprobado: ${p.nombre} · ${pide(p)}`:`Rechazada la solicitud de ${p.nombre}`,'ok'); tCorrecciones(); };
+    $('admTab').querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>resolver(b.dataset.ok,true));
+    $('admTab').querySelectorAll('[data-no]').forEach(b=>b.onclick=()=>resolver(b.dataset.no,false));
+    $('admTab').querySelectorAll('[data-qx]').forEach(b=>b.onclick=async()=>{ const p=data.find(x=>x.id===b.dataset.qx); if(!confirm(`¿Quitar la corrección de ${p.nombre}? Volverá a lo que dice el Excel.`)) return;
+      const {error}=await sb().from('sd_perfiles').update({cursos_manual:null}).eq('id',p.id); if(error) return aviso('No se pudo: '+error.message,'bad'); aviso('Listo','ok'); tCorrecciones(); });
   }
 
   /* ---------------- 5. Avisos generales ---------------- */
