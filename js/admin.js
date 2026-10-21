@@ -153,11 +153,48 @@
       <div class="drop" id="dropE">Arrastra aquí el Excel de estudiantes o <b>toca para elegir el archivo</b></div><input type="file" id="fxE" accept=".xlsx,.xls,.csv" hidden><div id="estRes"></div>
       <div class="dlbox" style="margin-top:22px"><b>🔍 Contrastar la lista de la app con el archivo de asistencia</b>
         <p class="sm" style="margin:0 0 8px">Compara curso por curso la lista que ven los directores de curso con el archivo de asistencia (el más actualizado). Muestra quién ya no está en el colegio, quién es nuevo y quién cambió de curso, y te deja corregirlo <b>sin borrar</b> lo que ya se marcó.</p>
-        <button class="b1" id="ctBtn">📂 Elegir el archivo de asistencia</button><input type="file" id="ctFx" accept=".xlsx" hidden><div id="ctRes"></div></div>`;
+        <button class="b1" id="ctBtn">📂 Elegir el archivo de asistencia</button><input type="file" id="ctFx" accept=".xlsx" hidden><div id="ctRes"></div></div>
+      <div class="dlbox may" style="margin-top:22px"><b>🎓 Décimo y undécimo · lista y ubicación de cada estudiante</b>
+        <p class="sm" style="margin:4px 0 8px">Excel con: <b>A</b> estudiante · <b>B</b> curso · <b>C</b> área que solicita · <b>D</b> docente líder con el que estará (si el área es <b>LOGÍSTICA</b>, en D va su función y su ubicación).
+        Si hay varios momentos en la jornada, usa una hoja por momento (el nombre de la hoja es el momento, ej. «8:00 a 10:00») o una columna «Hora». Al cargarlo se <b>reemplaza solo la lista de 10° y 11°</b>; la de 3° a 9° no cambia.</p>
+        <p class="sm" id="mayCnt">Estudiantes de 10° y 11° cargados: …</p>
+        <button class="b1" id="mayBtn">📂 Elegir el Excel de 10° y 11°</button><input type="file" id="mayFx" accept=".xlsx,.xls" hidden><div id="mayRes"></div></div>`;
     const drop=$('dropE'), fx=$('fxE'); drop.onclick=()=>fx.click(); fx.onchange=()=>{ if(fx.files[0]) leerEst(fx.files[0]); };
     drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('over'); }; drop.ondragleave=()=>drop.classList.remove('over');
     drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) leerEst(e.dataTransfer.files[0]); };
     $('ctBtn').onclick=()=>$('ctFx').click(); $('ctFx').onchange=()=>{ const f=$('ctFx').files[0]; $('ctFx').value=''; if(f) contrastar(f); };
+    $('mayBtn').onclick=()=>$('mayFx').click(); $('mayFx').onchange=()=>{ const f=$('mayFx').files[0]; $('mayFx').value=''; if(f) leerMayores(f); };
+    sb().from('sd_may_est').select('id',{count:'exact',head:true}).then(r=>{ const e=$('mayCnt'); if(e) e.innerHTML=r.error?'<span style="color:#b45309">Falta ejecutar el archivo <b>24-decimo-undecimo.sql</b> en Supabase.</span>':`Estudiantes de 10° y 11° cargados: <b>${r.count||0}</b>`; });
+  }
+  /* v46 · Décimo y undécimo: leer el Excel, reconocer a los líderes y cargar */
+  async function leerMayores(file){
+    const res=$('mayRes'); res.innerHTML='<p class="sm">Leyendo…</p>';
+    try{
+      await cargarXLSX(); const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      const R=MayoresExcel.leerLibro(wb,XLSX); if(!R.estudiantes.length) throw new Error(R.avisos[0]||'No encontré estudiantes.');
+      const D=await datosLideres(true), porCorreo=new Map(D.perf.map(p=>[String(p.correo).toLowerCase(),p]));
+      const buscar=n=>{ if(!n) return null; const d=buscarPersona(n,D.dir); if(d) return d; const ps=separarPersonas(n,D.dir).filter(x=>x.d); return ps.length?ps[0].d:null; };
+      const lid=new Map();
+      R.estudiantes.forEach(e=>e.planes.forEach(p=>{ if(p.logistica||!p.lider_nombre) return; const k=nrm(p.lider_nombre);
+        if(!lid.has(k)){ const d=buscar(p.lider_nombre); lid.set(k,{texto:p.lider_nombre,d,perfil:d?porCorreo.get(String(d.correo).toLowerCase()):null,n:0}); }
+        const L=lid.get(k); L.n++; p.lider_correo=L.d?String(L.d.correo).toLowerCase():''; }));
+      const L=[...lid.values()].sort((a,b)=>(!!a.d-!!b.d)||a.texto.localeCompare(b.texto,'es')), no=L.filter(x=>!x.d), sinCuenta=L.filter(x=>x.d&&!x.perfil);
+      const porCurso={}, porArea={}; R.estudiantes.forEach(e=>{ porCurso[e.curso]=(porCurso[e.curso]||0)+1; e.planes.forEach(p=>porArea[p.area||'(sin área)']=(porArea[p.area||'(sin área)']||0)+1); });
+      const logs=R.estudiantes.flatMap(e=>e.planes.filter(p=>p.logistica).map(p=>({e,p})));
+      res.innerHTML=`<div class="okbox"><b>${R.estudiantes.length}</b> estudiantes · ${Object.entries(porCurso).sort((a,b)=>a[0].localeCompare(b[0],'es',{numeric:true})).map(([c,n])=>`${escHTML(c)} (${n})`).join(', ')}<br>
+          Momentos: <b>${R.momentos.map(escHTML).join(' · ')}</b><br>Áreas: ${Object.entries(porArea).map(([a,n])=>`${escHTML(a)} (${n})`).join(', ')}</div>
+        ${no.length?`<div class="warnbox"><b>Líderes que la app no reconoce (${no.length}):</b> sus estudiantes no le aparecerán a nadie como líder (sí al administrador, Máster Coordinador y Organizador Master). Corrige el nombre en el Excel o crea la cuenta en Usuarios.<ul class="ulc">${no.map(x=>`<li>${escHTML(x.texto)} · ${x.n} estudiante${x.n>1?'s':''}</li>`).join('')}</ul></div>`:''}
+        ${sinCuenta.length?`<div class="warnbox"><b>Líderes reconocidos pero sin cuenta en la app (${sinCuenta.length}):</b> ${sinCuenta.map(x=>escHTML(x.d.nombre)).join(' · ')}. Créales la cuenta para que puedan llamar a lista.</div>`:''}
+        <details><summary class="sm">Líderes reconocidos (${L.length-no.length})</summary><table class="t"><tr><th>En el Excel</th><th>En la app</th><th>Estudiantes</th></tr>${L.filter(x=>x.d).map(x=>`<tr><td>${escHTML(x.texto)}</td><td>${escHTML(x.d.nombre)}${x.perfil?'':' <span style="color:#b45309">(sin cuenta)</span>'}</td><td>${x.n}</td></tr>`).join('')}</table></details>
+        ${logs.length?`<details><summary class="sm">Logística (${logs.length})</summary><table class="t"><tr><th>Estudiante</th><th>Curso</th><th>Función</th><th>Ubicación</th></tr>${logs.map(({e,p})=>`<tr><td>${escHTML(e.nombre)}</td><td>${escHTML(e.curso)}</td><td>${escHTML(p.funcion||'')}</td><td>${escHTML(p.lugar||'')}</td></tr>`).join('')}</table></details>`:''}
+        ${R.avisos.length?`<details><summary class="sm">Avisos del archivo (${R.avisos.length})</summary><ul class="ulc">${R.avisos.map(a=>`<li>${escHTML(a)}</li>`).join('')}</ul></details>`:''}
+        <button class="b1" id="mayOk" style="margin-top:10px">Cargar la lista de 10° y 11°</button>`;
+      $('mayOk').onclick=async()=>{ $('mayOk').disabled=true; $('mayOk').textContent='Guardando…';
+        const p=R.estudiantes.map(e=>({nombre:e.nombre,curso:e.curso,grado:e.grado,orden:e.orden,planes:e.planes.map(({hoja,fila,...x})=>x)}));
+        const {data,error}=await sb().rpc('sd_importar_mayores',{p});
+        if(error){ $('mayOk').disabled=false; $('mayOk').textContent='Cargar la lista de 10° y 11°'; return res.insertAdjacentHTML('beforeend',`<div class="warnbox">No se pudo cargar: ${escHTML(/sd_importar_mayores/.test(error.message)?'falta ejecutar el archivo 24-decimo-undecimo.sql en Supabase.':error.message)}</div>`); }
+        if(window.MAY) window.MAY.sucio=true; aviso(`Lista de 10° y 11° cargada: ${data.estudiantes} estudiantes`,'ok'); tEstudiantes(); };
+    }catch(e){ res.innerHTML=`<div class="warnbox">${escHTML(e.message||e)}</div>`; }
   }
   /* v32 · contraste: lista de la app (sd_estudiantes) vs. archivo oficial de asistencia */
   async function contrastar(file){
@@ -425,7 +462,7 @@
       <div class="field"><label>Nombre (escríbelo igual que en el horario del Excel)</label><input id="cuN" list="cuL" value="${escHTML(nombre0||'')}" placeholder="Ej.: Pérez Gómez Ana María"><datalist id="cuL">${(nombresHorario||[]).map(n=>`<option value="${escHTML(n)}">`).join('')}</datalist></div>
       <p class="sm" id="cuH" style="margin:-4px 0 10px"></p>
       <div class="field"><label>Correo institucional</label><input id="cuC" type="email" placeholder="nombre@colegio.cafam.edu.co" autocomplete="off"></div>
-      <div class="field"><label>Perfil</label><select id="cuR"><option value="docente">Docente</option><option value="lider">Líder de estación</option><option value="master">Master</option><option value="organizador">Organizador</option><option value="secretario">Secretario</option></select></div><div class="field"><label><input type="checkbox" id="cuO"> También Organizador Master</label></div>
+      <div class="field"><label>Perfil</label><select id="cuR"><option value="docente">Docente</option><option value="lider">Líder de estación</option><option value="master">Master</option><option value="organizador">Organizador</option><option value="organizador_m">Organizador Master</option><option value="secretario">Secretario</option></select></div><div class="field"><label><input type="checkbox" id="cuO"> También Máster Coordinador</label></div>
       <div class="err" id="cuE"></div>
       <div class="abtn"><button class="b2" id="cuX">Cancelar</button><button class="b1" id="cuOk">Crear cuenta</button></div></div>`;
     const N=m.querySelector('#cuN'), C=m.querySelector('#cuC'), R=m.querySelector('#cuR'), Hh=m.querySelector('#cuH'), Er=m.querySelector('#cuE');
@@ -439,7 +476,7 @@
     N.oninput=revisa; revisa(); (nombre0?C:N).focus();
     m.querySelector('#cuX').onclick=()=>m.remove();
     m.querySelector('#cuOk').onclick=async()=>{
-      const nombre=N.value.trim().replace(/\s+/g,' '), correo=C.value.trim().toLowerCase(), rol=R.value; Er.textContent='';
+      const nombre=N.value.trim().replace(/\s+/g,' '), correo=C.value.trim().toLowerCase(), rolU=R.value, rol=rolU==='organizador_m'?'organizador':rolU; Er.textContent='';
       if(nombre.length<5) return Er.textContent='Escribe el nombre completo.';
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return Er.textContent='Revisa el correo.';
       const ya=(perf||[]).find(p=>String(p.correo).toLowerCase()===correo);
@@ -449,6 +486,7 @@
       try{
         const { error:e1 }=await sb().from('sd_directorio').upsert({correo,nombre},{onConflict:'correo'}); if(e1) throw e1;
         const { data, error }=await sb().rpc('sd_crear_cuentas',{p_lista:[{nombre,correo,rol,org_master:m.querySelector('#cuO').checked}]}); if(error) throw error;
+        if(rolU==='organizador_m'){ const q=await sb().from('sd_perfiles').select('id').eq('correo',correo).maybeSingle(); if(q.data){ const r2=await sb().rpc('sd_org_lista',{p_id:q.data.id,p_valor:true}); if(r2.error) throw new Error('La cuenta se creó, pero no se pudo marcar como Organizador Master: '+r2.error.message+' (¿ejecutaste el SQL 24?)'); } }
         if(rol==='lider'&&window.aplicarLideres){ try{ await window.aplicarLideres(); }catch(e){} }
         m.remove();
         aviso(data&&data.creadas?`Cuenta creada: ${correo} · contraseña temporal 0000`:data&&data.roles?`${nombre} ahora es líder de estación`:'La cuenta ya existía; quedó actualizada en el directorio.','ok');
@@ -527,16 +565,19 @@
   /* =================== v30 · cuentas, conexiones, mensajes y encuesta final =================== */
   const ROLES=[['docente','Docente'],['lider','Líder de estación'],['master','Master'],['organizador','Organizador'],['secretario','Secretario'],['admin','Administrador']];
   const ROLN=Object.fromEntries(ROLES);
-  async function todosPerfiles(){ let out=[]; for(let i=0;;i+=1000){ const r=await sb().from('sd_perfiles').select('id,correo,nombre,rol,org_master,confirmado,avatar').order('nombre').range(i,i+999); if(r.error) throw r.error; out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) break; } return out; }
+  // v46: «Organizador Master» = organizador que además llama a lista a 10° y 11° (rol organizador + org_lista)
+  const ROLES_U=[...ROLES.slice(0,4),['organizador_m','Organizador Master'],...ROLES.slice(4)], ROLN_U=Object.fromEntries(ROLES_U);
+  const rolDe=p=>p.rol==='organizador'&&p.org_lista?'organizador_m':p.rol;
+  async function todosPerfiles(){ let out=[], cols='id,correo,nombre,rol,org_master,org_lista,confirmado,avatar'; for(let i=0;;i+=1000){ let r=await sb().from('sd_perfiles').select(cols).order('nombre').range(i,i+999); if(r.error&&/org_lista/.test(r.error.message)){ cols=cols.replace(',org_lista',''); r=await sb().from('sd_perfiles').select(cols).order('nombre').range(i,i+999); } if(r.error) throw r.error; out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) break; } return out; }
   let CU={rol:'todos',q:''};
   function cuentasHTML(perf){
-    const q=nrm(CU.q), L=perf.filter(p=>(CU.rol==='todos'||(CU.rol==='orgm'?p.org_master:p.rol===CU.rol))&&(!q||nrm(p.nombre+' '+p.correo).includes(q)));
+    const q=nrm(CU.q), L=perf.filter(p=>(CU.rol==='todos'||(CU.rol==='orgm'?p.org_master:rolDe(p)===CU.rol))&&(!q||nrm(p.nombre+' '+p.correo).includes(q)));
     return `<h4 style="margin:18px 0 6px">Todas las cuentas (${perf.length})</h4>
-      <div class="tools"><select id="cuF"><option value="todos">Todos los perfiles</option>${ROLES.map(([k,t])=>`<option value="${k}" ${CU.rol===k?'selected':''}>${t}</option>`).join('')}<option value="orgm" ${CU.rol==='orgm'?'selected':''}>Organizador Master</option></select>
+      <div class="tools"><select id="cuF"><option value="todos">Todos los perfiles</option>${ROLES_U.map(([k,t])=>`<option value="${k}" ${CU.rol===k?'selected':''}>${t}</option>`).join('')}<option value="orgm" ${CU.rol==='orgm'?'selected':''}>Máster Coordinador</option></select>
         <input id="cuQ" placeholder="Buscar por nombre o correo…" value="${escHTML(CU.q)}" style="flex:1;min-width:200px"><span class="sm">Al cambiar el perfil, la app de esa persona se actualiza sola.</span></div>
-      <div class="twrap"><table class="t"><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Org. Master</th><th>Estado</th><th></th></tr>
+      <div class="twrap"><table class="t"><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Máster Coord.</th><th>Estado</th><th></th></tr>
       ${L.slice(0,400).map(p=>`<tr data-id="${p.id}"><td><input data-k="nombre" value="${escHTML(p.nombre||'')}"></td><td class="sm">${escHTML(p.correo)}</td>
-        <td><select data-k="rol">${ROLES.map(([k,t])=>`<option value="${k}" ${p.rol===k?'selected':''}>${t}</option>`).join('')}</select></td>
+        <td><select data-k="rol">${ROLES_U.map(([k,t])=>`<option value="${k}" ${rolDe(p)===k?'selected':''}>${t}</option>`).join('')}</select></td>
         <td style="text-align:center"><input type="checkbox" data-k="org" ${p.org_master?'checked':''}></td>
         <td class="sm">${p.confirmado?'✓ Activa':'Sin ingresar'}</td>
         <td style="white-space:nowrap"><button class="b1 sm" data-g>Guardar</button> ${p.rol!=='admin'?'<button class="b2 sm" data-res title="Restablecer la contraseña a 0000">🔑 0000</button> ':''}<button class="b2 sm" data-del title="Eliminar cuenta">🗑</button></td></tr>`).join('')}</table></div>
@@ -546,10 +587,12 @@
     $('cuF').onchange=e=>{ CU.rol=e.target.value; $('cuBox').innerHTML=cuentasHTML(perf); bindCuentas(perf); };
     $('cuQ').oninput=e=>{ CU.q=e.target.value; const v=e.target.value; $('cuBox').innerHTML=cuentasHTML(perf); bindCuentas(perf); const n=$('cuQ'); n.focus(); n.setSelectionRange(v.length,v.length); };
     $('cuBox').querySelectorAll('[data-g]').forEach(b=>b.onclick=async()=>{ const tr=b.closest('tr'), id=tr.dataset.id, p=perf.find(x=>x.id===id);
-      const rol=tr.querySelector('[data-k=rol]').value, org=tr.querySelector('[data-k=org]').checked, nombre=tr.querySelector('[data-k=nombre]').value.trim();
-      b.disabled=true; const {error}=await sb().rpc('sd_cambiar_perfil',{p_id:id,p_rol:rol,p_org_master:org,p_nombre:nombre}); b.disabled=false;
+      const rolU=tr.querySelector('[data-k=rol]').value, rol=rolU==='organizador_m'?'organizador':rolU, lista=rolU==='organizador_m', org=tr.querySelector('[data-k=org]').checked, nombre=tr.querySelector('[data-k=nombre]').value.trim();
+      b.disabled=true; let {error}=await sb().rpc('sd_cambiar_perfil',{p_id:id,p_rol:rol,p_org_master:org,p_nombre:nombre});
+      if(!error&&(lista||p.org_lista)){ const r2=await sb().rpc('sd_org_lista',{p_id:id,p_valor:lista}); if(r2.error) error={message:/sd_org_lista/.test(r2.error.message)?'falta ejecutar el archivo 24-decimo-undecimo.sql en Supabase':r2.error.message}; }
+      b.disabled=false;
       if(error) return aviso('No se pudo cambiar: '+error.message,'bad');
-      Object.assign(p,{rol,org_master:org,nombre}); aviso(`${nombre}: ${ROLN[rol]}${org?' · Organizador Master':''}`,'ok');
+      Object.assign(p,{rol,org_master:org,org_lista:lista,nombre}); aviso(`${nombre}: ${ROLN_U[rolU]}${org?' · Máster Coordinador':''}`,'ok');
       if(rol==='lider'||p.rol==='lider') aplicarLideres().catch(()=>{}); });
     $('cuBox').querySelectorAll('[data-res]').forEach(b=>b.onclick=async()=>{ const tr=b.closest('tr'), p=perf.find(x=>x.id===tr.dataset.id);   // v39
       if(!confirm(`¿Restablecer la contraseña de ${p.nombre} (${p.correo}) a 0000? Al entrar, la app le pedirá crear una nueva.`)) return;
@@ -567,18 +610,18 @@
     const [perf, cx]=await Promise.all([ todosPerfiles(), (async()=>{ let out=[]; for(let i=0;;i+=1000){ const r=await sb().from('sd_conexiones').select('*').range(i,i+999); if(r.error) throw new Error(r.error.message+' (¿ejecutaste el SQL 16?)'); out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) break; } return out; })() ]);
     const st={}; cx.forEach(c=>{ const x=st[c.perfil_id]=st[c.perfil_id]||{veces:0,min:0,ult:null}; x.veces++; x.min+=Math.max(1,Math.round((new Date(c.ultimo)-new Date(c.inicio))/60000)); if(!x.ult||c.ultimo>x.ult) x.ult=c.ultimo; });
     const pinta=()=>{ const on=window.enLineaAhora?window.enLineaAhora():{}, enl=new Set(Object.keys(on));
-      const grp=[...ROLES.filter(r=>r[0]!=='admin'),['orgm','Organizador Master']].map(([k,t])=>{ const ps=perf.filter(p=>k==='orgm'?p.org_master:p.rol===k); return {k,t,n:ps.length,con:ps.filter(p=>st[p.id]).length,on:ps.filter(p=>enl.has(p.id)).length}; }).filter(g=>g.n);
+      const grp=[...ROLES.filter(r=>r[0]!=='admin'),['orgm','Máster Coordinador']].map(([k,t])=>{ const ps=perf.filter(p=>k==='orgm'?p.org_master:p.rol===k); return {k,t,n:ps.length,con:ps.filter(p=>st[p.id]).length,on:ps.filter(p=>enl.has(p.id)).length}; }).filter(g=>g.n);
       const f=CX.rol, L=perf.filter(p=>f==='todos'||(f==='orgm'?p.org_master:p.rol===f)).filter(p=>CX.ver==='nunca'?!st[p.id]:CX.ver==='linea'?enl.has(p.id):true);
       const fm=m=>m>=60?Math.floor(m/60)+' h '+(m%60)+' min':m+' min';
       $('admTab').innerHTML=`<div class="stat"><div><b>${enl.size}</b><span>🟢 en línea ahora</span></div><div><b>${perf.filter(p=>st[p.id]).length}</b><span>se han conectado</span></div><div><b>${perf.filter(p=>!st[p.id]).length}</b><span>aún no se conectan</span></div><div><b>${cx.length}</b><span>conexiones en total</span></div></div>
         <div class="twrap"><table class="t"><tr><th>Perfil</th><th>Cuentas</th><th>🟢 En línea</th><th>Se han conectado</th><th>Aún no</th></tr>${grp.map(g=>`<tr><td><b>${g.t}</b></td><td>${g.n}</td><td>${g.on}</td><td>${g.con}</td><td>${g.n-g.con}</td></tr>`).join('')}</table></div>
-        <div class="tools" style="margin-top:12px"><select id="cxR"><option value="todos">Todos</option>${[...ROLES,['orgm','Organizador Master']].map(([k,t])=>`<option value="${k}" ${CX.rol===k?'selected':''}>${t}</option>`).join('')}</select>
+        <div class="tools" style="margin-top:12px"><select id="cxR"><option value="todos">Todos</option>${[...ROLES,['orgm','Máster Coordinador']].map(([k,t])=>`<option value="${k}" ${CX.rol===k?'selected':''}>${t}</option>`).join('')}</select>
           <select id="cxV"><option value="todos">Todas las personas</option><option value="linea" ${CX.ver==='linea'?'selected':''}>Solo en línea ahora</option><option value="nunca" ${CX.ver==='nunca'?'selected':''}>Solo los que aún no se conectan</option></select>
           <button class="b2" id="cxX">⬇ Excel</button><span class="sm">«En línea» se actualiza solo. Las conexiones cuentan desde la versión 30.</span></div>
         <div class="twrap"><table class="t"><tr><th></th><th>Nombre</th><th>Perfil</th><th>Veces</th><th>Tiempo conectado</th><th>Última conexión</th></tr>
-        ${L.sort((a,b)=>(enl.has(b.id)-enl.has(a.id))||((st[b.id]||{}).veces||0)-((st[a.id]||{}).veces||0)).slice(0,500).map(p=>{ const x=st[p.id]; return `<tr><td>${enl.has(p.id)?'🟢':x?'⚪':'—'}</td><td>${escHTML(p.nombre)}</td><td class="sm">${ROLN[p.rol]||p.rol}${p.org_master?' · Org. Master':''}</td><td>${x?x.veces:0}</td><td>${x?fm(x.min):'—'}</td><td class="sm">${x?new Date(x.ult).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'Nunca'}</td></tr>`; }).join('')}</table></div>`;
+        ${L.sort((a,b)=>(enl.has(b.id)-enl.has(a.id))||((st[b.id]||{}).veces||0)-((st[a.id]||{}).veces||0)).slice(0,500).map(p=>{ const x=st[p.id]; return `<tr><td>${enl.has(p.id)?'🟢':x?'⚪':'—'}</td><td>${escHTML(p.nombre)}</td><td class="sm">${ROLN[p.rol]||p.rol}${p.org_master?' · Máster Coord.':''}</td><td>${x?x.veces:0}</td><td>${x?fm(x.min):'—'}</td><td class="sm">${x?new Date(x.ult).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'Nunca'}</td></tr>`; }).join('')}</table></div>`;
       $('cxR').onchange=e=>{ CX.rol=e.target.value; pinta(); }; $('cxV').onchange=e=>{ CX.ver=e.target.value; pinta(); };
-      $('cxX').onclick=async()=>{ await cargarXLSX(); const ws=XLSX.utils.json_to_sheet(perf.map(p=>{ const x=st[p.id]; return {Nombre:p.nombre,Correo:p.correo,Perfil:ROLN[p.rol]||p.rol,'Org. Master':p.org_master?'Sí':'','En línea ahora':enl.has(p.id)?'Sí':'',Veces:x?x.veces:0,'Minutos conectado':x?x.min:0,'Última conexión':x?new Date(x.ult).toLocaleString('es-CO'):'Nunca'}; })); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Conexiones'); XLSX.writeFile(wb,'conexiones-stem-day.xlsx'); };
+      $('cxX').onclick=async()=>{ await cargarXLSX(); const ws=XLSX.utils.json_to_sheet(perf.map(p=>{ const x=st[p.id]; return {Nombre:p.nombre,Correo:p.correo,Perfil:ROLN[p.rol]||p.rol,'Máster Coord.':p.org_master?'Sí':'','En línea ahora':enl.has(p.id)?'Sí':'',Veces:x?x.veces:0,'Minutos conectado':x?x.min:0,'Última conexión':x?new Date(x.ult).toLocaleString('es-CO'):'Nunca'}; })); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Conexiones'); XLSX.writeFile(wb,'conexiones-stem-day.xlsx'); };
     };
     window.adminPresencia=()=>{ if(tab==='conexiones'&&$('cxR')) pinta(); };
     pinta();
@@ -593,7 +636,7 @@
     const sel=new Set(); let dest='todos';
     const nivDoc=(()=>{ const M={}; S().prog.filter(r=>r.tipo==='actividad').forEach(r=>[r.acompanante,r.apoyo].forEach(n=>{ if(n) M[nrm(n)]=r.nivel; })); return p=>M[nrm(p.nombre)]||''; })();   // v43
     const alcance=m=>m.destino==='todos'?perf.length:m.destino==='roles'?perf.filter(p=>m.roles.includes(p.rol)||(m.roles.includes('orgmaster')&&p.org_master)||(p.rol==='docente'&&((m.roles.includes('doc_pri')&&nivDoc(p)==='Primaria')||(m.roles.includes('doc_bach')&&nivDoc(p)==='Bachillerato')))).length:m.personas.length;
-    const txtDest=m=>m.destino==='todos'?'Todos':m.destino==='roles'?m.roles.map(r=>r==='orgmaster'?'Organizador Master':r==='doc_pri'?'Docentes de Primaria':r==='doc_bach'?'Docentes de Bachillerato':ROLN[r]||r).join(', '):m.personas.map(id=>(perf.find(p=>p.id===id)||{}).nombre||'—').join(', ');
+    const txtDest=m=>m.destino==='todos'?'Todos':m.destino==='roles'?m.roles.map(r=>r==='orgmaster'?'Máster Coordinador':r==='doc_pri'?'Docentes de Primaria':r==='doc_bach'?'Docentes de Bachillerato':ROLN[r]||r).join(', '):m.personas.map(id=>(perf.find(p=>p.id===id)||{}).nombre||'—').join(', ');
     $('admTab').innerHTML=`<div class="okbox"><b>El mensaje aparece en el centro de la pantalla</b> la próxima vez que la persona abra la app (o de inmediato si la tiene abierta). Puedes adjuntar un video (por ejemplo, una actualización).</div>
       <div class="field" style="margin:10px 0"><label>Título</label><input id="msT" maxlength="120" placeholder="Ej.: Cambio de salón para 5B"></div>
       <div class="field" style="margin-bottom:10px"><label>Mensaje</label><textarea id="msX" rows="4" maxlength="2000" placeholder="Escribe el mensaje…"></textarea></div>
@@ -605,7 +648,7 @@
       <div class="twrap"><table class="t"><tr><th>Fecha</th><th>Título</th><th>Para</th><th>Vistos</th><th></th></tr>${(ms.data||[]).map(m=>`<tr><td class="sm">${new Date(m.creado_en).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</td><td><b>${escHTML(m.titulo)}</b><br><span class="sm">${escHTML(m.texto.slice(0,90))}${m.video?' · 🎬':''}</span></td><td class="sm">${escHTML(txtDest(m).slice(0,120))}</td><td>${vistos[m.id]||0} / ${alcance(m)}</td><td><button class="b2 sm" data-x="${m.id}">🗑</button></td></tr>`).join('')||'<tr><td colspan="5" class="sm">Aún no hay mensajes.</td></tr>'}</table></div>`;
     const opc=()=>{ const o=$('msOpc');
       if(dest==='todos') o.innerHTML=`<p class="sm">Lo verán las ${perf.length} cuentas.</p>`;
-      if(dest==='roles') o.innerHTML=`<div class="row" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0">${[['doc_pri','📗 Docentes de Primaria'],['doc_bach','📘 Docentes de Bachillerato'],...ROLES.filter(r=>r[0]!=='admin'),['orgmaster','Organizador Master']].map(([k,t])=>`<label><input type="checkbox" data-r="${k}"> ${t}</label>`).join('')}</div>`;
+      if(dest==='roles') o.innerHTML=`<div class="row" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0">${[['doc_pri','📗 Docentes de Primaria'],['doc_bach','📘 Docentes de Bachillerato'],...ROLES.filter(r=>r[0]!=='admin'),['orgmaster','Máster Coordinador']].map(([k,t])=>`<label><input type="checkbox" data-r="${k}"> ${t}</label>`).join('')}</div>`;
       if(dest==='personas'){ const pinta=q=>{ q=nrm(q||''); const L=perf.filter(p=>!q||nrm(p.nombre+' '+p.correo).includes(q)).slice(0,60);
           o.innerHTML=`<div class="asel">${[...sel].map(id=>`<span class="lch on" data-q="${id}">✕ ${escHTML((perf.find(p=>p.id===id)||{}).nombre||'')}</span>`).join('')||'<span class="pend">Nadie seleccionado</span>'}</div>
           <input id="msB" placeholder="Buscar persona…" value="${escHTML(q)}" style="width:100%;margin:6px 0"><div class="alist" style="max-height:260px;overflow:auto">${L.map(p=>`<label style="display:block"><input type="checkbox" data-p="${p.id}" ${sel.has(p.id)?'checked':''}> ${escHTML(p.nombre)} <small>${ROLN[p.rol]||''}</small></label>`).join('')}</div>`;
