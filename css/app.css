@@ -707,3 +707,21 @@ small.turq{display:block;font-size:11.5px;margin-top:2px}small.turq.ok{color:#14
 .turbtn{width:52px;font-size:10px;padding:5px 2px 5px;border-radius:14px}.turbtn .ti{font-size:15px}
 /* v40: vista previa de la agenda importada */
 .agminis{display:flex;flex-wrap:wrap;gap:3px;max-width:520px}.agmini{font-size:10.5px;background:#e9effa;color:#173d7a;border-radius:6px;padding:2px 6px;white-space:nowrap}.agmini.lib{background:#eef0f4;color:#8a94a8}
+
+/* v45 · estudiantes en actividades del STEM Day */
+small.sttag{display:block;color:#6d28d9!important;font-weight:600}
+.stbox{background:#f3ecff;border:1px solid #d6c3fb;color:#4c1d95;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13px}
+.pvcard.stcard{background:#f3ecff;border-color:#d6c3fb}.pvcard.stcard b{color:#5b21b6}.pvcard.stcard span{color:#5b4a7a}
+.stform{display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.stform select,.stform input[type=time],#stLug{padding:9px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+.stform .srch{margin:0}.stl{max-height:320px;overflow:auto}
+.stmodo{display:flex;gap:16px;flex-wrap:wrap;font-size:14px}.sthoras{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.stsel{font-size:13px;color:var(--muted)}
+/* v45 · chat por conversaciones */
+.chsalas{display:flex;gap:6px;overflow-x:auto;padding:8px;background:#fff;border-bottom:1px solid var(--line);flex:none}
+.chsalas span{white-space:nowrap;border:1px solid var(--line);border-radius:16px;padding:6px 11px;font-size:13px;cursor:pointer;background:#fff;position:relative}
+.chsalas span.on{background:#173d7a;color:#fff;border-color:#173d7a}.chsalas span.nv{color:#2f6fde;border-style:dashed}
+.chsalas span b{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;text-align:center}
+.cnl{max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:8px 0;text-align:left}
+.cnp{text-align:left;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;font:inherit;cursor:pointer}.cnp small{display:block;color:var(--muted);font-size:11px}
+.cng{text-align:left;margin-top:8px}.cng input#cnNom{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-top:8px;font:inherit}
