@@ -68,6 +68,14 @@ function vigilarPerfil(){
     S.sb.channel('yo-'+S.perfil.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'sd_perfiles',filter:'id=eq.'+S.perfil.id},p=>{
       const n=p.new||{}; if(n.rol!==S.perfil.rol||!!n.org_master!==!!S.perfil.org_master||!!n.org_lista!==!!S.perfil.org_lista){
         ventana({icono:'🔄',titulo:'Tu perfil se actualizó',html:`<p>El administrador cambió tu perfil a <b>${escHTML(n.rol==='organizador'&&n.org_lista?'Organizador Master':PERFIL_N[n.rol]||n.rol)}${n.org_master?' · Máster Coordinador':''}</b>. La app se va a actualizar.</p>`,botones:[{t:'Actualizar ahora',fn:()=>{ location.reload(); }}]});
+      }
+      // v51: el administrador respondió la solicitud de cambio de curso
+      else if(JSON.stringify(n.cursos_manual||null)!==JSON.stringify(S.perfil.cursos_manual||null)||(n.cursos_respuesta&&n.cursos_respuesta!==S.perfil.cursos_respuesta)){
+        const antes=S.perfil.cursos_solicitud, respAntes=S.perfil.cursos_respuesta, nueva=!!n.cursos_respuesta&&n.cursos_respuesta!==respAntes||!!antes; Object.assign(S.perfil,{cursos_manual:n.cursos_manual,cursos_solicitud:n.cursos_solicitud,cursos_respuesta:n.cursos_respuesta});
+        if(window.definirModo) definirModo(); S.curso=S.cursos[0]; if(window.pintarRuta) pintarRuta(true);
+        if(nueva&&n.cursos_respuesta==='aprobada'){
+          ventana({icono:'✅',titulo:'Tu cambio de curso fue aprobado',html:`<p>Tu ruta ahora es la de <b>${escHTML((S.cursos||[]).join(' y '))}</b>.</p>`,botones:[{t:'Entendido'}]}); }
+        else if(nueva&&n.cursos_respuesta==='rechazada') ventana({icono:'ℹ️',titulo:'Tu solicitud de cambio de curso no se aprobó',html:`<p>${antes&&antes.length?`Pediste <b>${escHTML(antes.join(' y '))}</b>. `:''}Tu ruta sigue como está en la programación. Si crees que hay un error, comunícate con el administrador.</p>`,botones:[{t:'Entendido'}]});
       } }).subscribe();
   }catch(e){}
 }
