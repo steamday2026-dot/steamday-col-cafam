@@ -22,7 +22,7 @@ const ENC_EST=[
   {k:'lo_mejor',    t:'¿Qué fue lo que más les gustó? (opcional)', tipo:'texto', opcional:true},
   {k:'participantes',t:'¿Cuántos estudiantes participaron? (opcional)', tipo:'numero', opcional:true}
 ];
-const ENC_ANTES=7;   // la encuesta se habilita 7 minutos antes de terminar la actividad
+const ENC_ANTES=5;   // v47: la encuesta se habilita 5 minutos antes de terminar la actividad
 const encClave=(curso,h)=>curso+'|'+h;
 const evaluable=s=>s.tipo==='actividad'&&!/direcci[oó]n de (grupo|curso)/i.test((s.area||'')+' '+(s.titulo||''))&&String(s.hora_inicio||s.h)>='07:30';
 const nomAct=s=>(s.titulo&&window.tituloA?window.tituloA(s.titulo):'')||String(s.area||'').replace('Ciencias Naturales. Actividades del Cambio Climático','Cambio climático').replace('Construcción de Rompecabezas','Rompecabezas');
