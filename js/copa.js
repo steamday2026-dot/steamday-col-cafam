@@ -35,7 +35,7 @@ function copaSegDesdeAviso(s){ // segundos desde que se habilitó la encuesta (5
 }
 const copaRap=seg=>seg<=60?40:seg<=180?25:seg<=300?10:0;
 const copaCara=(av,c='')=>{ av=av||{}; const r=av.lid?'lid':av.mst?'mst':''; return `<span class="cav ${r} ${c}"><svg viewBox="-25 -106 50 52">${typeof avatarFondo==='function'?avatarFondo(av,-25,-106,50,52):''}${avatarPose(av,{})}</svg>${r?`<em class="cbadge">${r==='lid'?'⭐':'👑'}</em>`:''}</span>`; };
-function copaPendKey(){ return 'copa_pend_'+(S.perfil&&S.perfil.id); }
+function copaPendKey(){ return 'copa_pend_'+(S.perfil&&S.perfil.id)+(typeof copaEns==='function'?copaEns():''); }
 function copaPend(){ return LS.get(copaPendKey(),[]); }
 function copaSetPend(l){ LS.set(copaPendKey(),l); copaBarra(); }
 function copaW(){ let w=$('copaW'); if(!w){ w=document.createElement('div'); w.id='copaW'; w.className='copaw'; $('s-main').appendChild(w); } w.hidden=false; return w; }
@@ -66,19 +66,20 @@ async function copaTrasEncuesta(s,curso,R){
 }
 
 /* ---------- 1b) v47 · trivia 10 minutos antes de terminar la actividad (sin esperar la encuesta) ---------- */
-const copaOfrKey=it=>'copa_ofr_'+(S.perfil&&S.perfil.id)+'_'+it.curso+'_'+it.hora;
+const copaEns=()=>{ try{ return typeof _sim!=='undefined'&&_sim?'_ens'+_sim:''; }catch(_){ return ''; } };   // v49: en modo ensayo cada ensayo empieza de cero
+const copaOfrKey=it=>'copa_ofr_'+(S.perfil&&S.perfil.id)+'_'+it.curso+'_'+it.hora+copaEns();
 function copaRevisar(){
-  if(S.vistaComo||S.modo!=='docente'||!COPA.ok||!S.config) return;
+  if(S.modo!=='docente'||!S.config) return;   // v49: también en «Ver como» (vista previa) y aunque el podio no haya cargado
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
   const nuevos=[];
   (S.cursos||[]).forEach(c=>rutaCurso(c).filter(evaluable).forEach(s=>{ const fin=toMin(s.hora_fin||s.f);
     if(a.min<fin-copaAntes()||a.min>=fin) return;
     const it={curso:c,hora:s.hora_inicio,clave:copaClave(s),nombre:nomAct(s)}, k=copaOfrKey(it);
-    if(LS.get(k,false)) return; LS.set(k,true); nuevos.push(it); }));
+    if(LS.get(k,false)) return; LS.set(k,true); it.faltan=fin-a.min; nuevos.push(it); }));
   if(!nuevos.length) return;
   copaSetPend([...copaPend().filter(x=>!nuevos.some(n=>n.curso===x.curso&&n.hora===x.hora)),...nuevos]);
   const w=$('copaW'); if(w&&!w.hidden) return;   // ya hay algo abierto: queda en la barra
-  copaInvitar(nuevos[0],`¡Faltan ${copaAntes()} minutos!`);
+  const f=nuevos[0].faltan; copaInvitar(nuevos[0],f>1?`¡Faltan ${f} minutos!`:'¡Falta 1 minuto!');
 }
 function copaInvitar(it,titulo){
   copaSonar('aviso');
@@ -93,7 +94,7 @@ function copaInvitar(it,titulo){
 window.copaRevisar=copaRevisar;
 /* v48 · el administrador lanza la trivia cuando quiere: sale a los docentes que estén en esa actividad */
 function copaLanzada(L){
-  if(!L||S.vistaComo||S.modo!=='docente'||!S.config) return;
+  if(!L||S.modo!=='docente'||!S.config) return;
   if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;   // solo lanzamientos recientes
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
   const pend=copaPend(), lista=[];
@@ -101,7 +102,7 @@ function copaLanzada(L){
     if(a.min<toMin(s.hora_inicio||s.h)||a.min>=toMin(s.hora_fin||s.f)) return;
     const it={curso:c,hora:s.hora_inicio,clave:copaClave(s),nombre:nomAct(s)};
     if(L.clave!=='*'&&L.clave!==it.clave) return;
-    const kL='copa_lz_'+L.id+'_'+c; if(LS.get(kL,false)) return; LS.set(kL,true);
+    const kL='copa_lz_'+L.id+'_'+c+copaEns(); if(LS.get(kL,false)) return; LS.set(kL,true);
     const yaSalio=LS.get(copaOfrKey(it),false), pendiente=pend.some(x=>x.curso===c&&x.hora===it.hora);
     if(yaSalio&&!pendiente) return;   // ya la respondió
     LS.set(copaOfrKey(it),true); lista.push(it); }));
@@ -111,12 +112,13 @@ function copaLanzada(L){
   copaInvitar(lista[0],'¡Es hora de la trivia!');
 }
 async function copaLanzamientos(){
-  if(S.modo!=='docente'||S.vistaComo) return;
+  if(S.modo!=='docente') return;
   try{ const r=await S.sb.from('sd_copa_lanzar').select('*').gte('creado_en',new Date(Date.now()-45*60000).toISOString()).order('id'); (r.data||[]).forEach(copaLanzada); }catch(_){}
 }
 
 /* ---------- 2) las dos preguntas ---------- */
 async function copaPreguntas(it){
+  if(S.vistaComo){ copaCerrar(); toast('Vista previa («Ver como»): así le aparece la trivia al docente. Las respuestas solo se registran desde su propia cuenta.','',5000); return; }
   const w=copaW(); w.innerHTML='<div class="cwb center"><div class="spin"></div><p class="sm">Preparando tus preguntas…</p></div>';
   let qs=[]; try{ const r=await S.sb.rpc('sd_copa_preguntas',{p_curso:it.curso,p_hora:it.hora,p_clave:it.clave}); if(r.error) throw r.error; qs=r.data||[]; }
   catch(e){ w.innerHTML=`<div class="cwb center"><p>No se pudieron cargar las preguntas: ${escHTML(e.message)}</p><button class="btn" id="cwC">Cerrar</button></div>`; $('cwC').onclick=copaCerrar; return; }
