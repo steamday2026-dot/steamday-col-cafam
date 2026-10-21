@@ -1,12 +1,14 @@
 /* =====================================================================
    STEM Day Cafam · Copa STEM (competencia de docentes)
-   - Después de cada encuesta: puntos por responder, por rapidez y por la opinión.
-   - Luego 2 preguntas al azar de la actividad (30 s cada una; más rápido, más puntos).
+   - v47: 10 minutos antes de terminar cada actividad salen 2 preguntas al azar (30 s cada una; más rápido, más puntos).
+   - v47: 5 minutos antes sale la encuesta: puntos por responder, por rapidez y por la opinión.
    - Barra fija abajo con el podio en vivo (top 10), avisos y sonidos.
    Las respuestas correctas las revisa el servidor (SQL 11-copa-stem.sql).
    ===================================================================== */
 const COPA_SND={correcta:'sonidos/correcta.mp3',incorrecta:'sonidos/incorrecta.mp3',puntos:'sonidos/puntos.mp3',podio:'sonidos/podio.mp3',aviso:'sonidos/aviso.mp3'};
 const COPA_T=30;          // segundos por pregunta
+const COPA_ANTES=10;      // v47: la trivia sale 10 minutos antes de terminar la actividad
+const copaAntes=()=>{ const n=+(S.config&&S.config.copa_antes); return n>0?n:COPA_ANTES; };   // v48: lo cambia el administrador
 let COPA={rank:null, prev:null, ok:true, buf:{}, t:null, pend:[], liga:null};
 const copaLiga=()=>COPA.liga||(S.modo==='master'&&S.perfil&&S.perfil.rol!=='admin'?'mst':'doc');
 const copaYoCompite=()=>COPA.liga?false:(S.modo==='docente'||(S.modo==='master'&&S.perfil.rol!=='admin'));
@@ -20,13 +22,13 @@ async function copaSonar(k){
 /* ---------- utilidades ---------- */
 function copaClave(r){
   const A=window.ActSTEM; const t=r.titulo||r.actividad||r.area||'';
-  const k=A&&A.clave({titulo:t,frase:r.frase||''}); if(k) return k;
+  const k=A&&A.clave({titulo:t,frase:r.frase||''}); if(k) return /^d_/.test(k)?'tec':k;   // v47: los desastres naturales comparten el banco de Tecnología
   const n=String(t).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
   if(/desastres/.test(n)||(r.categoria||r.cat)==='tec') return 'tec';
   if(/^general/.test(n)) return 'general';
   return n.replace(/[^a-z0-9]+/g,' ').trim();
 }
-function copaSegDesdeAviso(s){ // segundos desde que se habilitó la encuesta (7 min antes del final)
+function copaSegDesdeAviso(s){ // segundos desde que se habilitó la encuesta (5 min antes del final)
   const a=ahora(); let seg=(a.min-(toMin(s.hora_fin||s.f)-ENC_ANTES))*60;
   try{ const d=_simBase&&!isNaN(_simBase.d)?new Date(_simBase.d.getTime()+(Date.now()-_simBase.t0)):new Date(Date.now()-5*3600e3); seg+=d.getUTCSeconds(); }catch(e){}
   if(a.fecha>S.config.fecha_evento) seg=99999; return Math.max(0,seg);
@@ -47,16 +49,70 @@ async function copaTrasEncuesta(s,curso,R){
   try{ const r=await S.sb.rpc('sd_copa_encuesta',{p_curso:curso,p_hora:s.hora_inicio,p_seg:seg,p_opinion:opinion}); if(r.error) throw r.error; total=r.data||0; }
   catch(e){ COPA.ok=false; return; }   // la Copa no está activa (falta el SQL 11)
   const rap=copaRap(seg), item={curso,hora:s.hora_inicio,clave:copaClave(s),nombre:nomAct(s)};
-  const l=copaPend().filter(x=>!(x.curso===curso&&x.hora===s.hora_inicio)); l.push(item); copaSetPend(l);
+  // v47: la trivia ya salió 10 minutos antes; solo se ofrece aquí si sigue pendiente o si aún no había salido
+  const kO=copaOfrKey(item), yaSalio=LS.get(kO,false), pendiente=copaPend().some(x=>x.curso===curso&&x.hora===s.hora_inicio);
+  if(!yaSalio){ LS.set(kO,true); copaSetPend([...copaPend(),item]); }
+  const ofrecer=!yaSalio||pendiente;
   if(total>0) copaSonar('puntos');
   const w=copaW();
   w.innerHTML=`<div class="cwhd" style="background:linear-gradient(135deg,#1f9d6b,#16805a)"><span class="x" id="cwX">✕</span><small>📝 ENCUESTA · ${escHTML(curso)}</small><h3>${escHTML(nomAct(s))}</h3></div>
    <div class="cwb center"><div style="font-size:56px">🎉</div><h3>¡Encuesta enviada!</h3>
    <div class="chips">${total?`<span class="cchip ok">📝 +50</span>${rap?`<span class="cchip gold">⚡ +${rap} rápida</span>`:''}${opinion?'<span class="cchip ok">💬 +20 opinión</span>':''}`:'<span class="cchip">Ya habías sumado estos puntos</span>'}</div>
-   <button class="btn cgo" id="cwGo">⚡ Gana hasta 110 pts más: 2 preguntas</button>
-   <p class="sm">30 segundos por pregunta · un solo intento</p><button class="btn ghost" id="cwLuego" style="margin-top:6px">Más tarde</button></div>`;
+   ${ofrecer?`<button class="btn cgo" id="cwGo">⚡ Aún tienes la trivia: hasta 110 pts más</button>
+   <p class="sm">30 segundos por pregunta · un solo intento</p><button class="btn ghost" id="cwLuego" style="margin-top:6px">Más tarde</button>`:`<button class="btn" id="cwLuego">Ver el podio</button>`}</div>`;
+  $('cwX').onclick=()=>copaCerrar();
+  $('cwLuego').onclick=()=>{ copaCerrar(); if(ofrecer) toast('Tus preguntas quedan en la barra 🏆 Copa STEM.','',3500); else copaPodio(); };
+  if($('cwGo')) $('cwGo').onclick=()=>copaPreguntas(item);
+}
+
+/* ---------- 1b) v47 · trivia 10 minutos antes de terminar la actividad (sin esperar la encuesta) ---------- */
+const copaOfrKey=it=>'copa_ofr_'+(S.perfil&&S.perfil.id)+'_'+it.curso+'_'+it.hora;
+function copaRevisar(){
+  if(S.vistaComo||S.modo!=='docente'||!COPA.ok||!S.config) return;
+  const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
+  const nuevos=[];
+  (S.cursos||[]).forEach(c=>rutaCurso(c).filter(evaluable).forEach(s=>{ const fin=toMin(s.hora_fin||s.f);
+    if(a.min<fin-copaAntes()||a.min>=fin) return;
+    const it={curso:c,hora:s.hora_inicio,clave:copaClave(s),nombre:nomAct(s)}, k=copaOfrKey(it);
+    if(LS.get(k,false)) return; LS.set(k,true); nuevos.push(it); }));
+  if(!nuevos.length) return;
+  copaSetPend([...copaPend().filter(x=>!nuevos.some(n=>n.curso===x.curso&&n.hora===x.hora)),...nuevos]);
+  const w=$('copaW'); if(w&&!w.hidden) return;   // ya hay algo abierto: queda en la barra
+  copaInvitar(nuevos[0],`¡Faltan ${copaAntes()} minutos!`);
+}
+function copaInvitar(it,titulo){
+  copaSonar('aviso');
+  const v=copaW();
+  v.innerHTML=`<div class="cwhd"><span class="x" id="cwX">✕</span><small>⚡ TRIVIA COPA STEM · ${escHTML(it.curso)}</small><h3>${escHTML(titulo)}</h3><span class="cact">🌍 ${escHTML(it.nombre)}</span></div>
+   <div class="cwb center"><div style="font-size:52px">🧠</div><h3>2 preguntas sobre esta actividad</h3>
+   <p class="sm">30 segundos por pregunta · un solo intento · más rápido, más puntos</p>
+   <button class="btn cgo" id="cwGo">⚡ Responder ahora (hasta +110 pts)</button><button class="btn ghost" id="cwLuego" style="margin-top:6px">Más tarde</button></div>`;
   $('cwX').onclick=$('cwLuego').onclick=()=>{ copaCerrar(); toast('Tus preguntas quedan en la barra 🏆 Copa STEM.','',3500); };
-  $('cwGo').onclick=()=>copaPreguntas(item);
+  $('cwGo').onclick=()=>copaPreguntas(it);
+}
+window.copaRevisar=copaRevisar;
+/* v48 · el administrador lanza la trivia cuando quiere: sale a los docentes que estén en esa actividad */
+function copaLanzada(L){
+  if(!L||S.vistaComo||S.modo!=='docente'||!S.config) return;
+  if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;   // solo lanzamientos recientes
+  const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
+  const pend=copaPend(), lista=[];
+  (S.cursos||[]).forEach(c=>rutaCurso(c).filter(evaluable).forEach(s=>{
+    if(a.min<toMin(s.hora_inicio||s.h)||a.min>=toMin(s.hora_fin||s.f)) return;
+    const it={curso:c,hora:s.hora_inicio,clave:copaClave(s),nombre:nomAct(s)};
+    if(L.clave!=='*'&&L.clave!==it.clave) return;
+    const kL='copa_lz_'+L.id+'_'+c; if(LS.get(kL,false)) return; LS.set(kL,true);
+    const yaSalio=LS.get(copaOfrKey(it),false), pendiente=pend.some(x=>x.curso===c&&x.hora===it.hora);
+    if(yaSalio&&!pendiente) return;   // ya la respondió
+    LS.set(copaOfrKey(it),true); lista.push(it); }));
+  if(!lista.length) return;
+  copaSetPend([...copaPend().filter(x=>!lista.some(n=>n.curso===x.curso&&n.hora===x.hora)),...lista]);
+  const w=$('copaW'); if(w&&!w.hidden) return;
+  copaInvitar(lista[0],'¡Es hora de la trivia!');
+}
+async function copaLanzamientos(){
+  if(S.modo!=='docente'||S.vistaComo) return;
+  try{ const r=await S.sb.from('sd_copa_lanzar').select('*').gte('creado_en',new Date(Date.now()-45*60000).toISOString()).order('id'); (r.data||[]).forEach(copaLanzada); }catch(_){}
 }
 
 /* ---------- 2) las dos preguntas ---------- */
@@ -154,6 +210,9 @@ function copaPodio(refresca){
 function copaIniciar(){
   if(!$('copaBar')) return;
   copaRanking(true); clearInterval(COPA.iv); COPA.iv=setInterval(()=>copaRanking(false),60000);
+  clearInterval(COPA.rv); COPA.rv=setInterval(copaRevisar,20000); setTimeout(copaRevisar,4000); setTimeout(copaLanzamientos,5000);
+  if(!COPA.vis){ COPA.vis=true; document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ setTimeout(copaRevisar,1200); setTimeout(copaLanzamientos,1600); } }); }
+  if(!COPA.chL){ try{ COPA.chL=S.sb.channel('copa-lanzar').on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_copa_lanzar'},p=>copaLanzada(p.new)).subscribe(); }catch(_){} }
   if(!COPA.ch){ COPA.ch=S.sb.channel('copa').on('postgres_changes',{event:'INSERT',schema:'public',table:'sd_copa_puntos'},()=>{ clearTimeout(COPA.rt); COPA.rt=setTimeout(()=>copaRanking(false),1800); }).subscribe(); }
 }
 window.copaTrasEncuesta=copaTrasEncuesta; window.copaIniciar=copaIniciar; window.copaClave=copaClave;
