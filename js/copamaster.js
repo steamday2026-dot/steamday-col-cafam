@@ -23,6 +23,8 @@ function cmIniciar(){
     const pa=window.pintarAgenda; window.pintarAgenda=pintarAgenda=function(){ pa(); cmAgenda(); };
     const ta=window.tickAgenda; window.tickAgenda=tickAgenda=function(){ ta(); cmTarjeta(); };
     setInterval(cmRecordar,30000); setTimeout(cmRecordar,5000);
+    setInterval(cmRevisarTrivia,20000); setTimeout(cmRevisarTrivia,6000);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(cmRevisarTrivia,1200); });
   }
   if(S.modo==='docente') setTimeout(cmSellosPendientes,6000);
   try{
@@ -38,16 +40,22 @@ window.cmIniciar=cmIniciar;
 /* ---------- bloque de agenda: ventana para actuar ---------- */
 function cmEstado(b){ const m=minAhora(), ini=toMin(b.hora_inicio), fin=toMin(b.hora_fin);
   return { abierto:m>=ini-10&&m<fin, reportable:m>=ini-10&&m<=fin+30, futuro:m<ini-10, pasado:m>fin+30 }; }
+/* v50 · todas las actividades de la zona durante el bloque; la del hacer usa sus preguntas de Primaria o Bachillerato */
+const cmClaveFila=r=>{ const k=copaClave(r); return k==='hacer'||/actividad del hacer/i.test(r.area||'')?(/bach/i.test(r.nivel||'')?'hacer_bach':'hacer_pri'):k; };
 function cmClave(b){ const i0=b.hora_inicio, f0=b.hora_fin, k=cmKey(b.lugar);
-  const en=r=>r.tipo==='actividad'&&r.hora_inicio<f0&&r.hora_fin>i0, zona=r=>k&&cmKey(r.salon)&&(cmKey(r.salon).includes(k)||k.includes(cmKey(r.salon)));
-  const f=S.prog.find(r=>en(r)&&zona(r));
-  return f?{clave:copaClave(f),nombre:titA(f.titulo||f.area)}:{clave:'general',nombre:'el STEM Day y el cambio climático'}; }
+  const en=r=>r.tipo==='actividad'&&r.hora_inicio<f0&&r.hora_fin>i0&&!/direcci[oó]n de (grupo|curso)/i.test((r.area||'')+' '+(r.titulo||'')), zona=r=>k&&cmKey(r.salon)&&(cmKey(r.salon).includes(k)||k.includes(cmKey(r.salon)));
+  const fs=S.prog.filter(r=>en(r)&&zona(r));
+  if(!fs.length) return {clave:'general',claves:['general'],nombre:'el STEM Day y el cambio climático'};
+  const claves=[...new Set(fs.map(cmClaveFila))], noms=claves.map(k=>k==='tec'?'Desastres naturales':/^hacer_/.test(k)?'la Actividad del hacer':(r=>titA(r.titulo||r.area))(fs.find(r=>cmClaveFila(r)===k)));
+  return {clave:claves[0],claves,nombre:noms.length===1?noms[0]:noms.length+' actividades de tu zona'}; }
 function cmBotones(b,compacto){
   const e=cmEstado(b), r=CM.rep[b.id]||{}, out=[];
   if(!CM.ok||b.tipo==='lib') return '';   // v40: almuerzo y desplazamiento no suman puntos
   if(r.llegada_en) out.push(`<span class="cmok">✓ Llegaste ${hDe(minDe(r.llegada_en))}</span>`);
   else if(e.abierto) out.push(`<button class="cmb ll" data-cm="ll" data-id="${b.id}">📍 Llegué a mi zona</button>`);
-  if(r.reportado_en) out.push(`<span class="cmok">✓ Reporte enviado</span>${!compacto&&!LS.get('cm_triv_'+b.id,false)?`<button class="cmb tv" data-cm="tv" data-id="${b.id}">⚡ Trivia de zona</button>`:''}`);
+  const tvOk=!LS.get(cmTrivKey(b),false)&&(r.reportado_en||cmEnTrivia(b));   // v50: la trivia también se abre sola X minutos antes del final
+  if(r.reportado_en) out.push(`<span class="cmok">✓ Reporte enviado</span>${!compacto&&tvOk?`<button class="cmb tv" data-cm="tv" data-id="${b.id}">⚡ Trivia de zona</button>`:''}`);
+  else if(tvOk&&!compacto) out.push(`<button class="cmb tv" data-cm="tv" data-id="${b.id}">⚡ Trivia de zona</button>`);
   else if(e.reportable&&(r.llegada_en||minAhora()>=toMin(b.hora_inicio))) out.push(`<button class="cmb rp" data-cm="rp" data-id="${b.id}">📝 Reporte de la zona</button>`);
   if(!out.length&&e.futuro&&!compacto) out.push('<span class="cmfut">🏆 Ronda de vigía: podrás marcar tu llegada 10 min antes</span>');
   return out.length?`<div class="cmact">${out.join('')}</div>`:'';
@@ -124,8 +132,38 @@ function cmReporte(b){
 }
 
 /* ---------- ⚡ trivia de zona (mismo banco y reglas de la Copa) ---------- */
-function cmTrivia(b){ if(cmVista()) return; const z=cmClave(b); LS.set('cm_triv_'+b.id,true); cmRepintar();
-  copaPreguntas({curso:'M'+b.id,hora:b.hora_inicio,clave:z.clave,nombre:'Trivia de zona · '+z.nombre}); }
+function cmTrivia(b){ if(cmVista()) return; const z=cmClave(b); LS.set(cmTrivKey(b),true); cmRepintar();
+  copaPreguntas({curso:'M'+b.id,hora:b.hora_inicio,clave:z.clave,claves:z.claves,nombre:'Trivia de zona · '+z.nombre}); }
+/* v50 · la trivia de zona sale sola X minutos antes de que termine el bloque (lo configura el administrador) */
+const cmEns=()=>typeof copaEns==='function'?copaEns():'';
+const cmTrivKey=b=>'cm_triv_'+b.id+cmEns();
+const cmAntes=()=>{ const n=+(S.config&&S.config.copa_antes_master); return n>0?n:10; };
+const cmEnTrivia=b=>{ if(!cmEsDia()) return false; const m=minAhora(), fin=toMin(b.hora_fin); return m>=fin-cmAntes()&&m<fin; };
+function cmInvitarTrivia(b,titulo){
+  const z=cmClave(b); if(window.copaSonar) copaSonar('aviso');
+  const w=copaW();
+  w.innerHTML=`<div class="cwhd"><span class="x" id="cwX">✕</span><small>⚡ TRIVIA DE ZONA · LIGA MASTER</small><h3>${escHTML(titulo)}</h3><span class="cact">📍 ${escHTML(lugarTxt(b.lugar))}</span></div>
+   <div class="cwb center"><div style="font-size:52px">🧠</div><h3>2 preguntas sobre ${escHTML(z.nombre)}</h3>
+   <p class="sm">30 segundos por pregunta · un solo intento · más rápido, más puntos</p>
+   <button class="btn cgo" id="cwGo">⚡ Responder ahora (hasta +110 pts)</button><button class="btn ghost" id="cwLuego" style="margin-top:6px">Más tarde</button></div>`;
+  $('cwX').onclick=$('cwLuego').onclick=()=>{ copaCerrar(); toast('La encuentras en «Mi agenda» con el botón ⚡ Trivia de zona.','',4000); cmRepintar(); };
+  $('cwGo').onclick=()=>{ if(S.vistaComo){ copaCerrar(); return cmVista(); } cmTrivia(b); };
+}
+function cmRevisarTrivia(){
+  if(!esCompMaster()||!S.config||!cmEsDia()) return;
+  const m=minAhora();
+  (S.agenda||[]).forEach(b=>{ if(b.tipo==='lib'||!cmEnTrivia(b)) return; const k='cm_trivinv_'+b.id+cmEns(); if(LS.get(k,false)||LS.get(cmTrivKey(b),false)) return;
+    LS.set(k,true); cmRepintar(); const w=$('copaW'); if(w&&!w.hidden) return;
+    const f=toMin(b.hora_fin)-m; cmInvitarTrivia(b,f>1?`¡Faltan ${f} minutos!`:'¡Falta 1 minuto!'); });
+}
+function cmLanzada(L){
+  if(!esCompMaster()||!S.config||!cmEsDia()) return;
+  if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;
+  const b=(bloqueAhora()||{}).cur; if(!b||b.tipo==='lib'||LS.get(cmTrivKey(b),false)) return;
+  const k='cm_lz_'+L.id+'_'+b.id+cmEns(); if(LS.get(k,false)) return; LS.set(k,true);
+  const w=$('copaW'); if(w&&!w.hidden) return; cmInvitarTrivia(b,'¡Es hora de la trivia!');
+}
+window.cmLanzada=cmLanzada;
 
 /* ---------- 🏅 Sello STEM ---------- */
 function cmSello(pre){ pre=pre||{};
