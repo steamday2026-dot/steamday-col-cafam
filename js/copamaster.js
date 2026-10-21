@@ -3,7 +3,7 @@
    - Ronda de vigía: «📍 Llegué a mi zona» y reporte rápido en cada bloque de la Agenda Master.
    - Trivia de zona: 2 preguntas sobre la actividad que ocurre en esa zona (banco de la Copa).
    - Sello STEM: reconocimientos a cursos, estudiantes o docentes.
-   - Las novedades le llegan en vivo al Org. Master y al administrador; los sellos, al curso.
+   - Las novedades le llegan en vivo al Máster Coord. y al administrador; los sellos, al curso.
    Los puntos los calcula el servidor (SQL 19-liga-master.sql).
    ===================================================================== */
 const CM={ rep:{}, listo:false, ok:true };
@@ -102,7 +102,7 @@ async function cmLlegue(b){
 function cmReporte(b){
   const w=copaW(), R={orden:null,flujo:null,conv:null};
   w.innerHTML=`<div class="cwhd" style="background:linear-gradient(135deg,#0f5132,#1f9d6b)"><span class="x" id="cwX">✕</span><small>REPORTE DE ZONA · ${fmtHora(b.hora_inicio)} a ${fmtHora(b.hora_fin)}</small><h3>${escHTML(lugarTxt(b.lugar))}</h3></div>
-    <div class="cwb"><p class="sm" style="margin:0 0 10px">Tres toques. Si hay una novedad, el Org. Master la recibe al instante.</p>
+    <div class="cwb"><p class="sm" style="margin:0 0 10px">Tres toques. Si hay una novedad, el Máster Coord. la recibe al instante.</p>
       <div class="cmq"><b>¿Todo en orden en la zona?</b><div class="cmops" data-k="orden"><span data-v="1">✅ Sí</span><span data-v="0">⚠️ Hay novedad</span></div></div>
       <div class="cmq"><b>Flujo de estudiantes</b><div class="cmops" data-k="flujo">${Object.entries(CM_FLUJO).map(([k,v])=>`<span data-v="${k}">${v}</span>`).join('')}</div></div>
       <div class="cmq"><b>Convivencia</b><div class="cmops" data-k="conv">${Object.entries(CM_CONV).map(([k,v])=>`<span data-v="${k}">${v}</span>`).join('')}</div></div>
@@ -209,7 +209,7 @@ function cmAsisHook(el,c){
 }
 window.cmAsisHook=cmAsisHook;
 
-/* ---------- panel de resultados (administrador y Org. Master) ---------- */
+/* ---------- panel de resultados (administrador y Máster Coord.) ---------- */
 async function cmPanelHTML(){
   const [a,r,s]=await Promise.all([S.sb.rpc('sd_copa_master_admin'), S.sb.from('sd_master_reportes').select('*').order('reportado_en',{ascending:false}).limit(500), S.sb.from('sd_sellos').select('*').order('creado_en',{ascending:false}).limit(300)]);
   if(a.error) return `<div class="warnbox">La Liga Master aún no está activa: ${escHTML(a.error.message)}. Ejecuta el archivo <b>19-liga-master.sql</b>.</div>`;
