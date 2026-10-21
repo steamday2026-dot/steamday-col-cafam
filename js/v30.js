@@ -51,8 +51,8 @@ window.enLineaAhora=()=>V30.enLinea;
 function vigilarPerfil(){
   try{
     S.sb.channel('yo-'+S.perfil.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'sd_perfiles',filter:'id=eq.'+S.perfil.id},p=>{
-      const n=p.new||{}; if(n.rol!==S.perfil.rol||!!n.org_master!==!!S.perfil.org_master){
-        ventana({icono:'🔄',titulo:'Tu perfil se actualizó',html:`<p>El administrador cambió tu perfil a <b>${escHTML(PERFIL_N[n.rol]||n.rol)}${n.org_master?' · Organizador Master':''}</b>. La app se va a actualizar.</p>`,botones:[{t:'Actualizar ahora',fn:()=>{ location.reload(); }}]});
+      const n=p.new||{}; if(n.rol!==S.perfil.rol||!!n.org_master!==!!S.perfil.org_master||!!n.org_lista!==!!S.perfil.org_lista){
+        ventana({icono:'🔄',titulo:'Tu perfil se actualizó',html:`<p>El administrador cambió tu perfil a <b>${escHTML(n.rol==='organizador'&&n.org_lista?'Organizador Master':PERFIL_N[n.rol]||n.rol)}${n.org_master?' · Máster Coordinador':''}</b>. La app se va a actualizar.</p>`,botones:[{t:'Actualizar ahora',fn:()=>{ location.reload(); }}]});
       } }).subscribe();
   }catch(e){}
 }
