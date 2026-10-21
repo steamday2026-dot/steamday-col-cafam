@@ -732,3 +732,7 @@ small.mylog{display:block;color:#0f766e!important;font-weight:600}
 .dlbox.may{border-color:#b9d6f7;background:#f3f8ff}
 /* v51 · lista bloqueada antes del día del evento */
 #listaPz.lbloq .st span,#listaPz.lbloq select,#listaPz.lbloq input[data-m],#listaPz.lbloq input[data-d],#listaPz.lbloq input[data-dd]{pointer-events:none;opacity:.45}
+
+/* v52 · Ver como: lista desplegable de perfiles */
+.vclab{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 4px}
+.vcsel{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font:inherit;font-weight:700;color:var(--brand);background:#eef1f6}
