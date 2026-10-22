@@ -736,3 +736,9 @@ small.mylog{display:block;color:#0f766e!important;font-weight:600}
 /* v52 · Ver como: lista desplegable de perfiles */
 .vclab{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 4px}
 .vcsel{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font:inherit;font-weight:700;color:var(--brand);background:#eef1f6}
+/* v56 · ventana con todas las propuestas de turnos */
+.tplist{text-align:left;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.tpfila{display:grid;grid-template-columns:62px 1fr auto;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px}
+.tpfila:last-child{border-bottom:0}.tpfila span{color:var(--muted)}
+.tpfila em{font-style:normal;font-weight:800;font-size:12px;padding:3px 8px;border-radius:999px;background:#e8f7f0;color:#1f6f5c}
+.tpfila em.qC{background:#eef2ff;color:#3a4fb3}.tpfila em.qA{background:#fff4e0;color:#9a5b00}
