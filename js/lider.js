@@ -327,7 +327,7 @@ function pintarEstacion(){
   if(nxt&&rNxt.length) h+=`<div class="lcard"><div class="k">Siguiente · ${fmtHora(nxt.h)}</div>${rNxt.map(r=>`<div class="lrow"><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><div><b>${escHTML(r.grado||'')}</b> con ${escHTML(lidNom(r.acompanante)||'—')}</div></div>`).join('')}</div>`;
   if(m>=0&&!cur&&!nxt) h+=`<div class="lcard"><div class="k">Terminaste tus rotaciones</div><p>¡Gracias por liderar tu estación en el STEM Day! 🎉</p></div>`;
   h+=`<button class="pbtn alt" id="lApoyo">💬 Pedir apoyo a los organizadores</button>`;
-  el.innerHTML=h;
+  el.innerHTML=h; if(window.apoyosLider) apoyosLider(el);   // v58: estudiantes de apoyo
   el.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{ LIDE.sal=x.dataset.s; pintarEstacion(); });
   if($('lSal')) $('lSal').onchange=e=>{ LIDE.sal=e.target.value; pintarEstacion(); };
   el.querySelectorAll('[data-lleg]').forEach(b=>b.onclick=()=>marcarLlegada(b.dataset.lleg));
@@ -370,7 +370,7 @@ function pintarRotaciones(){
   const r0=fs[0];
   let h=`<div class="lcard" style="margin-top:0"><div class="k">${escHTML(nombreAct(r0))}</div><b style="font-size:15px">${F.length} rotaciones · ${ver.length} grupos</b><small style="display:block;color:var(--muted)">${escHTML(sal.join(' · '))}</small></div>
     ${sal.length>1?`<div class="segs wrap" style="margin:8px 0">${['*',...sal].map(x=>`<span class="${x===LIDE.rsal?'on lid':''}" data-s="${escHTML(x)}">${x==='*'?'Todos':escHTML(x)}</span>`).join('')}</div>`:''}`;
-  const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
+  const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.titulo||p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
   items.forEach(x=>{ if(x.t==='p'){ h+=`<div class="rsep">☕ ${escHTML(x.area)} · ${fmtHora(x.h)} a ${fmtHora(x.f)}</div>`; return; }
     const est=toMin(x.f)<=m?'ok':toMin(x.h)<=m?'now':'nx';
     h+=`<div class="rot2 ${est}"><div class="h">${fmtHora(x.h)}<small>a ${fmtHora(x.f)}</small></div><div class="c">${x.rs.map(r=>`<div><span class="cur" style="background:${r.nivel==='Primaria'?'#1f9d6b':'#2f6fde'}">${escHTML(r.curso)}</span><b>${escHTML(r.grado||'')}</b> · ${escHTML(r.salon||'')}<small>Director: ${escHTML(r.acompanante||'—')}${r.apoyo?' · Codirector: '+escHTML(r.apoyo):''}</small>${window.conQuienHTML?conQuienHTML(r.curso,r.hora_inicio,'Llega con'):''}</div>`).join('')}</div><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>`; });
@@ -387,7 +387,7 @@ function pintarRotColiseo(fs){
   const mios=col.filter(r=>L(r)===mi).length, zm=z(mi);
   let h=`<div class="lcard colcard" style="margin-top:0;--c:${zm[1]}"><span class="colL">${escHTML(mi)}</span><div><div class="k">Tu espacio en el Coliseo</div><b style="font-size:15px">${zm[2]} ${escHTML(zm[0])}</b><small style="display:block;color:var(--muted)">${F.length} rotaciones · ${mios} grupos llegan a tu espacio</small></div></div>
     <div class="segs" style="margin:8px 0"><span data-cm="todo" class="${modo==='todo'?'on lid':''}">Todo el Coliseo</span><span data-cm="mi" class="${modo==='mi'?'on lid':''}">Solo mi espacio</span></div>`;
-  const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
+  const items=[...F.map(x=>({t:'r',...x})), ...pausas.filter((p,i,a)=>a.findIndex(q=>q.hora_inicio===p.hora_inicio)===i).map(p=>({t:'p',h:p.hora_inicio,f:p.hora_fin,area:p.titulo||p.area}))].sort((a,b)=>a.h.localeCompare(b.h));
   items.forEach(x=>{ if(x.t==='p'){ h+=`<div class="rsep">☕ ${escHTML(x.area)} · ${fmtHora(x.h)} a ${fmtHora(x.f)}</div>`; return; }
     const est=toMin(x.f)<=m?'ok':toMin(x.h)<=m?'now':'nx', yo=x.rs.find(r=>L(r)===mi);
     h+=`<div class="rotcol e-${est}"><div class="rh"><b>${fmtHora(x.h)} a ${fmtHora(x.f)}</b><span class="st">${est==='ok'?'✓ Terminó':est==='now'?'● Ahora':'Próxima'}</span></div>
