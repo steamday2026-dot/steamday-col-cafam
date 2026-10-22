@@ -234,7 +234,7 @@ function mostrarLlegada(container, r, lids){
   const tit = (r.titulo && window.tituloA) ? window.tituloA(r.titulo) : (r.titulo||'');
   const frase = r.frase ? String(r.frase).trim() : '';
   const T = t ? {...TEMAS[t], titulo: tit || (t==='tec'?TEMAS.tec.titulo:(r.nombre||TEMAS[t].titulo)), sub: frase || TEMAS[t].sub}
-              : {titulo: r.nombre, sub: r.tipo==='pausa' ? '¡Momento de recargar energías!' : (frase || 'Llegaste a la siguiente estación.'), col: r.tipo==='pausa'?'#e9a23b':({lista:'#2f6fde',rompe:'#7b4bd6',hacer:'#1f9d6b'}[k]||'#173d7a'), dur: frase&&r.tipo!=='pausa' ? Math.max(5200, Math.min(9000, 2800 + frase.length*26)) : 2400};
+              : {titulo: r.nombre, sub: r.tipo==='pausa' ? (/^desplaz/i.test(r.area||'')?'Es hora de movilizarnos hacia '+(/primaria/i.test(r.area)?'Primaria':'Bachillerato')+'.':/^descanso/i.test(r.area||'')?'Disfruten su tiempo de descanso, recuerden estar en las instalaciones del colegio respectivas.':'¡Momento de recargar energías!') : (frase || 'Llegaste a la siguiente estación.'), col: r.tipo==='pausa'?'#e9a23b':({lista:'#2f6fde',rompe:'#7b4bd6',hacer:'#1f9d6b'}[k]||'#173d7a'), dur: frase&&r.tipo!=='pausa' ? Math.max(5200, Math.min(9000, 2800 + frase.length*26)) : 2400};
   if(t) T.dur = Math.max(5200, Math.min(9000, 2800 + (T.sub||'').length*26));
   const dibujo = (k && (t!=='tec'||/^d_/.test(k)) && (t||['lista','rompe','hacer'].includes(k)) && A.tiene(k)) ? A.svg(k) : animSVG(t,r);   // v30: Tecnología tiene una animación por desastre
   let el=container.querySelector('.arrive');
