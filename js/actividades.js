@@ -41,7 +41,7 @@ const REG=[
   ['estanque','pasando en el estanque|pistas de la naturaleza|pistas biologicas'],
   ['extremos','extremos|hielo y el fuego|dos temperaturas'],
   ['ficcion','ficcion y la realidad|mecanica, cuantica|biofisica'],
-  ['comes','lo que comes|lo que comemos|tienes lo que se necesita'],
+  ['comes','lo que comes|lo que comemos|tienes lo que se necesita|nutricion y habitos'],
   ['microbios','microbios a manjares|fermentacion'],
   ['visible','mas alla de lo visible|fisica detras del vuelo'],
   ['solucion','solucion para el planeta|combinan creatividad'],
@@ -59,11 +59,11 @@ const REG=[
   ['derivada','derivada|analiza el origen'],
   ['cop','cop-26|cop 26|acuerdos internacionales'],
   ['cinematica','cinematica|inercia'],
-  ['escape','escape room|resuelve el misterio'],
+  ['escape','escape room|scape room|resuelve el misterio'],
   ['hidrosfera','hidrosfera'],
   ['magnitud','mision magnitud|operacion planeta'],
   ['forense','forense|huellas quimicas'],
-  ['trazo','trazo verde|estampado'],
+  ['trazo','trazo verde|estampado|trazos que clasifican'],
   ['comer','huella dejas al comer|alimentos que nutren'],
   ['alquimia','alquimia|desechos del cafe'],
   ['esquejes','esquejes|enraizar'],
@@ -72,7 +72,7 @@ const REG=[
   ['lanzamiento','lanzamiento limpio|presion, agua'],
   ['fisica','fisica analitica|prototipos'],
   ['induccion','induccion|maletas cientificas|electromagnetismo'],
-  ['insectos','micro-mundo|insectos']
+  ['insectos','micro-mundo|insectos|bichos bajo la lupa']
 ];
 function claveDe(r){ const t=sinTildes((r.titulo||r.nombre||'')+' | '+(r.frase||''));
   for(const [k,p] of REG) if(p.split('|').some(x=>t.includes(x))) return k; return null; }
