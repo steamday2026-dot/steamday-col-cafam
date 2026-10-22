@@ -355,7 +355,7 @@ function pedirApoyo(){
   $('apX').onclick=()=>$('modalBox').innerHTML='';
   $('apOk').onclick=async()=>{ const v=$('apTxt').value.trim(); if(!v) return; if(S.vistaComo){ $('modalBox').innerHTML=''; return avisoVista(); }
     const r0=filasLider().find(r=>(r.salon||'')===LIDE.sal);
-    const {error}=await S.sb.from('sd_chat').insert({perfil_id:S.perfil.id,nombre:'⭐ '+S.perfil.nombre+(LIDE.sal?' · '+LIDE.sal:''),mensaje:v.slice(0,1000)});
+    if(window.avisarYa) setTimeout(avisarYa,300); const {error}=await S.sb.from('sd_chat').insert({perfil_id:S.perfil.id,nombre:'⭐ '+S.perfil.nombre+(LIDE.sal?' · '+LIDE.sal:''),mensaje:v.slice(0,1000)});
     if(error) return toast('No se envió: '+error.message,'bad',4000); $('modalBox').innerHTML=''; toast('Mensaje enviado a los organizadores','ok'); };
 }
 
