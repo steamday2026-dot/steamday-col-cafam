@@ -706,10 +706,10 @@ const pisoDe=s=>(/^3|piso 3/.test(ns(s))?'3':'2');
 const intKey=f=>{ const k=escDe(f), s=ns(f.salon); if(k==='bS') return pisoDe(s)==='3'?'bS3':'bS2'; if(k==='pAB'||k==='pAC') return k+(s[2]==='2'?'2':'1'); return k; };
 function camSVG(){ if(!CAM) return ''; const L=CAM.legs[CAM.li]; if(!L) return ''; const pts=L.pts.map(p=>P(...p)); let s='';
   if(pts.length>1){ const d='M'+pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' L');
-    s+=`<path d="${d}" fill="none" stroke="#fff" stroke-width="${scene==='ext'?9:9*KI()}" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/><path class="cam-path" pathLength="1" d="${d}" fill="none" stroke="#f2a900" stroke-width="${scene==='ext'?5:5*KI()}" stroke-linecap="round" stroke-linejoin="round"/>`; }
+    s+=`<path d="${d}" fill="none" stroke="#fff" stroke-width="${scene==='ext'?9:9*KI()}" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/><path class="cam-path" pathLength="1" d="${d}" fill="none" stroke="${CAM.col||'#f2a900'}" stroke-width="${scene==='ext'?5:5*KI()}" stroke-linecap="round" stroke-linejoin="round"/>`; }
   const pin=(p,col,txt,anim)=>`<g transform="translate(${p[0].toFixed(1)},${p[1].toFixed(1)}) scale(${scene==='ext'?1.6:1.05*KI()})"><ellipse rx="9" ry="4" fill="${col}" opacity=".3">${anim?'<animate attributeName="rx" values="6;13;6" dur="1.4s" repeatCount="indefinite"/>':''}</ellipse><path d="M0 0 c-5-6-7-9-7-12.5a7 7 0 0 1 14 0c0 3.5-2 6.5-7 12.5z" transform="translate(0,-2)" fill="${col}" stroke="#fff" stroke-width="1.5"/><circle cy="-14.5" r="2.6" fill="#fff"/><g transform="translate(0,-26)"><rect x="${-txt.length*2.6-6}" y="-8" width="${txt.length*5.2+12}" height="14" rx="7" fill="${col}"/><text y="2.5" text-anchor="middle" style="font-size:8px;font-weight:800;fill:#fff">${txt}</text></g></g>`;
   if(CAM.li===0) s+=pin(pts[0],'#5b6577',CAM.oTxt,false);
-  if(CAM.li===CAM.legs.length-1) s+=pin(pts[pts.length-1],'#e5484d','Debes estar aquí',true);
+  if(CAM.li===CAM.legs.length-1) s+=pin(pts[pts.length-1],'#e5484d',CAM.dTxt||'Debes estar aquí',true);
   return s; }
 /* puerta dibujada dentro del Hall */
 function puertaInt(i,j,t,lado){ const [x,y]=P(i,j); return `<g><rect x="${x-5}" y="${y-14}" width="10" height="14" rx="1.5" fill="#8a5a3b" stroke="#5b3a24"/><rect x="${x+(lado<0?-52:8)}" y="${y-22}" width="44" height="13" rx="6" fill="#173d7a"/><text x="${x+(lado<0?-30:30)}" y="${y-12.6}" text-anchor="middle" style="font-size:6.8px;font-weight:800;fill:#fff">${t}</text></g>`; }
@@ -786,6 +786,20 @@ async function mostrarCamino(orgRow,dstRow,oTxt){ if(busy||!dstRow) return; busy
   } finally { busy=false; } }
 
 
+/* v57 · desplazamientos entre sedes (9:45 y 7:30): azul = Primaria baja de Bachillerato a Primaria;
+   rojo = Bachillerato sube de Primaria a Bachillerato (y al revés, 7:30, baja a Primaria) */
+const RUTA_AZUL=[[-34,221],[-34,178],[-60,163],CAN_B,CAN_R,CAN_T,[100,-95],[137,-96],[137,-233.5],[176,-256.7]];
+const RUTA_ROJA=[[190,-252],[176,-256.7],[137,-233.5],[137,-180],[30,-115],[-50,-60],[-140,40],[-110,120],[-60,163],[-34,221]];
+async function desplazar(tipo){ if(busy) return; busy=true;
+  try{
+    let pts, col, oTxt, dTxt;
+    if(tipo==='azul'){ pts=[WX.coliseo,...RUTA_AZUL.map(p=>IJ(...p))]; col='#2f6fde'; oTxt='Salen de Bachillerato'; dTxt='Sede Primaria'; }
+    else { pts=[...RUTA_ROJA.map(p=>IJ(...p)),WX.coliseo]; col='#e5484d'; oTxt='Salen de Primaria'; dTxt='Sede Bachillerato'; if(tipo==='rojo_inv'){ pts=pts.slice().reverse(); oTxt='Salen de Bachillerato'; dTxt='Sede Primaria'; } }
+    CAM={legs:[{scene:'ext',pts}],li:0,oTxt,dTxt,col}; scene='ext'; avPos=pts[0]; render(); setVB(encuadrar(pts,.9)); await wait(1300);
+    await caminar(pts,230); avPos=pts[pts.length-1]; await saludo();
+    const v=svg._vb, t=encuadrar(pts,.9); await anim(700,q=>{const e=ease(q); setVB(v.map((a,i)=>lerp(a,t[i],e)));}); FULL=t;
+  } finally { busy=false; } }
+
 /* ===================== API ===================== */
 function montar(){
   if(svg) return; box_=$c('cvMap');
@@ -806,6 +820,7 @@ const API={
   abrirMaster(){ montar(); CAM=null; EXTK=null; scene='ext'; avPos=WX.inicio; render(); fit(); },
   refrescar(){ if(svg&&!busy) render(); },
   /* vista docente: camino desde la estación anterior hasta la actual */
+  async desplazamiento(tipo){ montar(); await desplazar(tipo); },
   async camino(org,dst){ montar(); CAM=null; scene='ext'; avPos=org?door(escDe(org)):WX.inicio; org=nrow(org); dst=nrow(dst); render(); fit(); await mostrarCamino(org,dst); },
   zona(f){ return escDe(f); }, nombreZona(k){ return EXT[k]||k; },
   cerrar(){ CAM=null; LUGAR=null; scene='ext'; $c('sheet').classList.remove('open'); },
