@@ -23,6 +23,7 @@
     return limpio(t).toUpperCase().replace(/\s+/g, '');
   }
   const grado = c => /^10/.test(c) ? 'Décimo' : /^11/.test(c) ? 'Undécimo' : '';
+  const LLAMADO = 'Llamado a lista';
   const esLog = a => /log[ií]stic/i.test(String(a || ''));
   // Logística: «Guía de visitantes - Portería principal», «Apoyo en el Coliseo», «Registro: Hall»
   function funcionLugar(t) {
@@ -57,6 +58,19 @@
       if (filas.length) hojasConDatos.push({ n, filas });
     });
     if (!hojasConDatos.length) return { estudiantes: [], momentos: [], avisos: ['No encontré estudiantes de 10° u 11° (columna A: estudiante, B: curso).'] };
+    // v57: archivo «Organización por cursos»: una hoja por curso («DÉCIMO A», «UNDÉCIMO F»…). Cada estudiante entra al
+    // «Llamado a lista» de las 7:00; el docente y el lugar salen de la hoja «Docentes Ciencias-Mat 10-11» del horario.
+    const porCurso = hojasConDatos.filter(h => /^1[01][A-H]$/.test(curso(h.n)));
+    if (porCurso.length) {
+      porCurso.forEach(({ n, filas }) => filas.forEach(f => {
+        const k = norm(f.nombre) + '|' + f.curso; if (porEst.has(k)) return;
+        porEst.set(k, { nombre: f.nombre, curso: f.curso, grado: grado(f.curso), planes: [{ momento: LLAMADO, hora_inicio: '07:00', hora_fin: '07:30', area: /sin asignaci|no tiene/i.test(f.area) ? '' : f.area,
+          logistica: false, detalle: '', funcion: '', lugar: '', lider_nombre: '', hoja: n, fila: f.fila }] });
+      }));
+      const estudiantes = [...porEst.values()].sort((a, b) => a.curso.localeCompare(b.curso, 'es', { numeric: true }) || a.nombre.localeCompare(b.nombre, 'es'));
+      const orden = {}; estudiantes.forEach(e => e.orden = (orden[e.curso] = (orden[e.curso] || 0) + 1));
+      return { estudiantes, momentos: [LLAMADO], avisos, porCurso: true };
+    }
     const variasHojas = hojasConDatos.length > 1;
     hojasConDatos.forEach(({ n, filas }) => filas.forEach(f => {
       const momTxt = f.mom || (variasHojas ? n : 'Jornada'), fr = franja(momTxt);
@@ -76,7 +90,7 @@
     return { estudiantes, momentos, avisos };
   }
   function ordenarMomentos(L) { return L.slice().sort((a, b) => String(a.hora_inicio || '99').localeCompare(String(b.hora_inicio || '99')) || String(a.momento).localeCompare(String(b.momento), 'es', { numeric: true })); }
-  const api = { leerLibro, curso, funcionLugar, franja, esLog, ordenarMomentos, norm };
+  const api = { leerLibro, curso, funcionLugar, franja, esLog, ordenarMomentos, norm, LLAMADO };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.MayoresExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -85,7 +99,22 @@ if (typeof window !== 'undefined') (function () {
   const MOT_MAY = ['No llegó al colegio', 'Se retiró', 'Está en otra actividad', 'Otros'];
   const EV = { A: ['✓', 'Presente', '#1f9d6b'], T: ['⏱', 'Llegó tarde', '#f2a900'], N: ['✗', 'No está', '#e5484d'] };
   const M = window.MAY = { est: [], plan: [], asis: {}, ok: false, loc: {}, cambios: false };
-  const todos = () => !!(S.perfil && (S.perfil.rol === 'admin' || S.perfil.org_master || (S.perfil.rol === 'organizador' && S.perfil.org_lista)));
+  const todos = () => !!(S.perfil && (['admin', 'master', 'secretario'].includes(S.perfil.rol) || S.perfil.org_master || (S.perfil.rol === 'organizador' && S.perfil.org_lista)));   // v57: + Master y Secretaría
+  const LLAM = 'Llamado a lista';
+  const misLlamados = () => M.plan.filter(p => p.momento === LLAM && String(p.lider_correo || '').toLowerCase() === yoCorreo());
+  /* v57: lo que debe hacer el docente a las 7:00 con su curso de 10° u 11° */
+  function llamadoInfo() {
+    const L = misLlamados(); if (!L.length) return null;
+    const est = new Map(M.est.map(e => [e.id, e])), cursos = [...new Set(L.map(p => (est.get(p.estudiante_id) || {}).curso).filter(Boolean))].sort();
+    const lugares = [...new Set(L.map(p => p.lugar).filter(Boolean))];
+    return { cursos, lugar: lugares.join(' · ') || 'Por definir', n: L.length };
+  }
+  function llamadoHTML(I) {
+    return `<div class="llbox"><b>🕖 7:00 – 7:30 · Llamado a lista de ${escHTML(I.cursos.join(' y '))}</b>
+      <span>📍 <b>${escHTML(I.lugar)}</b></span>
+      <ol><li>Llama a lista a los ${I.n} estudiantes en la app (✓ presente, ⏱ tarde, ✗ no está) y guarda.</li>
+      <li>Asegúrate de que el estudiante encargado tome la asistencia en <b>físico</b> y la lleve al salón <b>217</b>.</li></ol></div>`;
+  }
   window.mayPuedeTodos = todos;
   const yoCorreo = () => String((S.perfil && S.perfil.correo) || '').toLowerCase();
   async function paginas(t, cols, ord) { let out = []; for (let i = 0; ; i += 1000) { let q = S.sb.from(t).select(cols); ord.forEach(o => q = q.order(o)); const r = await q.range(i, i + 999); if (r.error) return r; out = out.concat(r.data || []); if (!r.data || r.data.length < 1000) return { data: out }; } }
@@ -118,6 +147,15 @@ if (typeof window !== 'undefined') (function () {
         nav.classList.toggle('n6', nav.children.length > 5); nav.classList.toggle('n7', nav.children.length > 6);
       }
     }
+    // v57: ventana con lo que debe hacer a las 7:00 (el día anterior y el día del evento, hasta las 7:35)
+    try { const I = llamadoInfo(), ah = window.ahora ? ahora() : null;
+      if (I && ah && S.config && !S.vistaComo && (ah.fecha < S.config.fecha_evento || (ah.fecha === S.config.fecha_evento && ah.min < 455)) && window.ventana) {
+        const k = 'steam_llam_' + S.perfil.id + '_' + ah.fecha + (ah.fecha === S.config.fecha_evento ? '_d' : '');
+        if (!LS.get(k, false)) { LS.set(k, true);
+          ventana({ icono: '🎓', kicker: 'Tu primera actividad · ' + (ah.fecha < S.config.fecha_evento ? 'viernes 23 de octubre' : 'hoy'), titulo: 'Llamado a lista de ' + escHTML(I.cursos.join(' y ')), color: '#2f6fde', tag: 'llam', prioridad: true,
+            html: llamadoHTML(I) + '<p class="sm">Lo encuentras en el botón <b>10° y 11°</b> de la barra de abajo.</p>',
+            botones: [{ t: 'Abrir la lista', fn: () => { setTimeout(() => irPanel('may'), 50); } }, { t: 'Entendido', ghost: true }] }); } }
+    } catch (_) {}
     try { S.sb.channel('mayores').on('postgres_changes', { event: '*', schema: 'public', table: 'sd_may_asis' }, p => {
       const n = p.new || {}; if (n.estudiante_id) M.asis[n.estudiante_id + '|' + n.momento] = n;
       if (!M.cambios && ((S.panel === 'may') || (S.panel === 'asis' && S.asisVista === 'may'))) { clearTimeout(M._t); M._t = setTimeout(() => pintarMayores(), 700); } })
@@ -145,6 +183,8 @@ if (typeof window !== 'undefined') (function () {
     let h = `${enAsis ? '<div class="sub"><a href="#" id="myVol">← Volver a la asistencia</a></div>' : ''}
       <h3>🎓 ${T ? 'Décimo y undécimo' : 'Tus estudiantes de 10° y 11°'}</h3>
       <div class="sub">${T ? 'Ves a todos los estudiantes, con su líder o su punto de Logística.' : 'Llama a lista a los estudiantes que te acompañan.'} Los cambios se ven en vivo.</div>
+      ${!T && M.mom === LLAM && llamadoInfo() ? llamadoHTML(llamadoInfo()) : ''}
+      ${T && M.mom === LLAM ? resumenCursos(filas, val, estPor) : ''}
       ${ms.length > 1 ? `<div class="moms">${ms.map(p => `<span data-mm="${escHTML(p.momento)}" class="${p.momento === M.mom ? 'on' : ''}"><b>${p.hora_inicio ? fmtHora(p.hora_inicio).replace(' ', '') : '•'}</b>${escHTML(String(p.momento).slice(0, 16))}</span>`).join('')}</div>` : ''}
       <div class="cnt">${['A', 'T', 'N'].map(k => `<div><b style="color:${EV[k][2]}">${cnt[k]}</b><small>${EV[k][0]} ${EV[k][1]}</small></div>`).join('')}<div><b>${cnt.S}</b><small>⚪ Sin marcar</small></div></div>
       ${M.cambios ? '<div class="leg"><b style="color:#b07a00">Cambios sin guardar</b></div>' : ''}
@@ -165,6 +205,7 @@ if (typeof window !== 'undefined') (function () {
     if ($('myVol')) $('myVol').onclick = e => { e.preventDefault(); if (M.cambios && !confirm('Hay cambios sin guardar. ¿Salir de todas formas?')) return; M.loc = {}; M.cambios = false; S.asisVista = null; pintarAsis(); };
     el.querySelectorAll('[data-mm]').forEach(x => x.onclick = () => { if (M.cambios && !confirm('Hay cambios sin guardar. ¿Cambiar de momento?')) return; M.loc = {}; M.cambios = false; M.mom = x.dataset.mm; pintarMayores(); });
     if ($('myGr')) $('myGr').onchange = e => { M.gr = e.target.value; pintarMayores(); };
+    el.querySelectorAll('.llc[data-lg]').forEach(x => x.onclick = () => { M.gr = M.gr === x.dataset.lg ? '' : x.dataset.lg; pintarMayores(); });
     $('myBus').oninput = e => { M.q = e.target.value; pintarMayores().then(() => { const b = $('myBus'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); }); };
     el.querySelectorAll('.st [data-k]').forEach(x => x.onclick = () => { const k = x.dataset.k, cur = val({ estudiante_id: +k.split('|')[0] }) || {};
       M.loc[k] = { estado: x.dataset.v, motivo: x.dataset.v === 'N' ? (cur.estado === 'N' ? cur.motivo || '' : '') : null }; M.cambios = true; pintarMayores(); });
@@ -173,6 +214,12 @@ if (typeof window !== 'undefined') (function () {
     if ($('myGuardar')) $('myGuardar').onclick = guardar;
     if ($('myXls')) $('myXls').onclick = descargar;
   };
+  /* v57: Master, Secretaría y coordinación verifican el llamado de las 7:00 curso por curso */
+  function resumenCursos(filas, val, estPor) {
+    const C = {}; filas.forEach(p => { const e = estPor.get(p.estudiante_id); if (!e) return; const c = C[e.curso] = C[e.curso] || { A: 0, T: 0, N: 0, S: 0, n: 0, quien: p.lider_nombre || '', lugar: p.lugar || '' }; const v = val(p); c.n++; v ? c[v.estado]++ : c.S++; });
+    const ks = Object.keys(C).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })); if (!ks.length) return '';
+    return `<div class="llres">${ks.map(k => { const c = C[k], ok = !c.S; return `<div class="llc ${ok ? 'ok' : c.S === c.n ? 'no' : ''}" data-lg="${escHTML(c.quien ? 'Con ' + c.quien : 'Sin líder asignado')}"><b>${escHTML(k)}</b><small>${c.S === c.n ? 'Sin llamado aún' : `✓${c.A} ⏱${c.T} ✗${c.N}${c.S ? ' ⚪' + c.S : ''}`}</small><small>${escHTML(nomCorto ? nomCorto(c.quien) : c.quien)}</small></div>`; }).join('')}</div>`;
+  }
   async function guardar() {
     const ks = Object.keys(M.loc); if (!ks.length) return;
     const falta = ks.filter(k => M.loc[k].estado === 'N' && !M.loc[k].motivo); if (falta.length) return toast('Elige por qué no está cada estudiante marcado con ✗', 'bad', 3800);
