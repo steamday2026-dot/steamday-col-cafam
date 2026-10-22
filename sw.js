@@ -4,11 +4,11 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v54';
+const CACHE = 'steam-v55';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/lider.js','js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/v30.js', 'js/mayores.js', 'js/turnos.js', 'js/asistencia-oficial.js', 'img/rompecabezas.jpg', 'js/admin.js', 'js/encuestas.js', 'js/copa.js', 'js/copamaster.js', 'sonidos/correcta.mp3', 'sonidos/incorrecta.mp3', 'sonidos/puntos.mp3', 'sonidos/podio.mp3', 'sonidos/aviso.mp3',
-  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'
+  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'badge-96.png'
 ];
 
 self.addEventListener('install', e => {
@@ -33,28 +33,46 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Aviso recibido con la app cerrada
+// v55 · Notificación como la de WhatsApp: título con quién escribe, el mensaje, la hora, el sonido y la vibración del celular.
+// Si la app está abierta en pantalla, no se muestra (la app ya avisa adentro con su sonido).
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'STEM Day', body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'STEM Day Cafam', {
-    body: d.body || '',
-    tag: d.tag || 'steam',
-    renotify: true,
-    requireInteraction: true,
-    vibrate: [300, 150, 300, 150, 600],
-    icon: 'icon-192.png',
-    badge: 'icon-192.png',
-    data: { url: d.url || './' }
-  }));
+  e.waitUntil((async () => {
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const visible = cs.some(c => c.visibilityState === 'visible' && c.focused);
+    if (visible && !/prueba/.test(d.tag || '')) { cs.forEach(c => c.postMessage({ tipo: 'push', d })); return; }
+    const tag = d.tag || 'steam';
+    // mensajes seguidos de la misma conversación se agrupan en una sola notificación (las últimas 5 líneas)
+    let lineas = [d.body || ''];
+    if (/^chat-/.test(tag)) {
+      const prev = await self.registration.getNotifications({ tag });
+      const ant = prev.length && prev[0].data && prev[0].data.lineas || [];
+      lineas = ant.concat(d.body || '').slice(-5);
+      prev.forEach(n => n.close());
+    }
+    const n = lineas.length;
+    await self.registration.showNotification(n > 1 ? `${d.title} (${n} mensajes)` : (d.title || 'STEM Day Cafam'), {
+      body: lineas.join('\n'),
+      tag,
+      renotify: true,
+      silent: false,
+      requireInteraction: !/^chat-/.test(tag),
+      vibrate: [200, 100, 200, 100, 400],
+      timestamp: d.ts || Date.now(),
+      icon: 'icon-192.png',
+      badge: 'badge-96.png',
+      data: { url: d.url || './', sala: d.sala || null, lineas }
+    });
+  })());
 });
 
-// Al tocar el aviso se abre (o se enfoca) la app
+// Al tocar el aviso se abre (o se enfoca) la app; si es del chat, entra a esa conversación
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const destino = (e.notification.data && e.notification.data.url) || './';
+  const data = e.notification.data || {}, destino = data.url || './';
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-    for (const c of cs) { if ('focus' in c) return c.focus(); }
-    return self.clients.openWindow(destino);
+    for (const c of cs) { if ('focus' in c) { c.postMessage({ tipo: 'abrir', url: destino, sala: data.sala }); return c.focus(); } }
+    return self.clients.openWindow(destino + (data.sala ? (destino.includes('?') ? '&' : '?') + 'sala=' + encodeURIComponent(data.sala) : ''));
   }));
 });
