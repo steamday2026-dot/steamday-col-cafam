@@ -151,6 +151,7 @@ function cmInvitarTrivia(b,titulo){
 }
 function cmRevisarTrivia(){
   if(!esCompMaster()||!S.config||!cmEsDia()) return;
+  if(window.pausaAhora&&pausaAhora(null,true)) return;   // v57: no en el desplazamiento ni en el descanso de todos
   const m=minAhora();
   (S.agenda||[]).forEach(b=>{ if(b.tipo==='lib'||!cmEnTrivia(b)) return; const k='cm_trivinv_'+b.id+cmEns(); if(LS.get(k,false)||LS.get(cmTrivKey(b),false)) return;
     LS.set(k,true); cmRepintar(); const w=$('copaW'); if(w&&!w.hidden) return;
@@ -159,6 +160,7 @@ function cmRevisarTrivia(){
 function cmLanzada(L){
   if(!esCompMaster()||!S.config||!cmEsDia()) return;
   if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;
+  if(window.pausaAhora&&pausaAhora(null,true)) return;   // v57
   const b=(bloqueAhora()||{}).cur; if(!b||b.tipo==='lib'||LS.get(cmTrivKey(b),false)) return;
   const k='cm_lz_'+L.id+'_'+b.id+cmEns(); if(LS.get(k,false)) return; LS.set(k,true);
   const w=$('copaW'); if(w&&!w.hidden) return; cmInvitarTrivia(b,'¡Es hora de la trivia!');
@@ -183,10 +185,20 @@ function cmSello(pre){ pre=pre||{};
   let tipo=pre.tipo||'curso', sello=null;
   sh.querySelectorAll('#slT span').forEach(x=>x.classList.toggle('on',x.dataset.t===tipo));
   const dest=()=>{ $('slD').innerHTML=tipo==='curso'?`<select id="slC" class="cmsel"><option value="">Elige el curso…</option>${cerca.length?`<optgroup label="En tu zona ahora">${cerca.map(c=>`<option>${escHTML(c)}</option>`).join('')}</optgroup>`:''}<optgroup label="Todos">${cursos.map(c=>`<option>${escHTML(c)}</option>`).join('')}</optgroup></select>`
-      :tipo==='estudiante'?`<input id="slN" class="cmsel" maxlength="80" placeholder="Nombre del estudiante"><select id="slC" class="cmsel"><option value="">Curso…</option>${cerca.concat(cursos.filter(c=>!cerca.includes(c))).map(c=>`<option>${escHTML(c)}</option>`).join('')}</select>`
-      :`<input id="slN" class="cmsel" list="slDL" maxlength="80" placeholder="Nombre del docente"><datalist id="slDL">${docentes.map(d=>`<option value="${escHTML(d)}">`).join('')}</datalist>`; };
-  dest(); if(pre.curso&&$('slC')) $('slC').value=pre.curso; if(pre.nombre&&$('slN')) $('slN').value=pre.nombre;
-  sh.querySelectorAll('#slT span').forEach(s=>s.onclick=()=>{ tipo=s.dataset.t; sh.querySelectorAll('#slT span').forEach(x=>x.classList.toggle('on',x===s)); dest(); });
+      :tipo==='estudiante'?`<input id="slN" class="cmsel" maxlength="80" placeholder="Escribe el nombre del estudiante…"><select id="slC" class="cmsel"><option value="">Curso…</option>${cerca.concat(cursos.filter(c=>!cerca.includes(c))).map(c=>`<option>${escHTML(c)}</option>`).join('')}</select>`
+      :`<input id="slN" class="cmsel" list="slDL" maxlength="80" placeholder="Escribe el nombre del docente…"><datalist id="slDL">${docentes.map(d=>`<option value="${escHTML(d)}">`).join('')}</datalist>`; };
+  // v58: al escribir aparecen los nombres completos (estudiantes de 3.° a 11.° y docentes)
+  const doc2=[...new Set([...docentes,...Object.values(S.lid||{}).map(l=>l.nombre).filter(Boolean)])].sort((a,c)=>a.localeCompare(c,'es'));
+  const engancha=async()=>{ const n=$('slN'); if(!n||!window.autoLista) return;
+    if(tipo==='docente') return autoLista(n,doc2.map(d=>({t:d})));
+    try{ if(window.cargarEstudiantes&&!S.est) await cargarEstudiantes(); }catch(_){}
+    try{ if(window.MAY&&!MAY.ok&&window.mayCargar) await mayCargar(); }catch(_){}
+    const E=[...(S.est||[]).map(e=>({t:e.nombre,s:e.curso,c:e.curso})),...((window.MAY&&MAY.est)||[]).map(e=>({t:e.nombre,s:e.curso,c:e.curso}))];
+    if(!$('slN')||tipo!=='estudiante') return;
+    autoLista($('slN'),E,x=>{ const sc=$('slC'); if(!sc) return; if(![...sc.options].some(o=>o.value===x.c)) sc.insertAdjacentHTML('beforeend',`<option>${escHTML(x.c)}</option>`); sc.value=x.c; }); };
+  const dest0=dest; const dest2=()=>{ dest0(); if(tipo!=='curso'){ const dl=$('slN'); if(dl) dl.removeAttribute('list'); engancha(); } };
+  dest2(); if(pre.curso&&$('slC')) $('slC').value=pre.curso; if(pre.nombre&&$('slN')) $('slN').value=pre.nombre;
+  sh.querySelectorAll('#slT span').forEach(s=>s.onclick=()=>{ tipo=s.dataset.t; sh.querySelectorAll('#slT span').forEach(x=>x.classList.toggle('on',x===s)); dest2(); });
   sh.querySelectorAll('.slops span').forEach(s=>s.onclick=()=>{ sello=s.dataset.s; sh.querySelectorAll('.slops span').forEach(x=>x.classList.toggle('on',x===s)); });
   $('slOk').onclick=async()=>{ if(cmVista()) return; const c=$('slC')?$('slC').value:'', n=$('slN')?$('slN').value.trim():'';
     if(!cmEsDia()) return toast('Los sellos se otorgan el viernes 23 de octubre.','bad',4000);
