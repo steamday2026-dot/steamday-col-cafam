@@ -212,7 +212,116 @@ function rutaCurso(c){
   const nv=filas[0].nivel;
   return [...filas,...S.prog.filter(r=>r.tipo==='pausa'&&r.nivel===nv)]
     .sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio))
-    .map(r=>({ ...r, h:r.hora_inicio, f:r.hora_fin, cat:r.categoria, nombre: r.tipo==='pausa'?r.area:(r.titulo?titA(r.titulo):r.area), lugar: r.tipo==='pausa'?r.area:(r.salon||'') }));
+    .map(r=>({ ...r, h:r.hora_inicio, f:r.hora_fin, cat:r.categoria, nombre: r.tipo==='pausa'?(r.titulo||r.area):(r.titulo?titA(r.titulo):r.area), lugar: r.tipo==='pausa'?r.area:(r.salon||'') }));
+}
+/* v58 · estudiantes con permiso de salida que apoyan una actividad del STEM Day:
+   el director elige el área y el docente líder; al líder y a los Master les aparecen para confirmar */
+const AREA_AP={tec:'Tecnología',mat:'Matemáticas',cie:'Ciencias Naturales'};
+function opcionesApoyo(){
+  const A={}; (S.prog||[]).forEach(r=>{ if(r.tipo!=='actividad'||!Array.isArray(r.lideres)||!r.lideres.length) return;
+    const t=AREA_AP[r.categoria]||(/hacer|cambio clim/i.test((r.area||'')+' '+(r.titulo||''))?'Actividad del hacer':null); if(!t) return;
+    r.lideres.forEach(id=>{ const l=(S.lid||{})[id]; if(l) (A[t]=A[t]||new Map()).set(id,l.nombre); }); });
+  return Object.keys(A).sort((a,b)=>a.localeCompare(b,'es')).map(k=>({area:k,lideres:[...A[k].entries()].map(([id,n])=>({id,n})).sort((a,b)=>a.n.localeCompare(b.n,'es'))}));
+}
+const AP={lista:[],t:0,ok:true,cargando:null};
+async function apoyosCargar(forzar){
+  if(!forzar&&Date.now()-AP.t<25000) return AP.lista; if(AP.cargando) return AP.cargando;
+  AP.cargando=(async()=>{ try{ const r=await S.sb.rpc('sd_apoyos_lista'); if(r.error){ AP.ok=false; AP.err=r.error.message; } else { AP.ok=true; AP.lista=r.data||[]; } }catch(e){ AP.ok=false; } AP.t=Date.now(); AP.cargando=null; return AP.lista; })();
+  return AP.cargando;
+}
+function apoyosHTML(L,todos){
+  if(!L.length) return `<p class="sm">${todos?'Aún no hay estudiantes con permiso de salida para apoyar actividades.':'Por ahora nadie te ha enviado estudiantes de apoyo.'}</p>`;
+  const g={}; L.forEach(x=>{ const k=todos?(x.lider_nombre||'Sin líder'):x.area||''; (g[k]=g[k]||[]).push(x); });
+  return Object.keys(g).sort((a,b)=>a.localeCompare(b,'es')).map(k=>`${todos||Object.keys(g).length>1?`<h4 class="mygr">${todos?'👤 '+escHTML(k)+' · '+escHTML(g[k][0].area||''):escHTML(k)}</h4>`:''}${g[k].map(x=>`<div class="est"><div class="nm">${escHTML(x.nombre)}<small><b>${escHTML(x.curso)}</b> · lo envió ${escHTML(nomCorto(x.por_nombre||''))}${x.hora_salida?' · '+hDe(minDe(x.hora_salida)):''}</small>
+    ${x.ok?`<small style="color:${x.ok==='A'?'#1f9d6b':'#e5484d'}">${x.ok==='A'?'✓ Ya está con su líder':'✗ No llegó'}${x.ok_por?' · '+escHTML(nomCorto(x.ok_por)):''}</small>`:'<small>⚪ Por confirmar</small>'}</div>
+    <div class="st s2"><span data-ap="${x.estudiante_id}" data-v="A" class="${x.ok==='A'?'on':''}">✓</span><span data-ap="${x.estudiante_id}" data-v="N" class="${x.ok==='N'?'on':''}">✗</span></div></div>`).join('')}`).join('');
+}
+function apoyosBind(el,repinta){ el.querySelectorAll('[data-ap]').forEach(b=>b.onclick=async()=>{ if(S.vistaComo) return toast('Vista previa: no se guarda','bad');
+  const r=await S.sb.rpc('sd_apoyo_confirmar',{p_est:+b.dataset.ap,p_estado:b.classList.contains('on')?null:b.dataset.v}); if(r.error) return toast(r.error.message,'bad',4000);
+  await apoyosCargar(true); toast('Confirmado ✓','ok',1800); repinta(); }); }
+/* explicación para los directores que llaman a lista (una vez, y desde «¿Cómo funciona?») */
+function ayudaApoyo(forzar){
+  const k='steam_apayuda_'+(S.perfil&&S.perfil.id); if(!forzar&&(LS.get(k,false)||S.vistaComo)) return; LS.set(k,true); if(!window.ventana) return;
+  ventana({icono:'🚪',kicker:'Llamado a lista de las 7:00 · nuevo',titulo:'Permiso de salida para apoyar el STEM Day',color:'#7b4bd6',tag:'apay',
+    html:`<div class="apsteps"><div><b>1</b><span>Si un estudiante sale a apoyar una actividad, márcalo con <b>🚪 Permiso de salida</b>.</span></div>
+      <div><b>2</b><span>Elige <b>a qué área apoyará</b> (Ciencias, Matemáticas, Tecnología o Actividad del hacer).</span></div>
+      <div><b>3</b><span>Elige <b>con quién estará</b>: el docente líder de esa actividad.</span></div>
+      <div><b>4</b><span>Guarda el llamado. Al líder y a los Master les aparece el estudiante para <b>confirmar que llegó</b>.</span></div></div>
+      <p class="sm">Si el permiso es por otra razón (cita médica, etc.), elige «Otro motivo» y escríbelo.</p>`,botones:[{t:'Entendido'}]});
+}
+window.ayudaApoyo=ayudaApoyo;
+/* líder de estación: tarjeta debajo de su estación */
+async function apoyosLider(el){
+  if(!el||!S.perfil) return; let box=el.querySelector('#apLid'); if(!box){ box=document.createElement('div'); box.id='apLid'; box.className='apcard'; el.appendChild(box); }
+  const L=(await apoyosCargar()).filter(x=>x.apoyo_lider===S.perfil.id); if(!AP.ok) { box.remove(); return; }
+  // aviso cuando le llegan estudiantes nuevos
+  try{ const kv='steam_apvistos_'+S.perfil.id, vis=LS.get(kv,[]), nuevos=L.filter(x=>!vis.includes(x.estudiante_id));
+    if(nuevos.length&&!S.vistaComo&&window.ventana){ LS.set(kv,[...vis,...nuevos.map(x=>x.estudiante_id)]);
+      ventana({icono:'🙋',kicker:'Estudiantes de apoyo',titulo:`Te ${nuevos.length>1?'envían':'envía'} ${nuevos.length} estudiante${nuevos.length>1?'s':''}`,color:'#7b4bd6',tag:'apl',
+        html:`<p>${nuevos.slice(0,6).map(x=>`<b>${escHTML(x.nombre)}</b> (${escHTML(x.curso)})`).join(', ')}${nuevos.length>6?'…':''} salieron del llamado de las 7:00 con permiso para estar contigo. Confírmalos cuando lleguen, en <b>Mi estación</b>.</p>`,botones:[{t:'Entendido'}]}); } }catch(_){}
+  if(!L.length){ box.innerHTML=`<b>🙋 Estudiantes que te apoyan</b><p class="sm">Si un director de curso le da permiso de salida a un estudiante para apoyarte, aparecerá aquí para que confirmes que llegó.</p>`; return; }
+  box.innerHTML=`<b>🙋 Estudiantes que te apoyan (${L.length})</b><p class="sm">Salieron del llamado de las 7:00 con permiso para estar contigo. Confirma cuando lleguen.</p>${apoyosHTML(L,false)}`;
+  apoyosBind(box,()=>apoyosLider(el));
+}
+window.apoyosLider=apoyosLider;
+/* Master, Secretaría y coordinación: todos los estudiantes de apoyo */
+async function pintarApoyos(){
+  const el=$('asisPz'); el.innerHTML='<p class="sm">Cargando…</p>'; const L=await apoyosCargar(true);
+  el.innerHTML=`<div class="sub"><a href="#" id="apVol">← Volver a la asistencia</a></div><h3>🙋 Estudiantes de apoyo</h3>
+    <div class="sub">Estudiantes de 3.° a 9.° con permiso de salida en el llamado de las 7:00 para apoyar una actividad. Confirma con quién están.</div>
+    ${AP.ok?apoyosHTML(L,true):`<div class="warnbox">Falta ejecutar el archivo 32 en Supabase.</div>`}`;
+  $('apVol').onclick=e=>{ e.preventDefault(); S.asisVista=null; pintarAsis(); }; apoyosBind(el,pintarApoyos);
+}
+/* v58 · autocompletar nombres: al escribir aparecen los nombres completos (estudiantes o docentes) */
+const nrmA=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function autoLista(inp,items,onPick){
+  if(!inp) return; const box=document.createElement('div'); box.className='aclist'; box.hidden=true; inp.insertAdjacentElement('afterend',box); inp.setAttribute('autocomplete','off');
+  const idx=items.map(x=>({...x,k:nrmA(x.t+' '+(x.s||''))}));
+  const pinta=()=>{ const q=nrmA(inp.value), tk=q.split(' ').filter(Boolean); if(tk.length===0||q.length<2){ box.hidden=true; return; }
+    const r=idx.filter(x=>tk.every(t=>x.k.includes(t))).slice(0,8);
+    box.innerHTML=r.length?r.map((x,i)=>`<div data-i="${idx.indexOf(x)}"><b>${escHTML(x.t)}</b>${x.s?`<small>${escHTML(x.s)}</small>`:''}</div>`).join(''):'<p>Sin coincidencias. Revisa el nombre o escríbelo completo.</p>';
+    box.hidden=false;
+    box.querySelectorAll('[data-i]').forEach(d=>d.onmousedown=d.ontouchstart=e=>{ e.preventDefault(); const x=idx[+d.dataset.i]; inp.value=x.t; box.hidden=true; if(onPick) onPick(x); }); };
+  inp.addEventListener('input',pinta); inp.addEventListener('focus',pinta); inp.addEventListener('blur',()=>setTimeout(()=>box.hidden=true,150));
+}
+window.autoLista=autoLista;
+/* v57 · desplazamientos entre sedes y descansos */
+const pausaTipo=r=>{ const a=String((r&&r.area)||'').toLowerCase(); return a.startsWith('desplaz')?'desp':a.startsWith('descanso')?'desc':a.startsWith('almuerzo')?'alm':'otra'; };
+const pausaIco=r=>({desp:'🚶',desc:'☕',alm:'🍽️'}[pausaTipo(r)]||'⏸');
+/* ¿hay un desplazamiento, descanso o almuerzo ahora? (niveles: los de la persona; todos=true exige que sea para todos los niveles) */
+function pausaAhora(niveles,todos){
+  const a=ahora(); if(!S.config||a.fecha!==S.config.fecha_evento) return null;
+  const P=S.prog.filter(p=>p.tipo==='pausa'&&toMin(p.hora_inicio)<=a.min&&a.min<toMin(p.hora_fin));
+  if(todos){ const nv=[...new Set(S.prog.filter(r=>r.tipo==='actividad').map(r=>r.nivel))]; return nv.length&&nv.every(n=>P.some(p=>p.nivel===n))?P[0]:null; }
+  return P.find(p=>!niveles||!niveles.length||niveles.includes(p.nivel))||null;
+}
+function misNiveles(){ return [...new Set((S.cursos||[]).map(c=>(filaDe(c)||{}).nivel).filter(Boolean))]; }
+window.pausaAhora=pausaAhora; window.misNiveles=misNiveles;
+/* mensaje para el docente cuando su avatar llega a un desplazamiento o a un descanso */
+function mensajePausa(st,i){
+  const r=st[i], t=pausaTipo(r), nx=st[i+1], dest=/primaria/i.test(r.area)?'Primaria':/bachillerato/i.test(r.area)?'Bachillerato':'';
+  if(t==='desp'){ const aDesc=nx&&pausaTipo(nx)==='desc';
+    const texto=aDesc?`Es hora de movilizarnos para que puedan tomar el descanso en las instalaciones respectivas. ${dest==='Primaria'?'Diríjanse con el curso a <b>Primaria</b>; allí tomarán su descanso.':'Suban con el curso a <b>Bachillerato</b>; allí tomarán su descanso.'}`
+      :`Es hora de movilizarnos. ${dest==='Primaria'?'Bajen con el curso a <b>Primaria</b>':'Suban con el curso a <b>Bachillerato</b>'}${nx&&nx.tipo==='actividad'?' para '+escHTML(nx.nombre)+(nx.salon?' (salón '+escHTML(nx.salon)+')':''):''}.`;
+    const ruta=dest==='Bachillerato'?'rojo':(r.nivel==='Primaria'?'azul':'rojo_inv');
+    return {t, titulo:'Es hora de movilizarnos', texto, plano:texto.replace(/<[^>]+>/g,''), ruta, dest}; }
+  if(t==='desc'){ const sede=/primaria/i.test(r.titulo||'')?'Primaria':/bachillerato/i.test(r.titulo||'')?'Bachillerato':'';
+    const texto=`Disfruten su tiempo de descanso, recuerden estar en las instalaciones del colegio respectivas${sede?' (<b>'+sede+'</b>)':''}.`;
+    return {t, titulo:'¡Tiempo de descanso!', texto, plano:texto.replace(/<[^>]+>/g,'')}; }
+  return null;
+}
+window.mensajePausa=mensajePausa;
+async function verDesplazamiento(ruta){
+  if(ColegioVivo.ocupado()) return; cerrarSheet(); const cv=$('cv'); cv.hidden=false; cv.classList.add('camino'); $('cvVolver').hidden=false;
+  ColegioVivo.setDatos(S.prog); ColegioVivo.setAvatar(S.perfil.avatar); await ColegioVivo.desplazamiento(ruta);
+}
+window.verDesplazamiento=verDesplazamiento;
+function avisoPausa(st,i){
+  const m=mensajePausa(st,i); if(!m||!window.ventana) return;
+  const a=ahora(), k='steam_pz_'+S.perfil.id+'_'+a.fecha+'_'+st[i].nivel+'_'+st[i].h+(typeof _sim!=='undefined'&&_sim?'_ens'+_sim:''); if(LS.get(k,false)) return; LS.set(k,true);
+  const p=prefs(); if(p.sonido&&window.sonarTono) sonarTono(p.tono); if(p.vibracion&&navigator.vibrate) navigator.vibrate([250,120,250]);
+  ventana({icono:m.t==='desp'?'🚶':'☕',kicker:`${fmtHora(st[i].h)} – ${fmtHora(st[i].f)} · ${escHTML(st[i].nombre)}`,titulo:m.titulo,color:m.t==='desp'?(m.ruta==='azul'?'#2f6fde':'#c2410c'):'#b07a00',tag:'pz',prioridad:true,
+    html:`<p>${m.texto}</p>`,botones:m.t==='desp'?[{t:'🗺️ Ver mapa',fn:()=>{ setTimeout(()=>verDesplazamiento(m.ruta),60); }},{t:'Entendido',ghost:true}]:[{t:'Entendido'}]});
 }
 function lugarDe(salones){
   const s=[...new Set(salones.filter(Boolean))];
@@ -521,6 +630,8 @@ function tick(){
     if(mapaVisible() && !document.hidden && idx>S.mapa.cur && !S.mapaSucio){ S.mapa.goTo(idx); LS.set('steam_last_'+S.curso,idx); }
     else S.mapaSucio=true;   // se anima cuando el docente vuelva al mapa
   }
+  // v57: desplazamiento o descanso: cuando el avatar ya avanzó, aparece el aviso
+  { const st=S.stops[idx]; if(st&&st.tipo==='pausa'&&ahora().fecha===S.config.fecha_evento){ const espera=()=>{ if(S.mapa.busy&&mapaVisible()) return setTimeout(espera,800); avisoPausa(S.stops,idx); }; setTimeout(espera,mapaVisible()?1200:0); } }
   if(S.mapaSucio && mapaVisible() && !S.mapa.busy && !document.hidden){ pintarRuta(false); revisarAlertas(); revisarEncuestas(); return; }
   pintarLista(idx); pintarTarjeta(idx); revisarAlertas(); revisarEncuestas();
 }
@@ -564,6 +675,7 @@ function abrirParada(i){
       <div class="sec"><h3>Docentes del curso</h3><p>Director de curso: ${escHTML(f.acompanante||'—')}<br>Codirector: ${escHTML(f.apoyo||'—')}</p></div>`}
       ${lidL.length?`<div class="lidsec"><h3>⭐ ${LS.get(lidSalKey(i),false)?'Te recibió':'Te recibirá'}${lidL.length>1?'n':''}</h3><div class="ls">${lidL.map(l=>`<div class="li">${lidMini(l,24)}${escHTML(lidNombre(l.nombre))}</div>`).join('')}</div></div>`:''}
       ${!futura&&f.tipo!=='pausa'?`<div style="padding:0 16px"><button class="btn ghost" id="verAnim">Ver la animación de llegada</button></div>`:''}
+      ${f.tipo==='pausa'&&S.modo==='docente'&&mensajePausa(S.stops,i)?(()=>{ const m=mensajePausa(S.stops,i); return `<div style="padding:4px 16px 0"><div class="dsbox ${m.t==='desp'?(m.ruta==='azul'?'azul':'rojo'):''}">${m.texto}</div>${m.t==='desp'?`<button class="btn" id="verDesp" data-r="${m.ruta}" style="background:${m.ruta==='azul'?'#2f6fde':'#c2410c'}">🗺️ Ver mapa del recorrido</button>`:''}</div>`; })():''}
       ${f.tipo!=='pausa'&&f.salon?`<div style="padding:8px 16px 0"><button class="btn" id="verSalon" style="background:#c2410c">🏫 Entrar y ver el salón</button></div>`:''}
       ${f.tipo!=='pausa'&&window.fichaExtraV30?fichaExtraV30(f):''}
       ${f.tipo!=='pausa'&&window.ultimoEspacio&&S.cursos.some(c=>{ const u=ultimoEspacio(c); return u&&u.h===f.h; })&&encuestaFinalDisponible()?`<div style="padding:8px 16px 0"><button class="btn" id="encFin" style="background:#c2410c">📝 Encuesta final de la jornada</button></div>`:''}
@@ -575,6 +687,7 @@ function abrirParada(i){
   sh.classList.add('open'); $('shX').onclick=cerrarSheet;
   if($('irAqui')) $('irAqui').onclick=async()=>{ cerrarSheet(); if(S.vista!=='mapa'){ S.vista='mapa'; $('btnVista').textContent='☰'; pintarRuta(false);} S.masterIdx=i; LS.set('steam_midx_'+S.area+S.nivel,i); await S.mapa.goTo(i); pintarLista(i); pintarTarjeta(i); };
   if($('verAnim')) $('verAnim').onclick=()=>{ cerrarSheet(); mostrarLlegada($('p-ruta'),f,lidL); };
+  if($('verDesp')) $('verDesp').onclick=()=>verDesplazamiento($('verDesp').dataset.r);
   if($('verSalon')) $('verSalon').onclick=()=>{ cerrarSheet(); entrarSalonDocente(f); };
   if($('evalAct')) $('evalAct').onclick=()=>{ cerrarSheet(); abrirEncuesta({...f,curso:S.curso}); };
   if($('encFin')) $('encFin').onclick=()=>{ cerrarSheet(); abrirEncuestaFinal(S.curso); };
@@ -686,11 +799,12 @@ async function pintarLista2(){
   if(!S.listaCurso||!S.cursos.includes(S.listaCurso)) S.listaCurso=S.curso||S.cursos[0];
   if(!S.listaMom){ const a=ahora(); const ms=momentosLista(S.listaCurso).filter(s=>a.fecha===S.config.fecha_evento&&toMin(s.h)<=a.min); S.listaMom=ms.length?ms[ms.length-1].h:'inicial'; }
   el.innerHTML='<p class="sm">Cargando estudiantes…</p>';
+  { const a=ahora(); if(S.config&&a.fecha<=S.config.fecha_evento) setTimeout(()=>ayudaApoyo(false),900); }   // v58
   try{ await cargarEstudiantes(!S.listaLocal); }catch(e){ el.innerHTML=`<div class="alertbox">No se pudo cargar la lista: ${escHTML(e.message)}</div>`; return; }
   if(!S.listaLocal||S.listaLocal.curso!==S.listaCurso||S.listaLocal.mom!==S.listaMom){
     const L=S.est.filter(x=>x.curso===S.listaCurso);
     if(S.listaMom==='inicial'){
-      S.listaLocal={curso:S.listaCurso, mom:'inicial', filas:L.map(x=>{ const a=S.asis[x.id]||{}, st=enStem(x.id,'07:00','07:30'); return {id:x.id,nombre:x.nombre,v:a.estado||(st?'A':null),m:a.motivo||'',d:a.detalle||'',hl:a.hora_llegada||null,pv:a.previa||null,pp:a.previa_por||null,cpv:'previa' in a,st}; }), cambios:false};
+      S.listaLocal={curso:S.listaCurso, mom:'inicial', filas:L.map(x=>{ const a=S.asis[x.id]||{}, st=enStem(x.id,'07:00','07:30'); return {id:x.id,nombre:x.nombre,v:a.estado||(st?'A':null),m:a.motivo||'',d:a.detalle||'',ar:a.apoyo_area||(a.estado==='P'&&a.motivo?'otro':''),li:a.apoyo_lider||'',hl:a.hora_llegada||null,pv:a.previa||null,pp:a.previa_por||null,cpv:'previa' in a,st}; }), cambios:false};
       S.listaLocal.cambios=S.listaLocal.filas.some(f=>f.st&&!S.asis[f.id]);   // v45: los que están en actividad STEM ya vienen como presentes
     } else {
       let act={}; try{ const r=await S.sb.from('sd_asistencia_act').select('*').eq('curso',S.listaCurso); (r.data||[]).forEach(x=>(act[x.hora_inicio]=act[x.hora_inicio]||{})[x.estudiante_id]=x); }catch(e){}
@@ -718,6 +832,7 @@ function dibujarLista(filtro){
     if(!L.filas.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes de este curso. El administrador la carga desde Administración → Estudiantes.</div>'; bindSegs(); return; }
     h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${c[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
       <div class="leg">${pend?`⚪ Sin marcar: <b>${pend}</b>`:'✔ Todos marcados'}${L.cambios?' · <b style="color:#b07a00">Cambios sin guardar</b>':''}</div>
+      <div class="aphint">🚪 <b>Permiso de salida:</b> si el estudiante sale a apoyar una actividad del STEM Day, elige el <b>área</b> y el <b>docente líder</b> con quien estará. Al guardar, al líder y a los Master les aparece para confirmar que llegó. <a href="#" id="apAyuda">¿Cómo funciona?</a></div>
       ${L.filas.some(x=>x.st)?`<div class="stbox">🔬 <b>${L.filas.filter(x=>x.st).length}</b> estudiante${L.filas.filter(x=>x.st).length>1?'s están':' está'} en actividades del STEM Day: por eso no están en el salón. Ya aparecen como presentes.</div>`:''}
       <input class="srch" id="lBus" placeholder="Buscar estudiante…" value="${escHTML(filtro)}">
       <button class="pbtn alt" id="lTodos">✓ Marcar a los que faltan como "Asistió"</button><div style="height:8px"></div>`;
@@ -725,7 +840,10 @@ function dibujarLista(filtro){
       const hl=minDe(x.hl), tarde=x.v==='T'&&hl!=null?Math.max(0,hl-HORA0):null;
       h+=`<div class="est"><span class="num">${i+1}</span><div class="nm">${escHTML(x.nombre)}${x.pv?`<small class="pvtag">📌 Reportado por secretaría: ${escHTML(x.pv)}</small>`:''}${x.st?`<small class="sttag">${escHTML(stemTxt(x.st))}</small>`:''}${x.v?`<small style="color:${EST_V[x.v][2]}">${x.v==='T'?'Retardo':EST_V[x.v][1]}${hl!=null&&(x.v==='A'||x.v==='T')?' · llegó '+hDe(hl):''}${tarde!=null?' · '+tarde+' min':''}</small>`:'<small>Sin marcar</small>'}
         ${x.v==='T'?`<select data-mr="${i}"><option value="">Motivo del retardo…</option>${MOT_RET().map(o=>`<option ${x.m===o?'selected':''}>${escHTML(o)}</option>`).join('')}</select>${x.m==='Otros'?`<input data-d="${i}" maxlength="200" placeholder="¿Por qué llegó tarde?" value="${escHTML(x.d)}">`:''}`:''}
-        ${x.v==='P'?`<input data-m="${i}" maxlength="200" placeholder="Motivo del permiso (opcional)" value="${escHTML(x.m)}">`:''}</div>
+        ${x.v==='P'?(()=>{ const O=opcionesApoyo(), ar=O.find(o=>o.area===x.ar);
+          return `<select data-ar="${i}" class="apsel"><option value="">¿A qué área apoyará?…</option>${O.map(o=>`<option ${x.ar===o.area?'selected':''}>${escHTML(o.area)}</option>`).join('')}<option value="otro" ${x.ar==='otro'?'selected':''}>Otro motivo (no apoya el STEM Day)</option></select>
+          ${ar?`<select data-li="${i}" class="apsel"><option value="">¿Con quién estará?…</option>${ar.lideres.map(l=>`<option value="${l.id}" ${x.li===l.id?'selected':''}>${escHTML(l.n)}</option>`).join('')}</select>`:''}
+          ${x.ar==='otro'?`<input data-m="${i}" maxlength="200" placeholder="Motivo del permiso" value="${escHTML(x.m)}">`:''}`; })():''}</div>
         <div class="st">${Object.keys(EST_V).map(k=>`<span data-i="${i}" data-v="${k}" class="${x.v===k?'on':''}" title="${k==='T'?'Retardo':EST_V[k][1]}">${EST_V[k][0]}</span>`).join('')}</div></div>`; });
     h+=`<button class="pbtn" id="lGuardar">Guardar llamado a lista</button>`;
   } else {
@@ -752,13 +870,16 @@ function dibujarLista(filtro){
   const st=$('p-lista').scrollTop; el.innerHTML=h; $('p-lista').scrollTop=st; bindSegs(); bindMoms();
   if(listaBloqueada()){ el.classList.add('lbloq'); el.querySelectorAll('#lGuardar,#lTodos').forEach(b=>{ b.disabled=true; }); return; } else el.classList.remove('lbloq');
   el.querySelectorAll('.st span').forEach(e=>e.onclick=()=>{ const x=L.filas[+e.dataset.i];
-    if(ini){ const nv=x.v===e.dataset.v?null:e.dataset.v; if((nv==='A'||nv==='T')&&!x.hl) x.hl=ahoraISO(); if(!nv||nv==='N') x.hl=null; if(nv!=='T'&&nv!=='P'){ x.m=''; x.d=''; } x.v=nv; }
+    if(ini){ const nv=x.v===e.dataset.v?null:e.dataset.v; if((nv==='A'||nv==='T')&&!x.hl) x.hl=ahoraISO(); if(!nv||nv==='N') x.hl=null; if(nv!=='T'&&nv!=='P'){ x.m=''; x.d=''; } if(nv!=='P'){ x.ar=''; x.li=''; } x.v=nv; }
     else { x.v=e.dataset.v; if(x.v==='A'){ x.m=''; x.det={}; } }
     L.cambios=true; dibujarLista($('lBus').value); });
   el.querySelectorAll('[data-m]').forEach(e=>e.oninput=()=>{ L.filas[+e.dataset.m].m=e.value; L.cambios=true; });
   el.querySelectorAll('[data-mr]').forEach(e=>e.onchange=()=>{ L.filas[+e.dataset.mr].m=e.value; L.cambios=true; dibujarLista($('lBus').value); });
   el.querySelectorAll('[data-d]').forEach(e=>e.oninput=()=>{ L.filas[+e.dataset.d].d=e.value; L.cambios=true; });
   el.querySelectorAll('[data-ma]').forEach(e=>e.onchange=()=>{ L.filas[+e.dataset.ma].m=e.value; L.cambios=true; dibujarLista($('lBus').value); });
+  el.querySelectorAll('[data-ar]').forEach(e=>e.onchange=()=>{ const x=L.filas[+e.dataset.ar]; x.ar=e.value; x.li=''; if(x.ar!=='otro') x.m=''; L.cambios=true; dibujarLista($('lBus').value); });
+  el.querySelectorAll('[data-li]').forEach(e=>e.onchange=()=>{ L.filas[+e.dataset.li].li=e.value; L.cambios=true; });
+  if($('apAyuda')) $('apAyuda').onclick=e=>{ e.preventDefault(); ayudaApoyo(true); };
   el.querySelectorAll('[data-dd]').forEach(e=>e.oninput=()=>{ const x=L.filas[+e.dataset.dd]; x.det={...(x.det||{}),[e.dataset.f]:e.value}; L.cambios=true; });
   $('lBus').oninput=e=>{ const v=e.target.value; dibujarLista(v); const b=$('lBus'); b.focus(); b.setSelectionRange(v.length,v.length); };
   if($('lTodos')) $('lTodos').onclick=()=>{ L.filas.forEach(x=>{ if(!x.v){ x.v='A'; x.hl=x.hl||ahoraISO(); } }); L.cambios=true; dibujarLista(''); };
@@ -770,17 +891,23 @@ async function guardarLista(){
   if(listaBloqueada()) return toast('El llamado a lista se habilita el día del evento.','bad');
   const L=S.listaLocal, falta=L.filas.filter(x=>x.v==='T'&&!x.m);
   if(falta.length) return toast(`Elige el motivo del retardo de ${falta.length===1?falta[0].nombre:falta.length+' estudiantes'}.`,'bad',3800);
-  const filas=L.filas.filter(x=>x.v).map(x=>{ const hl=(x.v==='A'||x.v==='T')?(x.hl||ahoraISO()):null;
-    return {estudiante_id:x.id,curso:L.curso,estado:x.v,motivo:(x.v==='P'||x.v==='T')&&x.m?x.m.slice(0,200):null,detalle:x.v==='T'&&x.m==='Otros'&&x.d?x.d.slice(0,200):null,
+  const fp=L.filas.filter(x=>x.v==='P'&&(!x.ar||(x.ar!=='otro'&&!x.li)));   // v58
+  if(fp.length) return toast(`${fp.length===1?fp[0].nombre:fp.length+' estudiantes'}: elige el área y el docente líder con quien estará${fp.length===1?'':'n'}.`,'bad',4200);
+  const lidN=id=>((S.lid||{})[id]||{}).nombre||'';
+  const filas=L.filas.filter(x=>x.v).map(x=>{ const hl=(x.v==='A'||x.v==='T')?(x.hl||ahoraISO()):null, ap=x.v==='P'&&x.ar&&x.ar!=='otro';
+    return {estudiante_id:x.id,curso:L.curso,estado:x.v,motivo:ap?`Apoya ${x.ar} con ${lidN(x.li)}`.slice(0,200):(x.v==='P'||x.v==='T')&&x.m?x.m.slice(0,200):null,detalle:x.v==='T'&&x.m==='Otros'&&x.d?x.d.slice(0,200):null,
+      ...(S.apoyoCols!==false?{apoyo_area:ap?x.ar:null,apoyo_lider:ap?x.li:null,apoyo_lider_nombre:ap?lidN(x.li):null,hora_salida:x.v==='P'?(S.asis[x.id]&&S.asis[x.id].hora_salida)||ahoraISO():null}:{}),
       hora_llegada:hl,retardo_min:x.v==='T'&&hl?Math.max(0,minDe(hl)-HORA0):null,registrado_por:S.perfil.id,actualizado_en:new Date().toISOString(),
       ...(x.cpv?{previa:x.v==='N'?x.pv:null,previa_por:x.v==='N'?x.pp:null}:{}),...(x.v==='N'&&x.pv?{motivo:x.pv}:{})}; });
   const quitar=L.filas.filter(x=>!x.v&&S.asis[x.id]).map(x=>x.id);
   $('lGuardar').disabled=true; $('lGuardar').textContent='Guardando…';
   let err=null;
-  if(filas.length){ const r=await S.sb.from('sd_asistencia').upsert(filas,{onConflict:'estudiante_id'}); err=r.error; }
+  if(filas.length){ const r=await S.sb.from('sd_asistencia').upsert(filas,{onConflict:'estudiante_id'}); err=r.error;
+    if(err&&/apoyo_|hora_salida/.test(err.message)){ err={message:'falta ejecutar el archivo 32 en Supabase (permiso de salida con área y líder)'}; } }
   if(!err&&quitar.length){ const r=await S.sb.from('sd_asistencia').delete().in('estudiante_id',quitar); err=r.error; }
   if(err){ toast('No se pudo guardar: '+err.message,'bad',5000); dibujarLista(''); return; }
-  filas.forEach(f=>S.asis[f.estudiante_id]=f); quitar.forEach(id=>delete S.asis[id]); L.cambios=false;
+  filas.forEach(f=>S.asis[f.estudiante_id]=f); quitar.forEach(id=>delete S.asis[id]); L.cambios=false; AP.t=0;
+  if(filas.some(f=>f.apoyo_lider)&&window.avisarYa) avisarYa();
   const pend=L.filas.filter(x=>!x.v).length;
   toast(pend?`Guardado. Faltan ${pend} por marcar.`:'Llamado a lista guardado ✓','ok',3500); dibujarLista('');
 }
@@ -813,6 +940,7 @@ async function pintarAsis(grado){
   if(S.asisVista==='previas'&&(S.perfil.rol==='admin'||S.modo==='sec')) return pintarPrevias();
   if(S.asisVista==='stem'&&esOrgM()) return pintarEnStem();
   if(S.asisVista==='may'&&window.mayPuedeTodos&&mayPuedeTodos()) return pintarMayores();
+  if(S.asisVista==='apo') return pintarApoyos();
   if(S.asisCurso) return detalleAsis(S.asisCurso);
   const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})), GR={}; S.est.forEach(x=>GR[x.curso]=x.grado);
   const ORDG=['transicion','primero','segundo','tercero','cuarto','quinto','sexto','septimo','octavo','noveno','decimo','undecimo'], og=g=>{ const i=ORDG.indexOf(String(g).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()); return i<0?99:i; };
@@ -822,6 +950,7 @@ async function pintarAsis(grado){
   let h=(S.modo==='sec'?'':llegadasHTML())+(esOrgM()?`<div class="segs"><span class="on">🕖 Llamado de las 7:00</span><span id="aVAct">📋 Por actividad</span></div>`:'')+`<h3>Asistencia · inicio de la jornada</h3><div class="sub">Se actualiza en tiempo real a medida que los directores de curso guardan su lista.</div>`;
   if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
   if(S.perfil.rol==='admin'||S.modo==='sec'){ const np=S.est.filter(x=>(S.asis[x.id]||{}).previa).length; h+=`<div class="pvcard" id="aPrev"><b>📌 Ausencias anunciadas para el 23</b><span>${np?`${np} estudiante${np>1?'s':''} marcado${np>1?'s':''} · `:''}Marca a quienes ya se sabe que no vendrán. Le aparecen marcados al director de curso.</span><i>›</i></div>`; }
+  { const n=(AP.lista||[]).length; h+=`<div class="pvcard apcard2" id="aApo"><b>🙋 Estudiantes de apoyo · permiso de salida</b><span>${n?`${n} estudiante${n>1?'s':''} · `:''}Con qué líder está cada uno. Confirma que llegaron.</span></div>`; }
   if(window.mayPuedeTodos&&mayPuedeTodos()){ const M=window.MAY||{}, n=(M.est||[]).length; h+=`<div class="pvcard maycard" id="aMay"><b>🎓 Décimo y undécimo · llamado a lista</b><span>${n?`${n} estudiantes · `:''}Dónde está cada estudiante (con su líder o en Logística) y su asistencia en cada momento.</span><i>›</i></div>`; }
   if(esOrgM()&&!S.vistaComo){ const ns=Object.keys(S.enStem||{}).length; h+=`<div class="pvcard stcard" id="aStem"><b>🔬 Estudiantes en actividades del STEM Day</b><span>${ns?`${ns} estudiante${ns>1?'s':''} marcado${ns>1?'s':''} · `:''}Marca a quienes estarán apoyando actividades. Su docente los ve en la lista con el aviso y como presentes.</span><i>›</i></div>`; }
   h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
@@ -852,6 +981,7 @@ async function pintarAsis(grado){
   if($('aPrev')) $('aPrev').onclick=()=>{ S.asisVista='previas'; pintarAsis(); };
   if($('aStem')) $('aStem').onclick=()=>{ S.asisVista='stem'; pintarAsis(); };
   if($('aMay')) $('aMay').onclick=()=>{ S.asisVista='may'; pintarAsis(); };
+  if($('aApo')) $('aApo').onclick=()=>{ S.asisVista='apo'; pintarAsis(); };
 }
 /* v45 · Administración y Máster Coordinadores: estudiantes que estarán en actividades del STEM Day */
 function pintarEnStem(){
@@ -1134,8 +1264,8 @@ function pintarPrograma(nv){
   let h=`<table class="gt"><tr><th>Hora</th>${grados.map(g=>`<th>${escHTML(g)}</th>`).join('')}</tr>`;
   franjas.forEach(fr=>{
     const pausa=filas.find(f=>f.tipo==='pausa'&&f.hora_inicio===fr.hora_inicio);
-    h+=`<tr><td class="h">${fmtHora(fr.hora_inicio)}</td>`;
-    if(pausa) h+=`<td class="p" colspan="${grados.length}">${escHTML(pausa.area)}</td>`;
+    h+=`<tr><td class="h">${fmtHora(fr.hora_inicio)}<small>a ${fmtHora(fr.hora_fin)}</small></td>`;
+    if(pausa) h+=`<td class="p ${pausaTipo(pausa)}" colspan="${grados.length}">${pausaIco(pausa)} ${escHTML(pausa.titulo||pausa.area)}</td>`;
     else grados.forEach(g=>{ const rs=filas.filter(f=>f.grado===g&&f.hora_inicio===fr.hora_inicio);
       const mine=(S.modo==='docente'&&rs.some(r=>S.cursos.includes(r.curso)))||(S.modo==='lider'&&rs.some(r=>(r.lideres||[]).includes(S.perfil.id)));
       h+= rs.length ? `<td class="c ${mine?'mine':''}" style="background:${AREA_C[rs[0].categoria]}" data-g="${escHTML(g)}" data-h="${fr.hora_inicio}" data-n="${escHTML(nv)}">${escHTML((()=>{ const tt=[...new Set(rs.map(r=>r.titulo).filter(Boolean))]; return tt.length===1?titA(tt[0]):short(rs[0].area); })())}<small>${escHTML(lugarDe(rs.map(r=>r.salon)))}</small></td>` : '<td></td>'; });
@@ -1397,7 +1527,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='56';
+const VERSION_APP='58';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
