@@ -166,6 +166,16 @@
     $('mayBtn').onclick=()=>$('mayFx').click(); $('mayFx').onchange=()=>{ const f=$('mayFx').files[0]; $('mayFx').value=''; if(f) leerMayores(f); };
     sb().from('sd_may_est').select('id',{count:'exact',head:true}).then(r=>{ const e=$('mayCnt'); if(e) e.innerHTML=r.error?'<span style="color:#b45309">Falta ejecutar el archivo <b>24-decimo-undecimo.sql</b> en Supabase.</span>':`Estudiantes de 10° y 11° cargados: <b>${r.count||0}</b>`; });
   }
+  /* v57 · llamado a lista de 10° y 11° (7:00): docente y lugar de cada curso, desde la hoja «Docentes Ciencias-Mat 10-11» */
+  async function guardarLlamado(L){
+    const D=await datosLideres(true), no=[];
+    const ALIAS={'bernal esteban':'Bernal Gaitán Edwar'};   // v58: así aparece en el directorio
+    const filas=L.map(x=>{ const d=buscarPersona(ALIAS[nrm(x.docente)]||x.docente,D.dir); if(!d) no.push(x.docente+' ('+x.curso+')'); return {curso:x.curso,docente:d?d.nombre:x.docente,correo:d?String(d.correo).toLowerCase():null,lugar:x.lugar,actualizado_en:new Date().toISOString()}; });
+    const r=await sb().from('sd_may_llamado').upsert(filas,{onConflict:'curso'}); if(r.error) throw r.error;
+    const ap=await sb().rpc('sd_may_aplicar_llamado'); if(ap.error) throw ap.error;
+    if(window.MAY) window.MAY.sucio=true;
+    return `Llamado de 10° y 11° (7:00): ${filas.length} cursos${no.length?' · sin reconocer: '+no.join(', '):''}.`;
+  }
   /* v46 · Décimo y undécimo: leer el Excel, reconocer a los líderes y cargar */
   async function leerMayores(file){
     const res=$('mayRes'); res.innerHTML='<p class="sm">Leyendo…</p>';
@@ -182,7 +192,7 @@
       const porCurso={}, porArea={}; R.estudiantes.forEach(e=>{ porCurso[e.curso]=(porCurso[e.curso]||0)+1; e.planes.forEach(p=>porArea[p.area||'(sin área)']=(porArea[p.area||'(sin área)']||0)+1); });
       const logs=R.estudiantes.flatMap(e=>e.planes.filter(p=>p.logistica).map(p=>({e,p})));
       res.innerHTML=`<div class="okbox"><b>${R.estudiantes.length}</b> estudiantes · ${Object.entries(porCurso).sort((a,b)=>a[0].localeCompare(b[0],'es',{numeric:true})).map(([c,n])=>`${escHTML(c)} (${n})`).join(', ')}<br>
-          Momentos: <b>${R.momentos.map(escHTML).join(' · ')}</b><br>Áreas: ${Object.entries(porArea).map(([a,n])=>`${escHTML(a)} (${n})`).join(', ')}</div>
+          Momentos: <b>${R.momentos.map(escHTML).join(' · ')}</b>${R.porCurso?' (7:00 – 7:30; el docente y el lugar de cada curso salen de la hoja «Docentes Ciencias-Mat 10-11» del horario)':''}<br>Áreas: ${Object.entries(porArea).map(([a,n])=>`${escHTML(a)} (${n})`).join(', ')}</div>
         ${no.length?`<div class="warnbox"><b>Líderes que la app no reconoce (${no.length}):</b> sus estudiantes no le aparecerán a nadie como líder (sí al administrador, Máster Coordinador y Organizador Master). Corrige el nombre en el Excel o crea la cuenta en Usuarios.<ul class="ulc">${no.map(x=>`<li>${escHTML(x.texto)} · ${x.n} estudiante${x.n>1?'s':''}</li>`).join('')}</ul></div>`:''}
         ${sinCuenta.length?`<div class="warnbox"><b>Líderes reconocidos pero sin cuenta en la app (${sinCuenta.length}):</b> ${sinCuenta.map(x=>escHTML(x.d.nombre)).join(' · ')}. Créales la cuenta para que puedan llamar a lista.</div>`:''}
         <details><summary class="sm">Líderes reconocidos (${L.length-no.length})</summary><table class="t"><tr><th>En el Excel</th><th>En la app</th><th>Estudiantes</th></tr>${L.filter(x=>x.d).map(x=>`<tr><td>${escHTML(x.texto)}</td><td>${escHTML(x.d.nombre)}${x.perfil?'':' <span style="color:#b45309">(sin cuenta)</span>'}</td><td>${x.n}</td></tr>`).join('')}</table></details>
@@ -193,7 +203,8 @@
         const p=R.estudiantes.map(e=>({nombre:e.nombre,curso:e.curso,grado:e.grado,orden:e.orden,planes:e.planes.map(({hoja,fila,...x})=>x)}));
         const {data,error}=await sb().rpc('sd_importar_mayores',{p});
         if(error){ $('mayOk').disabled=false; $('mayOk').textContent='Cargar la lista de 10° y 11°'; return res.insertAdjacentHTML('beforeend',`<div class="warnbox">No se pudo cargar: ${escHTML(/sd_importar_mayores/.test(error.message)?'falta ejecutar el archivo 24-decimo-undecimo.sql en Supabase.':error.message)}</div>`); }
-        if(window.MAY) window.MAY.sucio=true; aviso(`Lista de 10° y 11° cargada: ${data.estudiantes} estudiantes`,'ok'); tEstudiantes(); };
+        let extra=''; try{ const ap=await sb().rpc('sd_may_aplicar_llamado'); if(!ap.error) extra=` · llamado de las 7:00 asignado a ${ap.data.asignados} estudiantes`; else if(/sd_may_aplicar/.test(ap.error.message)) extra=' · falta ejecutar el archivo 32-llamado-decimo-undecimo.sql'; }catch(_){}
+        if(window.MAY) window.MAY.sucio=true; aviso(`Lista de 10° y 11° cargada: ${data.estudiantes} estudiantes${extra}`,'ok'); tEstudiantes(); };
     }catch(e){ res.innerHTML=`<div class="warnbox">${escHTML(e.message||e)}</div>`; }
   }
   /* v32 · contraste: lista de la app (sd_estudiantes) vs. archivo oficial de asistencia */
@@ -481,7 +492,8 @@
         acompanante:f.acompanante, apoyo:f.apoyo, estudiantes:f.estudiantes||'', fila:f.fila }));
       const { data, error } = await sb().rpc('sd_importar', { p_filas:filas, p_directorio:lectura.directorio, p_archivo:lectura.archivo, p_originales:lectura.originales||null });
       if(error){ res.insertAdjacentHTML('beforeend',`<div class="warnbox">No se pudo actualizar: ${escHTML(error.message)}</div>`); $('impSi').disabled=false; $('impSi').textContent='Actualizar toda la app'; return; }
-      aviso(`Programación actualizada: ${data.filas} filas, ${data.docentes} docentes.`,'ok'); lectura=null;
+      aviso(`Programación actualizada: ${data.filas} filas, ${data.docentes} docentes.`,'ok'); const llam=lectura.llamado||[]; lectura=null;
+      if(llam.length){ try{ const msg=await guardarLlamado(llam); aviso(msg,'ok'); }catch(e){ aviso('El horario se cargó, pero no el llamado de 10° y 11°: '+(/sd_may_llamado|sd_may_aplicar/.test(e.message)?'falta ejecutar el archivo 32-llamado-decimo-undecimo.sql en Supabase.':e.message),'bad'); } }
       try{ if(window.recargarDatos) await window.recargarDatos(); const n=await aplicarLideres(); if(n!=null) aviso(`Programación actualizada y líderes asignados (${n} filas con cambios).`,'ok'); }catch(e){ aviso('La programación se cargó, pero no se pudieron asignar los líderes: '+e.message,'bad'); }
       tImportar();
     };
