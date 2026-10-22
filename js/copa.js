@@ -71,6 +71,7 @@ const copaOfrKey=it=>'copa_ofr_'+(S.perfil&&S.perfil.id)+'_'+it.curso+'_'+it.hor
 function copaRevisar(){
   if(S.modo!=='docente'||!S.config) return;   // v49: también en «Ver como» (vista previa) y aunque el podio no haya cargado
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
+  if(window.pausaAhora&&pausaAhora(misNiveles())) return;   // v57: nada de trivias en desplazamientos, descansos ni almuerzo
   const nuevos=[];
   (S.cursos||[]).forEach(c=>rutaCurso(c).filter(evaluable).forEach(s=>{ const fin=toMin(s.hora_fin||s.f);
     if(a.min<fin-copaAntes()||a.min>=fin) return;
@@ -98,6 +99,7 @@ function copaLanzada(L){
   if(!L||S.modo!=='docente'||!S.config) return;
   if(Date.now()-new Date(L.creado_en).getTime()>45*60000) return;   // solo lanzamientos recientes
   const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
+  if(window.pausaAhora&&pausaAhora(misNiveles())) return;   // v57
   const pend=copaPend(), lista=[];
   (S.cursos||[]).forEach(c=>rutaCurso(c).filter(evaluable).forEach(s=>{
     if(a.min<toMin(s.hora_inicio||s.h)||a.min>=toMin(s.hora_fin||s.f)) return;
