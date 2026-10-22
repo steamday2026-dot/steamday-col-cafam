@@ -41,6 +41,19 @@
     return 'gen';
   }
   const PAUSAS = ['descanso', 'almuerzo', 'refrigerio', 'receso'];
+  // v57: también «DESPLAZAMIENTO DEL EDIFICIO DE … A …» y «Descanso en las instalaciones de …»
+  const esPausa = g => { const n = norm(g); return PAUSAS.some(p => n === p || n.startsWith(p + ' ')) || n.startsWith('desplazamiento'); };
+  function pausaInfo(txt) {
+    const n = norm(txt), dest = /\ba primaria\b/.test(n) ? 'Primaria' : /\ba bachillerato\b/.test(n) ? 'Bachillerato' : '';
+    const sede = /primaria/.test(n) ? 'Primaria' : /bachillerato/.test(n) ? 'Bachillerato' : '';
+    if (n.startsWith('desplazamiento')) {
+      const ori = dest === 'Primaria' ? 'Bachillerato' : dest === 'Bachillerato' ? 'Primaria' : '';
+      return { area: 'Desplazamiento' + (dest ? ' a ' + dest : ''), titulo: ori ? `Desplazamiento de ${ori} a ${dest}` : 'Desplazamiento' };
+    }
+    if (n.startsWith('descanso')) return { area: 'Descanso', titulo: sede ? 'Descanso en las instalaciones de ' + sede : 'Descanso' };
+    if (n.startsWith('almuerzo')) return { area: 'Almuerzo', titulo: 'Almuerzo' };
+    const t = limpio(txt); return { area: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase(), titulo: t };
+  }
   const DOC_HACER = 'Diana Carolina Cardona - Javier Ricardo Téllez';
 
   // v30: directores y codirectores ORIGINALES según la hoja del directorio (col. A: «3A», «Apoyo 4B y 5G», «Apoyo 8-F-G»…)
@@ -111,14 +124,15 @@
       const grado = g(r, 'grado');
       const salonTxt = g(r, 'salon');
       const fila = r + 1;
-      if (!salonTxt && !PAUSAS.includes(norm(grado))) continue;   // fila vacía
+      if (!salonTxt && !esPausa(grado)) continue;   // fila vacía
       const fr = leerFranja(horario);
       if (!fr) { avisos.push(`${nivel} fila ${fila}: no se entiende el horario "${horario}".`); continue; }
       if (fr.fin <= fr.inicio) avisos.push(`${nivel} fila ${fila}: la hora final no es posterior a la inicial ("${horario}").`);
 
-      if (PAUSAS.includes(norm(grado))) {
+      if (esPausa(grado)) {
+        const pi = pausaInfo(grado);
         filas.push({ tipo: 'pausa', nivel, grado: null, curso: null, hora_inicio: fr.inicio, hora_fin: fr.fin,
-          franja: horario, salon: '', area: grado, categoria: 'gen', titulo: grado, frase: '',
+          franja: horario, salon: '', area: pi.area, categoria: 'gen', titulo: pi.titulo, frase: '',
           docente_cargo: '', acompanante: '', apoyo: '', fila });
         continue;
       }
@@ -181,6 +195,17 @@
       ...(hPri ? leerHojaHorario(wb.Sheets[hPri], 'Primaria', avisos) : []),
       ...(hBach ? leerHojaHorario(wb.Sheets[hBach], 'Bachillerato', avisos) : [])
     ];
+    // v57: hoja «Docentes Ciencias-Mat 10-11»: quién llama a lista a cada curso de 10° y 11° (7:00–7:30) y dónde
+    const llamado = [];
+    nombres.filter(n => n !== hPri && n !== hBach).forEach(n => {
+      const R = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' });
+      const hr = R.slice(0, 10).findIndex(r => r.some(c => norm(c) === 'curso') && r.some(c => norm(c).startsWith('docente')) && r.some(c => norm(c).startsWith('ubicacion')));
+      if (hr < 0) return;
+      const H = R[hr].map(norm), cC = H.indexOf('curso'), cD = H.findIndex(h => h.startsWith('docente')), cU = H.findIndex(h => h.startsWith('ubicacion'));
+      R.slice(hr + 1).forEach(r => { const cu = limpio(r[cC]).toUpperCase().replace(/[\s°º-]/g, ''); if (!/^1[01][A-H]$/.test(cu)) return;
+        let lugar = limpio(r[cU]).replace(/cristial/gi, 'cristal'); lugar = lugar.charAt(0).toUpperCase() + lugar.slice(1);
+        llamado.push({ curso: cu, docente: limpio(r[cD]), lugar }); });
+    });
     // directorio: cualquier otra hoja que tenga columna CORREO
     let directorio = [];
     nombres.filter(n => n !== hPri && n !== hBach).forEach(n => {
@@ -229,7 +254,7 @@
     });
 
     return {
-      filas, directorio, docentes: listaDoc, avisos, pendientes, originales: originales(directorio),
+      filas, directorio, docentes: listaDoc, avisos, pendientes, originales: originales(directorio), llamado,
       resumen: {
         filas: act.length, pausas: filas.length - act.length,
         cursos: Object.keys(porCurso).length,
@@ -247,7 +272,7 @@
     return leerLibro(wb);
   }
 
-  const api = { leerArchivo, leerLibro, norm, leerFranja, categoria, cursosDeEtiqueta };
+  const api = { leerArchivo, leerLibro, norm, leerFranja, categoria, cursosDeEtiqueta, pausaInfo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SteamExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);
