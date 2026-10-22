@@ -16,8 +16,8 @@ async function turCargar(){
 }
 function turIniciar(){
   if(TUR.listo) return; TUR.listo=true;
-  turCargar().then(turRefrescar);
-  try{ S.sb.channel('turnos').on('postgres_changes',{event:'*',schema:'public',table:'sd_turnos'},()=>{ clearTimeout(TUR._t); TUR._t=setTimeout(async()=>{ await turCargar(); turRefrescar(); turRevisarPropuestas(); },600); }).subscribe(); }catch(e){}
+  turCargarPrueba().then(turCargar).then(turRefrescar);
+  try{ S.sb.channel('turnos').on('postgres_changes',{event:'*',schema:'public',table:'sd_turnos'},()=>{ clearTimeout(TUR._t); TUR._t=setTimeout(async()=>{ await turCargar(); turRefrescar(); clearTimeout(TUR._p); TUR._p=setTimeout(turRevisarPropuestas,12000); /* v56: espera a que el otro termine de proponer */ },600); }).subscribe(); }catch(e){}
   setInterval(turRevisar,30000); setTimeout(turRevisar,4000);
 }
 /* repinta lo que esté abierto */
@@ -30,9 +30,15 @@ function turRefrescar(){
 
 /* bloques del curso: actividades (sin la dirección de grupo) y pausas */
 function turBloques(c){ return rutaCurso(c).filter(s=>!(s.tipo==='actividad'&&esDirGrupo(s))); }
-function turPersonas(c){ const f=S.prog.find(r=>r.curso===c&&r.tipo==='actividad'&&(r.acompanante||r.apoyo))||{}; return {D:f.acompanante||'',C:f.apoyo||''}; }
+function turPersonas(c){ if(turEsPrueba()&&TUR.pruebaGente){ const G=TUR.pruebaGente.filter(p=>(p.cursos_manual||[]).includes(c)); const d=G.find(p=>(p.papel_prueba||'D')==='D'), k=G.find(p=>p.papel_prueba==='C'); return {D:d?d.nombre:'Director de prueba',C:k?k.nombre:'Codirector de prueba'}; }
+  const f=S.prog.find(r=>r.curso===c&&r.tipo==='actividad'&&(r.acompanante||r.apoyo))||{}; return {D:f.acompanante||'',C:f.apoyo||''}; }
 function turIniciado(h){ const a=ahora(); if(a.fecha!==S.config.fecha_evento) return a.fecha>S.config.fecha_evento; return a.min>=toMin(h); }
-function miPapel(c){ if(S.modo!=='docente') return null; const ex=S.rolDoc||{acompana:[],apoya:[]}; if((ex.acompana||[]).includes(c)) return 'D'; if((ex.apoya||[]).includes(c)) return 'C'; return (S.cursos||[]).includes(c)?'D':null; }
+/* v56 · Pareja de prueba: las cuentas prueba.* acuerdan turnos en un curso aparte («PRUEBA-3G»), que no ven los docentes reales */
+const turEsPrueba=()=>/^prueba\./i.test((S.perfil&&S.perfil.correo)||'');
+const tc=c=>turEsPrueba()?'PRUEBA-'+c:c;
+TUR.pruebaGente=null;
+async function turCargarPrueba(){ if(!turEsPrueba()||TUR.pruebaGente) return; try{ const r=await S.sb.from('sd_perfiles').select('id,nombre,correo,cursos_manual,papel_prueba').ilike('correo','prueba.%'); TUR.pruebaGente=r.error?[]:(r.data||[]); }catch(_){ TUR.pruebaGente=[]; } }
+function miPapel(c){ if(S.modo!=='docente') return null; if(turEsPrueba()) return S.perfil.papel_prueba||'D'; const ex=S.rolDoc||{acompana:[],apoya:[]}; if((ex.acompana||[]).includes(c)) return 'D'; if((ex.apoya||[]).includes(c)) return 'C'; return (S.cursos||[]).includes(c)?'D':null; }
 
 /* ¿quién está con el curso en el bloque h? (texto corto para otros perfiles) */
 function conQuien(c,h){
@@ -50,7 +56,7 @@ function turBoton(){
   let b=$('btnTurnos');
   if(!b){ const p=$('p-ruta'); if(!p) return; b=document.createElement('button'); b.id='btnTurnos'; b.className='turbtn'; b.hidden=true; p.appendChild(b); b.onclick=()=>turAbrirDocente(); }
   if(S.modo!=='docente'||!(S.cursos||[]).length){ b.hidden=true; return; }
-  let pend=0, sin=0; S.cursos.forEach(c=>{ const yo=miPapel(c); turBloques(c).forEach(s=>{ if(turIniciado(s.h)) return; const t=TUR.m[turK(c,s.h)]; if(!t) sin++; else if(!t.confirmado&&t.propuesto_por!==S.perfil.id&&yo) pend++; }); });
+  let pend=0, sin=0; S.cursos.forEach(c=>{ const yo=miPapel(c); turBloques(c).forEach(s=>{ if(turIniciado(s.h)) return; const t=TUR.m[turK(tc(c),s.h)]; if(!t) sin++; else if(!t.confirmado&&t.propuesto_por!==S.perfil.id&&yo) pend++; }); });
   b.innerHTML=`<span class="ti">👥${pend?`<b class="r">${pend}</b>`:sin?`<b>${sin}</b>`:'<b class="ok">✓</b>'}</span>Turnos`; b.title=pend?`${pend} por confirmar`:sin?`${sin} sin definir`:'Todo acordado';
   // v39: debajo del botón «Mapa del colegio» (a la izquierda) para no tapar los salones de la ruta
   b.hidden=false; const mb=$('btnColegio'), mp=$('mapa'); b.style.top=(mb&&!mb.hidden&&mb.offsetHeight?mb.offsetTop+mb.offsetHeight+8:((mp&&mp.offsetTop||0)+10))+'px';
@@ -66,7 +72,7 @@ function turAbrirDocente(curso,refresco){
   h+=`<p class="sm" style="margin:0 0 6px">Elige quién estará con el curso en cada momento. Tu ${otro.toLowerCase()} recibe un aviso y confirma con «✓ De acuerdo». Puedes hacerlo desde hoy o el mismo día, pero <b>no se puede cambiar un bloque que ya empezó</b>.</p>
     <div class="turper"><span><b>D</b> ${escHTML(corto(P.D)||'Director')}</span><span><b>C</b> ${escHTML(corto(P.C)||'Codirector')}</span></div>`;
   if(!TUR.cargado) h+=`<div class="warnbox">Los turnos aún no están activos. El administrador debe ejecutar el archivo 18 en Supabase.</div>`;
-  turBloques(c).forEach(s=>{ const t=TUR.m[turK(c,s.h)], ini=turIniciado(s.h), mio=t&&t.propuesto_por===S.perfil.id;
+  turBloques(c).forEach(s=>{ const t=TUR.m[turK(tc(c),s.h)], ini=turIniciado(s.h), mio=t&&t.propuesto_por===S.perfil.id;
     const est=!t?'<span class="tst sd">Sin definir</span>':t.confirmado?'<span class="tst ok">✓ Acordado</span>':mio?`<span class="tst pe">⏳ Esperando a tu ${otro.toLowerCase()}</span>`:`<span class="tst pe">⏳ Propuesto por ${escHTML(corto(t.propuesto_nombre))}</span>`;
     h+=`<div class="turb ${ini?'lock':''} ${s.tipo==='pausa'?'pz':''}"><div class="th"><b>${fmtHora(s.h)}</b><span>${escHTML(s.nombre)}${s.tipo==='pausa'?'':' · '+escHTML(s.salon||'')}</span></div>
       <div class="tsel">${['D','C','A'].map(q=>`<span data-h="${s.h}" data-q="${q}" class="${t&&t.quien===q?'on '+(t.confirmado?'ok':'pe'):''}">${q==='A'?'Ambos':q==='D'?escHTML(corto(P.D).split(' ')[0]||'Director'):escHTML(corto(P.C).split(' ')[0]||'Codirector')}<small>${TUR_N[q]}</small></span>`).join('')}</div>
@@ -75,11 +81,11 @@ function turAbrirDocente(curso,refresco){
   $('shX').onclick=()=>{ delete sh.dataset.tur; cerrarSheet(); };
   sh.querySelectorAll('.segs [data-c]').forEach(e=>e.onclick=()=>turAbrirDocente(e.dataset.c,true));
   sh.querySelectorAll('.tsel [data-q]').forEach(e=>e.onclick=async()=>{ if(turIniciado(e.dataset.h)) return toast('Esta actividad ya inició: no se puede cambiar.','bad',3500);
-    const t=TUR.m[turK(c,e.dataset.h)]; if(t&&t.quien===e.dataset.q) return;
-    const r=await S.sb.rpc('sd_turno_guardar',{p_curso:c,p_hora:e.dataset.h,p_quien:e.dataset.q}); if(r.error) return toast(r.error.message,'bad',4500); if(window.avisarYa) avisarYa();
+    const t=TUR.m[turK(tc(c),e.dataset.h)]; if(t&&t.quien===e.dataset.q) return;
+    const r=await S.sb.rpc('sd_turno_guardar',{p_curso:tc(c),p_hora:e.dataset.h,p_quien:e.dataset.q}); if(r.error) return toast(r.error.message,'bad',4500); if(window.avisarYa) avisarYa();
     toast(`Propuesta enviada a tu ${otro.toLowerCase()}`,'ok'); await turCargar(); turRefrescar(); });
-  sh.querySelectorAll('[data-ok]').forEach(e=>e.onclick=async()=>{ const r=await S.sb.rpc('sd_turno_confirmar',{p_curso:c,p_hora:e.dataset.ok}); if(r.error) return toast(r.error.message,'bad',4500); toast('Turno acordado ✓','ok'); await turCargar(); turRefrescar(); });
-  sh.querySelectorAll('[data-del]').forEach(e=>e.onclick=async ev=>{ ev.preventDefault(); const r=await S.sb.rpc('sd_turno_quitar',{p_curso:c,p_hora:e.dataset.del}); if(r.error) return toast(r.error.message,'bad',4500); await turCargar(); turRefrescar(); });
+  sh.querySelectorAll('[data-ok]').forEach(e=>e.onclick=async()=>{ const r=await S.sb.rpc('sd_turno_confirmar',{p_curso:tc(c),p_hora:e.dataset.ok}); if(r.error) return toast(r.error.message,'bad',4500); toast('Turno acordado ✓','ok'); await turCargar(); turRefrescar(); });
+  sh.querySelectorAll('[data-del]').forEach(e=>e.onclick=async ev=>{ ev.preventDefault(); const r=await S.sb.rpc('sd_turno_quitar',{p_curso:tc(c),p_hora:e.dataset.del}); if(r.error) return toast(r.error.message,'bad',4500); await turCargar(); turRefrescar(); });
 }
 
 /* ---------- resumen para organizadores, Master, Máster Coord., administrador y líderes ---------- */
@@ -111,18 +117,28 @@ window.turAbrirResumen=turAbrirResumen; window.turAbrirDocente=turAbrirDocente;
 /* ---------- avisos al docente ---------- */
 function turRevisarPropuestas(){
   if(S.modo!=='docente'||S.vistaComo) return;
-  (S.cursos||[]).forEach(c=>{ const yo=miPapel(c); if(!yo) return; turBloques(c).forEach(s=>{ const t=TUR.m[turK(c,s.h)]; if(!t||t.confirmado||t.propuesto_por===S.perfil.id||turIniciado(s.h)) return;
-    const k='steam_turprop_'+turK(c,s.h)+'_'+t.actualizado_en; if(LS.get(k,false)) return; LS.set(k,true);
-    ventana({icono:'👥',kicker:`Curso ${escHTML(c)} · turnos`,titulo:`${escHTML(corto(t.propuesto_nombre))} propone un turno`,color:'#1f6f5c',
-      html:`<p><b>${fmtHora(s.h)} · ${escHTML(s.nombre)}</b>${s.tipo==='pausa'?'':' ('+escHTML(s.salon||'')+')'}</p><p>Con el curso: <b>${TUR_N[t.quien]}${t.quien==='A'?' (los dos)':''}</b>.</p>`,
-      botones:[{t:'✓ De acuerdo',fn:async()=>{ const r=await S.sb.rpc('sd_turno_confirmar',{p_curso:c,p_hora:s.h}); if(r.error) toast(r.error.message,'bad',4000); else { toast('Turno acordado ✓','ok'); await turCargar(); turRefrescar(); } }},{t:'Ver todos los turnos',ghost:true,fn:()=>turAbrirDocente(c)}]}); }); });
+  // v56: todas las propuestas nuevas del otro docente en UNA sola ventana, con «Aceptar todas»
+  const nuevas=[];
+  (S.cursos||[]).forEach(c=>{ const yo=miPapel(c); if(!yo) return; turBloques(c).forEach(s=>{ const t=TUR.m[turK(tc(c),s.h)]; if(!t||t.confirmado||t.propuesto_por===S.perfil.id||turIniciado(s.h)) return;
+    const k='steam_turprop_'+turK(tc(c),s.h)+'_'+t.actualizado_en; if(LS.get(k,false)) return; nuevas.push({c,s,t,k}); }); });
+  if(!nuevas.length) return;
+  nuevas.forEach(x=>LS.set(x.k,true));
+  if(V30&&V30.cola.some(o=>o.tag==='turprop')) V30.cola=V30.cola.filter((o,i)=>i===0||o.tag!=='turprop');
+  const quien=[...new Set(nuevas.map(x=>corto(x.t.propuesto_nombre)))].join(' y '), cursos=[...new Set(nuevas.map(x=>x.c))];
+  const filas=nuevas.map(x=>`<div class="tpfila"><b>${fmtHora(x.s.h)}</b><span>${escHTML(x.s.nombre)}${x.s.tipo==='pausa'?'':' · '+escHTML(x.s.salon||'')}</span><em class="q${x.t.quien}">${TUR_N[x.t.quien]}</em></div>`).join('');
+  const aceptar=async()=>{ let ok=0, err='';
+    for(const x of nuevas){ const r=await S.sb.rpc('sd_turno_confirmar',{p_curso:tc(x.c),p_hora:x.s.h}); if(r.error) err=r.error.message; else ok++; }
+    if(err&&!ok) toast(err,'bad',4500); else toast(ok===1?'Turno acordado ✓':`${ok} turnos acordados ✓`,'ok'); await turCargar(); turRefrescar(); };
+  ventana({tag:'turprop',icono:'👥',kicker:`Curso ${escHTML(cursos.join(' y '))} · turnos`,titulo:`${escHTML(quien)} ${nuevas.length===1?'propone un turno':'propone '+nuevas.length+' turnos'}`,color:'#1f6f5c',
+    html:`<p class="sm" style="margin:0 0 8px">Quién estará con el curso en cada momento:</p><div class="tplist">${filas}</div>`,
+    botones:[{t:nuevas.length===1?'✓ De acuerdo':'✓ Aceptar todos',fn:aceptar},{t:'Revisar uno por uno',ghost:true,fn:()=>{ setTimeout(()=>turAbrirDocente(nuevas[0].c),80); }}]});
 }
 function turRevisar(){
   turBoton(); turRevisarPropuestas();
   if(S.modo!=='docente'||S.vistaComo) return; const a=ahora(); if(a.fecha!==S.config.fecha_evento) return;
   (S.cursos||[]).forEach(c=>{ const yo=miPapel(c); if(!yo) return; const B=turBloques(c);
-    B.forEach((s,i)=>{ const t=TUR.m[turK(c,s.h)]; if(!t||t.quien!==yo) return; const prev=i?TUR.m[turK(c,B[i-1].h)]:null; if(prev&&prev.quien===yo) return;
-      const m=toMin(s.h); if(a.min<m-10||a.min>=m) return; const k='steam_turtoma_'+turK(c,s.h); if(LS.get(k,false)) return; LS.set(k,true);
+    B.forEach((s,i)=>{ const t=TUR.m[turK(tc(c),s.h)]; if(!t||t.quien!==yo) return; const prev=i?TUR.m[turK(tc(c),B[i-1].h)]:null; if(prev&&prev.quien===yo) return;
+      const m=toMin(s.h); if(a.min<m-10||a.min>=m) return; const k='steam_turtoma_'+turK(tc(c),s.h); if(LS.get(k,false)) return; LS.set(k,true);
       const p=prefs(); if(p.sonido&&window.sonarTono) sonarTono(p.tono); if(p.vibracion&&navigator.vibrate) navigator.vibrate([300,150,300]);
       ventana({icono:'👥',kicker:`Curso ${escHTML(c)} · tu turno`,titulo:`En ${m-a.min} minutos tomas el curso`,color:'#1f6f5c',html:`<p><b>${escHTML(s.nombre)}</b>${s.tipo==='pausa'?'':' en <b>'+escHTML(s.salon||'')+'</b>'} a las <b>${fmtHora(s.h)}</b>.</p><p>Acordado con tu ${yo==='D'?'codirector':'director de curso'}.</p>`}); }); });
 }
