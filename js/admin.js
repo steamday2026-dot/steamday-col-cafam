@@ -652,7 +652,7 @@
     $('avEnviar').onclick=async()=>{
       const titulo=$('avT').value.trim(), mensaje=$('avM').value.trim(), curso=$('avC').value||null;
       if(!titulo||!mensaje) return aviso('Escribe el título y el mensaje.','bad');
-      const { error } = await sb().from('sd_avisos').insert({ titulo, mensaje, curso, creado_por:S().perfil.id });
+      const { error } = await sb().from('sd_avisos').insert({ titulo, mensaje, curso, creado_por:S().perfil.id }); if(!error&&window.avisarYa) avisarYa();
       if(error) return aviso('No se pudo enviar: '+error.message,'bad');
       aviso('Aviso enviado','ok'); tAvisos();
     };
@@ -788,7 +788,7 @@
     $('msE').onclick=async()=>{ const t=$('msT').value.trim(), x=$('msX').value.trim(); if(!t||!x) return aviso('Escribe el título y el mensaje.','bad');
       const roles=[...document.querySelectorAll('#msOpc [data-r]:checked')].map(c=>c.dataset.r);
       if(dest==='roles'&&!roles.length) return aviso('Elige al menos un perfil.','bad'); if(dest==='personas'&&!sel.size) return aviso('Elige al menos una persona.','bad');
-      const {error}=await sb().from('sd_mensajes').insert({titulo:t,texto:x,video:$('msV').value.trim()||null,destino:dest,roles:dest==='roles'?roles:[],personas:dest==='personas'?[...sel]:[],creado_por:S().perfil.id});
+      if(window.avisarYa) setTimeout(avisarYa,800); const {error}=await sb().from('sd_mensajes').insert({titulo:t,texto:x,video:$('msV').value.trim()||null,destino:dest,roles:dest==='roles'?roles:[],personas:dest==='personas'?[...sel]:[],creado_por:S().perfil.id});
       if(error) return aviso('No se pudo enviar: '+error.message,'bad'); aviso('Mensaje enviado','ok'); tMensajes(); };
     $('admTab').querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{ if(!confirm('¿Borrar este mensaje? Ya no le aparecerá a quien no lo haya visto.')) return; await sb().from('sd_mensajes').delete().eq('id',+b.dataset.x); tMensajes(); });
   }
