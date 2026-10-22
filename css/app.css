@@ -742,3 +742,25 @@ small.mylog{display:block;color:#0f766e!important;font-weight:600}
 .tpfila:last-child{border-bottom:0}.tpfila span{color:var(--muted)}
 .tpfila em{font-style:normal;font-weight:800;font-size:12px;padding:3px 8px;border-radius:999px;background:#e8f7f0;color:#1f6f5c}
 .tpfila em.qC{background:#eef2ff;color:#3a4fb3}.tpfila em.qA{background:#fff4e0;color:#9a5b00}
+/* v57 · llamado a lista de 10° y 11° (7:00) */
+.llbox{background:#eaf2ff;border:1.5px solid #9cc0f2;border-radius:14px;padding:10px 12px;margin:8px 0 10px;font-size:13.5px;color:#1d3557;text-align:left}
+.llbox>b:first-child{display:block;color:#1d4f91;font-size:14.5px;margin-bottom:4px}.llbox>span{display:block;margin-bottom:4px}
+.llbox ol{margin:4px 0 0 18px;padding:0}.llbox li{margin:3px 0}
+.llres{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin:6px 0 10px}
+.llc{background:#fff;border:1.5px solid #e2e6ee;border-radius:12px;padding:6px 8px;cursor:pointer;line-height:1.2}
+.llc b{display:block;font-size:15px}.llc small{display:block;font-size:11px;color:#5b6577;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.llc.ok{border-color:#1f9d6b;background:#eefaf4}.llc.no{border-color:#f2c94c;background:#fffaf0}
+/* v57 · desplazamientos y descansos */
+td.p.desp{background:#e6f1ff;color:#1d4f91}td.p.desc{background:#fff4dc}td.p.alm{background:#fde9e2}
+.gt td.h small{display:block;font-size:10px;opacity:.7;font-weight:500}
+.dsbox{border-radius:14px;padding:10px 12px;margin:6px 0;text-align:left;font-size:14px}
+.dsbox.azul{background:#e6f1ff;border:1.5px solid #8fb6ee}.dsbox.rojo{background:#ffecec;border:1.5px solid #f0a3a3}
+/* v58 · autocompletar y estudiantes de apoyo */
+.aclist{position:relative;z-index:5;margin:-4px 0 8px;background:#fff;border:1.5px solid #d6dbe6;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.12);max-height:260px;overflow:auto;text-align:left}
+.aclist div{padding:9px 12px;border-bottom:1px solid #eef1f6;cursor:pointer}.aclist div:last-child{border-bottom:0}.aclist div:active{background:#f3f6fb}
+.aclist b{display:block;font-size:14px;color:#1d2b44}.aclist small{font-size:12px;color:#6b7588}.aclist p{margin:0;padding:10px 12px;font-size:13px;color:#6b7588}
+.apsel{display:block;width:100%;margin-top:6px}
+.aphint{background:#f4efff;border:1.5px solid #cdb8f5;border-radius:12px;padding:8px 10px;font-size:12.5px;color:#4b2a8a;margin:6px 0 8px;text-align:left}.aphint a{color:#7b4bd6;font-weight:700}
+.apcard{background:#f4efff;border:1.5px solid #cdb8f5;border-radius:16px;padding:12px;margin:12px 0;text-align:left}.apcard>b{display:block;color:#4b2a8a;font-size:15px;margin-bottom:4px}
+.pvcard.apcard2{background:#f4efff;border-color:#cdb8f5}.pvcard.apcard2 b{color:#4b2a8a}
+.apsteps div{display:flex;gap:10px;align-items:flex-start;margin:7px 0;text-align:left}.apsteps>div>b{flex:0 0 26px;height:26px;border-radius:50%;background:#7b4bd6;color:#fff;display:grid;place-items:center;font-size:14px}.apsteps span{font-size:14px}
