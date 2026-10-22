@@ -293,6 +293,24 @@ function pantallaPermiso(){
 
 /* ---------------- avisos con la app cerrada (Web Push) ---------------- */
 function b64ToU8(s){ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); }
+/* v55 · avisar al instante: la app le pide al servidor que envíe ya las notificaciones pendientes (mensajes, chat, avisos, turnos) */
+let _pushT=null;
+function avisarYa(){ clearTimeout(_pushT); _pushT=setTimeout(()=>{ try{ S.sb.functions.invoke((CFG&&CFG.FUNCION_PUSH)||'rapid-worker',{body:{}}).catch(()=>{}); }catch(_){} },1200); }
+window.avisarYa=avisarYa;
+async function probarNotificacion(){
+  if(S.vistaComo) return avisoVista();
+  let sub=null; try{ const reg=await navigator.serviceWorker.getRegistration(); sub=reg&&await reg.pushManager.getSubscription(); }catch(e){}
+  if(!('Notification' in window)||Notification.permission!=='granted'||!sub){ toast('Primero toca «Activar avisos».','bad',4000); return; }
+  ventana({icono:'🔔',titulo:'Prueba de notificación',html:'<p>Cierra o minimiza la app ahora. En <b>8 segundos</b> te llegará una notificación con sonido, como un mensaje de WhatsApp.</p><p class="sm">Si no suena, revisa que el celular no esté en silencio o en «No molestar», y que las notificaciones de la app (o del navegador) tengan el sonido activado en los ajustes del celular.</p>',botones:[{t:'Entendido'}]});
+  try{ const r=await S.sb.functions.invoke((CFG&&CFG.FUNCION_PUSH)||'rapid-worker',{body:{prueba:true,espera:8}});
+    if(r.error) toast('No se pudo enviar la prueba: '+(r.error.message||r.error)+'. ¿Ya actualizaste rapid-worker?','bad',6000);
+    else if(r.data&&r.data.motivo==='sin_suscripcion') toast('Este celular no está registrado para avisos. Toca «Activar avisos».','bad',5000);
+    else if(r.data&&!r.data.ok) toast('El servidor no pudo entregar la notificación a este celular. Vuelve a activar los avisos.','bad',6000);
+  }catch(e){ toast('No se pudo enviar la prueba: '+e.message,'bad',5000); }
+}
+// v55 · al tocar una notificación: abrir el chat (y la conversación) o la app
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',ev=>{ const m=ev.data||{};
+  if(m.tipo==='abrir'&&/p=chat/.test(m.url||'')&&S.perfil&&window.puedeChat&&puedeChat()){ if(m.sala) S.chatSala=m.sala; irPanel('chat'); } });
 async function activarAvisos(){
   if(S.vistaComo){ avisoVista(); return false; }
   desbloquearAudio();
@@ -362,6 +380,7 @@ function principal(){
   if(window.cmIniciar) cmIniciar();
   if(window.v30Iniciar) v30Iniciar();
   if(window.mayIniciar) mayIniciar();
+  try{ const q=new URLSearchParams(location.search); if(q.get('p')==='chat'&&puedeChat()){ if(q.get('sala')) S.chatSala=q.get('sala'); setTimeout(()=>irPanel('chat'),600); } }catch(_){}
 }
 function irPanel(p){
   S.panel=p;
@@ -1060,7 +1079,7 @@ async function abrirChat(){
   const enviar=async()=>{ const v=$('chTxt').value.trim(); if(!v) return; $('chTxt').value='';
     const fila={perfil_id:S.perfil.id,nombre:S.perfil.nombre,mensaje:v.slice(0,1000)}; if(S.chatSala!=='todos') fila.sala=S.chatSala;
     const {data,error}=await S.sb.from('sd_chat').insert(fila).select().single();
-    if(error){ toast('No se envió: '+(/sala/.test(error.message)?'falta ejecutar el archivo 23-estudiantes-stem-y-chat.sql en Supabase.':error.message),'bad',5000); $('chTxt').value=v; return; } if(data) nuevoMensaje(data); };
+    if(error){ toast('No se envió: '+(/sala/.test(error.message)?'falta ejecutar el archivo 23-estudiantes-stem-y-chat.sql en Supabase.':error.message),'bad',5000); $('chTxt').value=v; return; } if(data) nuevoMensaje(data); avisarYa(); };
   $('chEnv').onclick=enviar; $('chTxt').onkeydown=e=>{ if(e.key==='Enter') enviar(); };
 }
 const COLS=['#1f9d6b','#7b4bd6','#e5484d','#2f6fde','#b07a00','#0f8a8a'];
@@ -1150,6 +1169,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Sonido de alerta</b><small>Suena con la app abierta.</small></div><label class="tg"><input type="checkbox" id="aSon" ${p.sonido?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Tono</h4><div class="row" id="aTonos">${Object.entries(TONOS).map(([k,v])=>`<span class="chip ${p.tono===k?'on':''}" data-t="${k}">${v}</span>`).join('')}</div></div>
     <button class="b2" style="width:100%;margin-bottom:6px" id="aProbar">▶ Probar sonido</button>
+    ${okPush?'<button class="b1" style="width:100%;margin-bottom:6px" id="aPush">🔔 Probar notificación con la app cerrada</button>':''}
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='lider'?`<div class="opt"><h4>Próximas llegadas a tu estación</h4>${(()=>{ const pl=proximasLider(); return pl.length?pl.slice(0,6).map(x=>{ const m=toMin(x.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>Llega${x.rs.length>1?'n':''} ${escHTML(x.rs.map(r=>r.curso).join(', '))}</b><small>${fmtHora(x.h)} · ${escHTML(x.rs.map(r=>r.salon).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}</small></div></div>`; }).join(''):'<p class="sm">No hay más rotaciones por hoy.</p>'; })()}</div>`:''}
@@ -1158,6 +1178,7 @@ async function pintarAlertas(){
     <div class="opt" style="margin-top:6px"><h4>Más</h4><div class="row"><span class="chip" id="aVideo">▶ Ver video de bienvenida</span>${tutorialURL()?'<span class="chip" id="aTuto">▶ Ver tutorial</span>':''}${S.modo==='org'||S.modo==='master'||S.perfil.rol==='admin'?'<span class="chip" id="aAvat">☺ Editar mi avatar</span>':''}${S.modo==='lider'?'<span class="chip" id="aApoyo">💬 Pedir apoyo</span>':''}${S.modo==='master'&&S.perfil.rol!=='admin'&&window.cmSello?'<span class="chip" id="aSello">🏅 Otorgar Sello STEM</span>':''}${(S.perfil.rol==='admin'||S.perfil.org_master)&&window.cmAbrirPanel?'<span class="chip" id="aLigaM">🏅 Liga Master</span>':''}${(S.perfil.rol==='admin'||['org','master','lider'].includes(S.modo))&&window.turAbrirResumen?'<span class="chip" id="aTurnos">👥 Turnos de los cursos</span>':''}${S.modo==='docente'&&window.cmMisSellos?'<span class="chip" id="aMisS">🏅 Sellos de mi curso</span>':''}${S.modo==='docente'&&window.turAbrirDocente?'<span class="chip" id="aTurD">👥 Turnos con mi codirector</span>':''}${S.modo==='docente'&&window.encuestaFinalDisponible&&encuestaFinalDisponible()?'<span class="chip" id="aEncF">📝 Encuesta final</span>':''}${S.modo==='docente'&&S.config.video_asistencia?'<span class="chip" id="aVAs">▶ Cómo llamar asistencia</span>':''}${S.modo==='docente'&&S.config.video_hacer?'<span class="chip" id="aVHa">▶ Actividades del hacer</span>':''}${S.vistaComo?'<span class="chip on" id="aSalir">👁 Volver a mi perfil</span>':'<span class="chip" id="aSalir">Cerrar sesión</span>'}<span class="chip" id="aDiag">📏 Diagnóstico de pantalla</span>${puedeEnsayo()?`<span class="chip ${_sim?'on':''}" id="aEns">🧪 ${_sim?'Ensayo activo · '+_sim.slice(11)+' (cambiar)':'Modo ensayo'}</span>`:''}</div><p class="sm" style="margin-top:8px">Versión de la app: ${VERSION_APP}</p></div>`;
   const save=async c=>{ await guardarPerfil({alertas:{...prefs(),...c}}); pintarAlertas(); };
   if($('aAct')) $('aAct').onclick=async()=>{ await activarAvisos(); pintarAlertas(); };
+  if($('aPush')) $('aPush').onclick=probarNotificacion;
   $('aCerr').onchange=async e=>{ if(e.target.checked) await activarAvisos(); else await desactivarPush(); save({app_cerrada:e.target.checked}); };
   $('aSon').onchange=e=>save({sonido:e.target.checked});
   $('aVib').onchange=e=>save({vibracion:e.target.checked});
@@ -1376,7 +1397,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='54';
+const VERSION_APP='55';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
