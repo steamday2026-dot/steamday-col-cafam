@@ -76,7 +76,7 @@ function turAbrirDocente(curso,refresco){
   sh.querySelectorAll('.segs [data-c]').forEach(e=>e.onclick=()=>turAbrirDocente(e.dataset.c,true));
   sh.querySelectorAll('.tsel [data-q]').forEach(e=>e.onclick=async()=>{ if(turIniciado(e.dataset.h)) return toast('Esta actividad ya inició: no se puede cambiar.','bad',3500);
     const t=TUR.m[turK(c,e.dataset.h)]; if(t&&t.quien===e.dataset.q) return;
-    const r=await S.sb.rpc('sd_turno_guardar',{p_curso:c,p_hora:e.dataset.h,p_quien:e.dataset.q}); if(r.error) return toast(r.error.message,'bad',4500);
+    const r=await S.sb.rpc('sd_turno_guardar',{p_curso:c,p_hora:e.dataset.h,p_quien:e.dataset.q}); if(r.error) return toast(r.error.message,'bad',4500); if(window.avisarYa) avisarYa();
     toast(`Propuesta enviada a tu ${otro.toLowerCase()}`,'ok'); await turCargar(); turRefrescar(); });
   sh.querySelectorAll('[data-ok]').forEach(e=>e.onclick=async()=>{ const r=await S.sb.rpc('sd_turno_confirmar',{p_curso:c,p_hora:e.dataset.ok}); if(r.error) return toast(r.error.message,'bad',4500); toast('Turno acordado ✓','ok'); await turCargar(); turRefrescar(); });
   sh.querySelectorAll('[data-del]').forEach(e=>e.onclick=async ev=>{ ev.preventDefault(); const r=await S.sb.rpc('sd_turno_quitar',{p_curso:c,p_hora:e.dataset.del}); if(r.error) return toast(r.error.message,'bad',4500); await turCargar(); turRefrescar(); });
