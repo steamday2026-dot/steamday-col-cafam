@@ -49,7 +49,8 @@ async function revisarEncuestas(silencio){
   let ens=''; try{ ens=typeof _sim!=='undefined'&&_sim?'_ens'+_sim:''; }catch(_){}
   const u=p.slice().sort((x,y)=>toMin(y.hora_fin)-toMin(x.hora_fin))[0], k='steam_encp_'+S.perfil.id+'_'+encClave(u.curso,u.hora_inicio)+ens, a=ahora();
   const reciente=a.fecha===S.config.fecha_evento && a.min-toMin(u.hora_fin)<=30;
-  if(!silencio && reciente && !LS.get(k,false) && $('encW').hidden){
+  const enPausa=!!(window.pausaAhora&&pausaAhora(window.misNiveles?misNiveles():null));   // v57: no en desplazamientos, descansos ni almuerzo
+  if(!silencio && reciente && !enPausa && !LS.get(k,false) && $('encW').hidden){
     LS.set(k,true);
     const ab=()=>{ $('modalBox').innerHTML=''; abrirEncuesta(u); };
     if(window.ventana) ventana({tag:'enc',prioridad:true,icono:'📝',kicker:a.min<toMin(u.hora_fin)?'La actividad está por terminar':'Terminó una actividad',titulo:escHTML(nomAct(u)),color:'#173d7a',
