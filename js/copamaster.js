@@ -194,6 +194,7 @@ function cmSello(pre){ pre=pre||{};
     $('slOk').disabled=true;
     const r=await S.sb.rpc('sd_master_sello',{p_tipo:tipo,p_destino:destino,p_curso:tipo==='docente'?null:c,p_sello:sello,p_desc:$('slTx').value});
     if(r.error){ $('slOk').disabled=false; return toast(r.error.message,'bad',4500); }
+    if(window.avisarYa) avisarYa();
     const p=r.data.puntos||0; if(p&&window.copaSonar) copaSonar('puntos'); cerrarSheet();
     ventana({icono:SELLOS[sello][0],kicker:'Sello STEM otorgado',titulo:`${escHTML(destino)} recibió el sello «${SELLOS[sello][1]}»`,color:'#b45309',html:p?`<p>Sumaste <b>+${p} puntos</b> en la Liga Master. Llevas ${r.data.con_puntos} de 6 sellos con puntos.</p>`:`<p>El sello quedó registrado. ${$('slTx')&&$('slTx').value.trim().length<10?'Para sumar puntos, describe lo que viste (mínimo 10 letras).':'Ya completaste los 6 sellos con puntos del día.'}</p>`}); };
 }
