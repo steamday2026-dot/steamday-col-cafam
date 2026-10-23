@@ -4,7 +4,7 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v64';
+const CACHE = 'steam-v65';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/lider.js','js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/v30.js', 'js/mayores.js', 'js/turnos.js', 'js/asistencia-oficial.js', 'img/rompecabezas.jpg', 'js/admin.js', 'js/encuestas.js', 'js/copa.js', 'js/copamaster.js', 'sonidos/correcta.mp3', 'sonidos/incorrecta.mp3', 'sonidos/puntos.mp3', 'sonidos/podio.mp3', 'sonidos/aviso.mp3',
