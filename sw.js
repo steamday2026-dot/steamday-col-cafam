@@ -4,24 +4,33 @@
    - Recibe los avisos (Web Push) aunque la app esté cerrada.
    IMPORTANTE: cambia CACHE (steam-v1 → steam-v2 …) cada vez que subas cambios a GitHub.
    ===================================================================== */
-const CACHE = 'steam-v61';
+const CACHE = 'steam-v63';
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/config.js', 'js/avatar.js', 'js/actividades.js', 'js/lider.js','js/mapa.js', 'js/colegio.js', 'js/sonidos.js', 'js/importar-excel.js', 'js/app.js', 'js/v30.js', 'js/mayores.js', 'js/turnos.js', 'js/asistencia-oficial.js', 'img/rompecabezas.jpg', 'js/admin.js', 'js/encuestas.js', 'js/copa.js', 'js/copamaster.js', 'sonidos/correcta.mp3', 'sonidos/incorrecta.mp3', 'sonidos/puntos.mp3', 'sonidos/podio.mp3', 'sonidos/aviso.mp3',
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'badge-96.png'
 ];
 
+// v63: librerías externas (Supabase, Excel, fuentes) también quedan guardadas para abrir la app sin internet
+const CDN = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js'];
+const EXTERNO = /(^|\.)(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|unpkg\.com)$/;
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).then(() => Promise.all(CDN.map(u => c.add(u).catch(() => {}))))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
+// v63: la app avisa cuando hay una versión nueva; se activa al volver el internet
+self.addEventListener('message', e => { if (e.data && e.data.tipo === 'actualizar') self.skipWaiting(); });
 
 // Archivos de la app: primero la red (para tener siempre la última versión), si no hay señal, la copia guardada.
 // Datos de Supabase: nunca se guardan aquí (siempre en vivo).
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+  if (e.request.method === 'GET' && EXTERNO.test(url.hostname)) {   // v63: primero la copia guardada (no cambian)
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(x => { if (x.ok || x.type === 'opaque') { const c = x.clone(); caches.open(CACHE).then(k => k.put(e.request, c)); } return x; })));
+    return;
+  }
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   // Los videos no pasan por aquí: el navegador los pide por partes y se descargan directo.
   if (/\.(mp4|webm|mov|m4a)$/i.test(url.pathname) || e.request.headers.has('range')) return;
