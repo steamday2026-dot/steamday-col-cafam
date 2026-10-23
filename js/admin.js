@@ -121,7 +121,7 @@
   const S = () => window.STEAM;
   const $ = id => document.getElementById(id);
   const sb = () => S().sb;
-  let tab = 'importar', lectura = null, filtro = { nivel:'Primaria', curso:'' };
+  let tab = 'buscar', lectura = null, filtro = { nivel:'Primaria', curso:'' };
 
   // Usuarios Master (coordinadores de ciclo y de área, y Rectora). Carlos es administrador.
   const MASTERS = [
@@ -161,17 +161,32 @@
     $('admBody').innerHTML = `
       <div class="top"><div class="logo"><div class="mark"><i></i><i></i><i></i><i></i></div><div><b>STEM Day · Administración</b><small>${escHTML(S().perfil.nombre)}</small></div></div>
         <button class="b2" id="admVolver">← Volver a la app</button></div>
-      <div class="desk"><div class="tabs" id="admTabs">
-        <span data-t="importar">Importar Excel</span><span data-t="programacion">Programación</span><span data-t="usuarios">Usuarios</span><span data-t="lideres">⭐ Líderes</span><span data-t="agenda">📅 Agenda Master</span>
-        <span data-t="correcciones">Correcciones de curso</span><span data-t="avisos">Avisos generales</span><span data-t="estudiantes">Estudiantes</span><span data-t="copa">🏆 Copa STEM</span><span data-t="ligam">🏅 Liga Master</span><span data-t="conexiones">🟢 Conexiones</span><span data-t="mensajes">💬 Mensajes</span><span data-t="final">📝 Encuesta final</span><span data-t="config">Configuración</span></div>
+      <div class="desk"><div class="tabs" id="admTabs" hidden>${SECS.map(x=>`<span data-t="${x[0]}">${x[1]} ${x[2]}</span>`).join('')}</div>
+        <button class="admsel" id="admSel"><i id="admSelI"></i><span><small id="admSelG"></small><b id="admSelT"></b></span><em>▾</em></button>
         <div class="tbody" id="admTab"></div></div>`;
     $('admVolver').onclick = async () => { show('s-main'); if(window.recargarApp) await window.recargarApp(); };
     $('admTabs').querySelectorAll('span').forEach(s => s.onclick = () => irTab(s.dataset.t));
+    $('admSel').onclick = menuSecciones;
     irTab(tab);
   }
+  /* v64 · menú de secciones (lista desplegable en forma de hoja, cómoda en el celular) */
+  const SECS=[['buscar','🔎','Buscar persona','Hoy en el evento'],['turnos','👥','Turnos de los cursos','Hoy en el evento'],['conexiones','🟢','Conexiones','Hoy en el evento'],['mensajes','💬','Mensajes','Hoy en el evento'],['avisos','📢','Avisos generales','Hoy en el evento'],['correcciones','🔁','Correcciones de curso','Hoy en el evento'],
+    ['usuarios','👤','Usuarios y cuentas','Personas'],['lideres','⭐','Líderes de estación','Personas'],['agenda','📅','Agenda Master','Personas'],['estudiantes','🎓','Estudiantes','Personas'],
+    ['importar','📥','Importar horario (Excel)','Programación'],['programacion','🗓️','Programación','Programación'],
+    ['copa','🏆','Copa STEM','Copa y encuestas'],['ligam','🏅','Liga Master','Copa y encuestas'],['final','📝','Encuesta final','Copa y encuestas'],['config','⚙️','Configuración','Ajustes']];
+  function menuSecciones(){
+    const m=document.createElement('div'); m.className='admmenu'; const G=[...new Set(SECS.map(x=>x[3]))];
+    m.innerHTML=`<div class="amm"><div class="ammh"><b>Ir a…</b><span id="ammX">✕</span></div>${G.map(g=>`<h5>${g}</h5><div class="ammg">${SECS.filter(x=>x[3]===g).map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?'on':''}"><i>${x[1]}</i>${x[2]}</button>`).join('')}</div>`).join('')}</div>`;
+    document.body.appendChild(m); requestAnimationFrame(()=>m.classList.add('on'));
+    const cerrar=()=>{ m.classList.remove('on'); setTimeout(()=>m.remove(),220); };
+    m.onclick=e=>{ if(e.target===m) cerrar(); }; m.querySelector('#ammX').onclick=cerrar;
+    m.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ cerrar(); irTab(b.dataset.t); window.scrollTo(0,0); });
+  }
   function irTab(t){
+    if(!SECS.some(x=>x[0]===t)) t='buscar';
     tab=t; $('admTabs').querySelectorAll('span').forEach(s=>s.classList.toggle('on', s.dataset.t===t));
-    const f={importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, lideres:tLideres, agenda:tAgenda, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, ligam:async()=>{ $('admTab').innerHTML=window.cmPanelHTML?await cmPanelHTML():'Recarga la app.'; if(window.cmBindPanel) cmBindPanel($('admTab')); }, conexiones:tConexiones, mensajes:tMensajes, final:tFinal, config:tConfig}[t];
+    const sx=SECS.find(x=>x[0]===t); if($('admSelT')){ $('admSelI').textContent=sx[1]; $('admSelT').textContent=sx[2]; $('admSelG').textContent=sx[3]; }
+    const f={buscar:tBuscar, turnos:tTurnos, importar:tImportar, programacion:tProgramacion, usuarios:tUsuarios, lideres:tLideres, agenda:tAgenda, correcciones:tCorrecciones, avisos:tAvisos, estudiantes:tEstudiantes, copa:tCopa, ligam:async()=>{ $('admTab').innerHTML=window.cmPanelHTML?await cmPanelHTML():'Recarga la app.'; if(window.cmBindPanel) cmBindPanel($('admTab')); }, conexiones:tConexiones, mensajes:tMensajes, final:tFinal, config:tConfig}[t];
     $('admTab').innerHTML='<p class="sm">Cargando…</p>'; f().catch(e=>{ $('admTab').innerHTML=`<div class="warnbox">Error: ${escHTML(e.message)}</div>`; });
   }
 
@@ -779,6 +794,61 @@
       perf.splice(perf.indexOf(p),1); aviso('Cuenta eliminada','ok'); $('cuBox').innerHTML=cuentasHTML(perf); bindCuentas(perf); });
   }
 
+  /* v64 · 🔎 Buscar persona: en línea, si ha entrado, contraseña, avisos, cursos y acciones rápidas */
+  let BQ={q:'',f:'todos'};
+  async function tBuscar(){
+    const [perf, cx, push]=await Promise.all([ todosPerfiles(), (async()=>{ let out=[]; for(let i=0;;i+=1000){ const r=await sb().from('sd_conexiones').select('perfil_id,inicio,ultimo').range(i,i+999); if(r.error) return out; out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) return out; } })(),
+      (async()=>{ try{ const r=await sb().from('sd_push').select('perfil_id'); return r.error?null:(r.data||[]); }catch(_){ return null; } })() ]);
+    const st={}; cx.forEach(c=>{ const x=st[c.perfil_id]=st[c.perfil_id]||{veces:0,ult:null}; x.veces++; if(!x.ult||c.ultimo>x.ult) x.ult=c.ultimo; });
+    const av={}; (push||[]).forEach(x=>av[x.perfil_id]=(av[x.perfil_id]||0)+1);
+    const prog=S().prog.filter(r=>r.tipo==='actividad'), nn=t=>SteamExcel.norm(t||'');
+    const cursosDe=p=>{ const k=p.nombre_n||nn(p.nombre); const d=new Set(), c=new Set(); prog.forEach(r=>{ if(r.acompanante_n===k||nn(r.acompanante)===k) d.add(r.curso); if(r.apoyo_n===k||nn(r.apoyo)===k) c.add(r.curso); });
+      return [...[...d].map(x=>'Director '+x), ...[...c].map(x=>'Codirector '+x)].concat((p.cursos_manual||[]).length&&!d.size&&!c.size?['Curso '+p.cursos_manual.join(', ')]:[]); };
+    const hace=iso=>{ if(!iso) return ''; const m=Math.round((Date.now()-new Date(iso).getTime())/60000); if(m<1) return 'hace un momento'; if(m<60) return `hace ${m} min`; const h=Math.round(m/60); if(h<24) return `hace ${h} h`; return new Date(iso).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); };
+    const pinta=()=>{ const on=window.enLineaAhora?window.enLineaAhora():{}, q=nn(BQ.q);
+      const est=p=>on[p.id]?'linea':!st[p.id]&&!p.confirmado?'nunca':!p.confirmado?'clave':'ok';
+      const cnt={linea:0,nunca:0,clave:0,ok:0}; perf.forEach(p=>cnt[est(p)]++);
+      const L=perf.filter(p=>(BQ.f==='todos'||est(p)===BQ.f||(BQ.f==='sinavisos'&&push&&!av[p.id]))&&(!q||q.split(' ').every(t=>nn(p.nombre+' '+p.correo+' '+(ROLN[p.rol]||p.rol)+' '+cursosDe(p).join(' ')).includes(t))))
+        .sort((a,b)=>(!!on[b.id]-!!on[a.id])||String(a.nombre).localeCompare(b.nombre,'es'));
+      $('admTab').innerHTML=`<input class="bqin" id="bqQ" placeholder="🔎 Nombre, correo, curso o perfil…" value="${escHTML(BQ.q)}" autocomplete="off">
+        <div class="bqf">${[['todos','Todos',perf.length],['linea','🟢 En línea',cnt.linea],['nunca','⚠ Nunca han entrado',cnt.nunca],['clave','🔑 Con clave temporal',cnt.clave]].concat(push?[['sinavisos','🔕 Sin avisos',perf.filter(p=>!av[p.id]).length]]:[]).map(([k,t,n])=>`<span data-f="${k}" class="${BQ.f===k?'on':''}">${t} <b>${n}</b></span>`).join('')}</div>
+        <p class="sm">${L.length} persona${L.length===1?'':'s'}${L.length>80?' · se muestran las primeras 80; escribe para filtrar':''}</p>
+        ${L.slice(0,80).map(p=>{ const e=est(p), x=st[p.id], cs=cursosDe(p);
+          return `<div class="bqc"><div class="bqh"><b>${escHTML(p.nombre)}</b><span class="bqe ${e}">${e==='linea'?'🟢 En línea':e==='nunca'?'⚠ Nunca ha entrado':e==='clave'?'🔑 Clave temporal':'✓ Activa'}</span></div>
+            <div class="bqd">${escHTML(ROLN[p.rol]||p.rol)}${p.org_master?' · Máster Coordinador':''}${p.org_lista?' · Organizador Master':''}${cs.length?' · '+escHTML(cs.join(' · ')):''}</div>
+            <div class="bqd sm">${escHTML(p.correo)}</div>
+            <div class="bqd sm">${x?`Última conexión ${hace(x.ult)} · ${x.veces} ingreso${x.veces>1?'s':''}`:'Sin conexiones registradas'}${push?` · ${av[p.id]?'🔔 avisos activos ('+av[p.id]+')':'🔕 sin avisos en el celular'}`:''}${!p.confirmado?' · aún no cambia la contraseña 0000':''}</div>
+            <div class="bqa"><button class="b2" data-rc="${escHTML(p.correo)}">🔑 Restablecer a 0000</button><button class="b2" data-cp="${escHTML(p.correo)}">📋 Copiar correo</button></div></div>`; }).join('')}`;
+      const inp=$('bqQ'); inp.oninput=()=>{ BQ.q=inp.value; const pos=inp.selectionStart; pinta(); const n=$('bqQ'); n.focus(); n.setSelectionRange(pos,pos); };
+      $('admTab').querySelectorAll('[data-f]').forEach(x=>x.onclick=()=>{ BQ.f=x.dataset.f; pinta(); });
+      $('admTab').querySelectorAll('[data-rc]').forEach(b=>b.onclick=async()=>{ if(!confirm(`¿Restablecer la contraseña de ${b.dataset.rc} a 0000? Al entrar, la app le pedirá crear una nueva.`)) return;
+        const { error }=await sb().rpc('sd_restablecer_clave',{p_correo:b.dataset.rc}); if(error) return aviso('No se pudo restablecer: '+error.message,'bad'); aviso('Contraseña restablecida a 0000 ✓','ok'); });
+      $('admTab').querySelectorAll('[data-cp]').forEach(b=>b.onclick=()=>{ try{ navigator.clipboard.writeText(b.dataset.cp); aviso('Correo copiado','ok'); }catch(_){ prompt('Correo:',b.dataset.cp); } });
+    };
+    pinta(); window.adminPresenciaB=()=>{ if(tab==='buscar'&&$('bqQ')&&document.activeElement!==$('bqQ')) pinta(); };
+  }
+  /* v64 · 👥 Turnos: qué cursos ya organizaron su día (director y codirector) */
+  let TQ={f:'todos',q:''};
+  async function tTurnos(){
+    if(typeof turCargar!=='function'||typeof turBloques!=='function') { $('admTab').innerHTML='<div class="warnbox">Recarga la app para ver los turnos.</div>'; return; }
+    try{ await turCargar(); }catch(_){}
+    const cursos=[...new Set(S().prog.filter(r=>r.tipo==='actividad'&&r.curso&&/^\d/.test(r.curso)).map(r=>r.curso))].sort((x,y)=>x.localeCompare(y,'es',{numeric:true}));
+    const F=cursos.map(c=>{ const B=turBloques(c), P=turPersonas(c); let ok=0,pe=0,sd=0; B.forEach(s=>{ const t=TUR.m[turK(c,s.h)]; t?(t.confirmado?ok++:pe++):sd++; });
+      return {c,P,n:B.length,ok,pe,sd,e:ok===B.length&&B.length?'listo':(ok||pe)?'parcial':'nada'}; });
+    const k={listo:F.filter(x=>x.e==='listo').length,parcial:F.filter(x=>x.e==='parcial').length,nada:F.filter(x=>x.e==='nada').length};
+    const pinta=()=>{ const q=SteamExcel.norm(TQ.q), L=F.filter(x=>(TQ.f==='todos'||x.e===TQ.f)&&(!q||SteamExcel.norm(`${x.c} ${x.P.D} ${x.P.C}`).includes(q)));
+      $('admTab').innerHTML=`<div class="stat"><div><b style="color:#1f9d6b">${k.listo}</b><span>cursos con el día organizado</span></div><div><b style="color:#b07a00">${k.parcial}</b><span>organizándolo</span></div><div><b style="color:#8a94a8">${k.nada}</b><span>sin empezar</span></div><div><b>${F.length?Math.round(k.listo/F.length*100):0}%</b><span>avance</span></div></div>
+        ${TUR.cargado?'':'<div class="warnbox">Los turnos aún no están activos (falta el archivo 18 en Supabase).</div>'}
+        <input class="bqin" id="tqQ" placeholder="🔎 Curso o docente…" value="${escHTML(TQ.q)}" autocomplete="off">
+        <div class="bqf">${[['todos','Todos',F.length],['nada','⚪ Sin empezar',k.nada],['parcial','🟡 Organizándolo',k.parcial],['listo','🟢 Listos',k.listo]].map(([x,t,n])=>`<span data-f="${x}" class="${TQ.f===x?'on':''}">${t} <b>${n}</b></span>`).join('')}</div>
+        ${L.map(x=>`<div class="bqc tq ${x.e}"><div class="bqh"><b>${escHTML(x.c)}</b><span class="bqe ${x.e==='listo'?'ok':x.e==='parcial'?'clave':'nunca'}">${x.e==='listo'?'🟢 Día organizado':x.e==='parcial'?'🟡 Organizándolo':'⚪ Sin empezar'}</span></div>
+          <div class="bqd">D: <b>${escHTML(x.P.D||'—')}</b><br>C: <b>${escHTML(x.P.C||'—')}</b></div>
+          <div class="tqbar"><i style="width:${x.n?x.ok/x.n*100:0}%"></i><i class="pe" style="width:${x.n?x.pe/x.n*100:0}%"></i></div>
+          <div class="bqd sm">${x.ok} de ${x.n} bloques acordados${x.pe?` · ${x.pe} por confirmar`:''}${x.sd?` · ${x.sd} sin definir`:''}</div></div>`).join('')}`;
+      const inp=$('tqQ'); inp.oninput=()=>{ TQ.q=inp.value; const pos=inp.selectionStart; pinta(); const n=$('tqQ'); n.focus(); n.setSelectionRange(pos,pos); };
+      $('admTab').querySelectorAll('[data-f]').forEach(x=>x.onclick=()=>{ TQ.f=x.dataset.f; pinta(); }); };
+    pinta();
+  }
   /* conexiones: en línea ahora (presencia) + cuántas veces y cuánto tiempo */
   async function tConexiones(){
     const [perf, cx]=await Promise.all([ todosPerfiles(), (async()=>{ let out=[]; for(let i=0;;i+=1000){ const r=await sb().from('sd_conexiones').select('*').range(i,i+999); if(r.error) throw new Error(r.error.message+' (¿ejecutaste el SQL 16?)'); out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) break; } return out; })() ]);
@@ -797,7 +867,7 @@
       $('cxR').onchange=e=>{ CX.rol=e.target.value; pinta(); }; $('cxV').onchange=e=>{ CX.ver=e.target.value; pinta(); };
       $('cxX').onclick=async()=>{ await cargarXLSX(); const ws=XLSX.utils.json_to_sheet(perf.map(p=>{ const x=st[p.id]; return {Nombre:p.nombre,Correo:p.correo,Perfil:ROLN[p.rol]||p.rol,'Máster Coord.':p.org_master?'Sí':'','En línea ahora':enl.has(p.id)?'Sí':'',Veces:x?x.veces:0,'Minutos conectado':x?x.min:0,'Última conexión':x?new Date(x.ult).toLocaleString('es-CO'):'Nunca'}; })); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Conexiones'); XLSX.writeFile(wb,'conexiones-stem-day.xlsx'); };
     };
-    window.adminPresencia=()=>{ if(tab==='conexiones'&&$('cxR')) pinta(); };
+    window.adminPresencia=()=>{ if(tab==='conexiones'&&$('cxR')) pinta(); if(window.adminPresenciaB) adminPresenciaB(); };
     pinta();
   }
   let CX={rol:'todos',ver:'todos'};
