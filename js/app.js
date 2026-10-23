@@ -1379,7 +1379,7 @@ function pintarAgenda(){
   let h=`<h3>Mi agenda del STEM Day</h3><div class="sub">Lo que te asignó el administrador: dónde debes estar y qué debes hacer. Si algo cambia, te llegará un aviso.</div>`;
   if(!L.length){ el.innerHTML=h+'<div class="alertbox" style="margin-top:8px">Aún no tienes bloques en tu agenda. El administrador los asignará desde Administración → Agenda Master.<br><br>Mientras tanto, la programación general está en «Programa».</div>'; return; }
   L.forEach(b=>{ const t=AG_TIPOS[b.tipo]||AG_TIPOS.sup, est=toMin(b.hora_fin)<=m?'ok':toMin(b.hora_inicio)<=m?'now':'nx';
-    h+=`<div class="agb ${est}" style="--c:${t[1]}" data-id="${b.id}"><div class="h">${fmtHora(b.hora_inicio)}<small>a ${fmtHora(b.hora_fin)}</small></div><i></i><div class="c"><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}${b.tarea?' · '+escHTML(b.tarea):''}</small></div><span class="st">${est==='ok'?'✓':est==='now'?'● Ahora':'Próximo'}</span></div>`; });
+    h+=`<div class="agb ${est}" style="--c:${t[1]}" data-id="${b.id}"><div class="h">${fmtHora(b.hora_inicio)}<small>a ${fmtHora(b.hora_fin)}</small></div><i></i><div class="c"><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}</small>${b.tarea?`<span class="agt">📝 ${escHTML(b.tarea)}</span>`:''}</div><span class="st">${est==='ok'?'✓':est==='now'?'● Ahora':'Próximo'}</span></div>`; });
   h+=`<p class="sm" style="margin-top:10px">Toca un bloque para ver el lugar en el mapa del colegio.</p>`;
   el.innerHTML=h;
   el.querySelectorAll('.agb').forEach(x=>x.onclick=()=>{ const b=L.find(z=>String(z.id)===x.dataset.id); if(b) irLugarAgenda(b); });
@@ -1392,7 +1392,7 @@ function tickAgenda(){
     const {cur,nxt}=bloqueAhora(), b=cur||nxt;
     if(!b||S.agMin){ card.hidden=!b; card.className='agcard'+(b?' min':''); card.innerHTML=b?`📍 ${cur?'Ahora':fmtHora(b.hora_inicio)}: ${escHTML(lugarTxt(b.lugar))}`:''; card.onclick=()=>{ S.agMin=false; tickAgenda(); }; }
     else { const t=AG_TIPOS[b.tipo]||AG_TIPOS.sup; card.hidden=false; card.className='agcard'; card.style.setProperty('--c',t[1]); card.onclick=null;
-      card.innerHTML=`<span class="x" id="agX">✕</span><div class="k">📍 ${cur?'Ahora debes estar en':'Tu siguiente bloque'} · ${fmtHora(b.hora_inicio)} a ${fmtHora(b.hora_fin)}</div><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}${b.tarea?' · '+escHTML(b.tarea):''}</small><button id="agIr">🧭 Ver en el mapa</button>`;
+      card.innerHTML=`<span class="x" id="agX">✕</span><div class="k">📍 ${cur?'Ahora debes estar en':'Tu siguiente bloque'} · ${fmtHora(b.hora_inicio)} a ${fmtHora(b.hora_fin)}</div><b>${escHTML(lugarTxt(b.lugar))}</b><small>${escHTML(t[0])}</small>${b.tarea?`<span class="agt">📝 ${escHTML(b.tarea)}</span>`:''}<button id="agIr">🧭 Ver en el mapa</button>`;
       $('agX').onclick=e=>{ e.stopPropagation(); S.agMin=true; tickAgenda(); }; $('agIr').onclick=e=>{ e.stopPropagation(); irLugarAgenda(b); }; }
   } else if(card) card.hidden=true;
   if(S.perfil.rol==='admin'&&S.agendaTodo&&typeof ColegioVivo!=='undefined'){
@@ -1527,7 +1527,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='58';
+const VERSION_APP='61';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
