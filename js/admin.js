@@ -24,12 +24,32 @@
   }
   const bonito = s => { const t = limpio(s); return t === t.toUpperCase() && /[A-ZÁÉÍÓÚ]{4}/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase().replace(/\bpiso\b/g, 'piso').replace(/\bbachillerato\b/g, 'Bachillerato').replace(/\bprimaria\b/g, 'Primaria').replace(/\bcoliseo\b/g, 'Coliseo').replace(/\bmaloka\b/g, 'Maloka').replace(/\btr\b/g, 'TR') : t; };
 
-  function bloque(celda, titulo, h) {
+  // v59: el color de cada celda dice qué debe hacer la persona (leyenda de colores debajo de la tabla)
+  const rgbDe = st => { const f = st && st.fgColor; if (!st || st.patternType !== 'solid' || !f || !f.rgb) return null; const h = String(f.rgb).slice(-6); return /^[0-9a-f]{6}$/i.test(h) ? h.toUpperCase() : null; };
+  const dist = (a, b) => { const p = h => [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); const x = p(a), y = p(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+  function leyenda(ws, XLSX, desde) {
+    const out = []; if (!ws || !ws['!ref']) return out; const R = XLSX.utils.decode_range(ws['!ref']);
+    for (let r = desde; r <= R.e.r; r++) { let col = null, txt = '', llenas = 0;
+      for (let c = R.s.c; c <= R.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r, c })]; if (!cell) continue; if (limpio(cell.v)) llenas++;
+        const rgb = rgbDe(cell.s), v = limpio(cell.v); if (rgb && !col) col = { rgb, theme: cell.s.fgColor.theme, tint: cell.s.fgColor.tint }; if (v.length >= 25 && !txt) txt = v; }
+      if (col && txt && llenas <= 2) out.push({ ...col, texto: txt.replace(/estudianes/gi, 'estudiantes').replace(/\s+\./g, '.') }); }
+    return out;
+  }
+  function descripcion(st, L) {
+    const rgb = rgbDe(st); if (!rgb || !L.length || /^(FFFFFF|FF0000)$/.test(rgb)) return '';
+    const f = st.fgColor, exacta = L.find(x => x.rgb === rgb || (f.theme != null && x.theme === f.theme && Math.abs((x.tint || 0) - (f.tint || 0)) < .01)); if (exacta) return exacta.texto;
+    const mismo = L.find(x => f.theme != null && x.theme === f.theme); if (mismo) return mismo.texto;
+    const cerca = L.map(x => ({ x, d: dist(x.rgb, rgb) })).sort((a, b) => a.d - b.d)[0]; return cerca && cerca.d < 120 ? cerca.x.texto : '';
+  }
+  const DESC = h => ({ hora_inicio: h[0], hora_fin: h[1], lugar: 'Descanso', tarea: 'Espacio de descanso', tipo: 'lib', vacio: true });   // v60: franja vacía = descanso
+  function bloque(celda, titulo, h, desc) {
     const c = limpio(celda), k = norm(c), tk = norm(titulo);
-    if (!c) return null;
+    if (!c) return DESC(h);
+    if (desc && !/almuerzo|ruta asignada/.test(k)) { const b0 = bloque(celda, titulo, h); if (b0) { b0.tarea = desc; if (/salida|embarque/.test(k)) b0.lugar = bonito(c); } return b0; }
     const b = { hora_inicio: h[0], hora_fin: h[1], lugar: '', tarea: '', tipo: 'sup' };
-    if (/almuerzo/.test(k)) { b.tipo = 'lib'; b.lugar = /restaurante/.test(k) ? 'Restaurante' : /salon/.test(k) ? 'Salones de los cursos' : bonito(c); b.tarea = 'Almuerzo'; return b; }
-    if (/ruta asignada/.test(k)) { b.tipo = 'lib'; const sube = /subir/.test(k); b.lugar = sube ? 'Ruta para subir a Bachillerato' : 'Ruta para bajar a Primaria'; b.tarea = 'Desplazamiento y descanso: acompañar a los cursos por la ruta asignada'; return b; }
+    if (/almuerzo/.test(k)) { b.tipo = 'lib'; b.lugar = /restaurante/.test(k) ? 'Restaurante' : /salon/.test(k) ? 'Salones de los cursos' : bonito(c); b.tarea = 'Almuerzo y descanso: tómate este tiempo para descansar y almorzar'; return b; }
+    if (/ruta asignada/.test(k)) { b.tipo = 'lib'; const sube = /subir/.test(k); b.lugar = sube ? 'Ruta para subir a Bachillerato' : 'Ruta para bajar a Primaria'; b.tarea = /descanso/.test(tk) ? 'Desplazamiento y descanso: acompañar a los cursos por la ruta asignada' : 'Desplazamiento: acompañar a los cursos por la ruta asignada'; return b; }
+    if (/^descanso\b/.test(k)) return DESC(h);   // v60: «DESCANSO» escrito en la celda
     if (/stem day/.test(k)) { b.tipo = 'acom'; b.lugar = /primaria/.test(k) ? 'STEM Day · Primaria' : 'STEM Day · Bachillerato'; b.tarea = 'Acompañar las actividades del STEM Day'; return b; }
     if (/asistencia/.test(tk)) { b.lugar = bonito(c); b.tarea = 'Acompañar el llamado a lista (asistencia) en ' + bonito(c); return b; }
     b.lugar = expandir(bonito(c));
@@ -64,18 +84,31 @@
     const esTit = lab.some(c => /asistencia|rotaci|cierre|almuerzo|desplazamiento/i.test(String(c))) && !lab.some(c => /@/.test(String(c)));
     if (esTit) ini = hr + 2; else lab = [];
     let dir = []; wb.SheetNames.filter(n => n !== hoja.n).forEach(n => { dir = dir.concat(leerDirectorio(wb.Sheets[n], XLSX)); });
+    hoja.ws = wb.Sheets[hoja.n]; const LEY = leyenda(hoja.ws, XLSX, ini);
     const personas = [];
     for (let r = ini; r < R.length; r++) {
       const fila = R[r], nombre = nombreLimpio(fila[cNom]); if (!nombre || nombre.length < 5) continue;
-      const bloques = cols.map(x => bloque(fila[x.i], lab[x.i] || '', x.h)).filter(Boolean);
-      if (!bloques.length) continue;
+      const bloques = cols.map(x => bloque(fila[x.i], lab[x.i] || '', x.h, descripcion((hoja.ws[XLSX.utils.encode_cell({ r, c: x.i })] || {}).s, LEY))).filter(Boolean);
+      if (!bloques.some(x => !x.vacio)) continue;
       personas.push({ fila: r + 1, cargo: cCar >= 0 ? limpio(fila[cCar]) : '', nombre, correo: buscarCorreo(nombre, dir), bloques });
     }
     personas.filter(p => !p.correo).forEach(p => avisos.push(`Sin correo en el archivo: ${p.nombre}.`));
-    return { hoja: hoja.n, franjas: cols.map(x => x.h), personas, avisos };
+    return { hoja: hoja.n, franjas: cols.map(x => x.h), personas, avisos, leyenda: LEY };
   }
-  async function leerArchivo(archivo) { const buf = archivo.arrayBuffer ? await archivo.arrayBuffer() : archivo; return leerLibro(root.XLSX.read(buf, { type: 'array' }), root.XLSX); }
-  const api = { leerArchivo, leerLibro, franja, expandir, nombreLimpio, palabras };
+  async function leerArchivo(archivo) { const buf = archivo.arrayBuffer ? await archivo.arrayBuffer() : archivo; return leerLibro(root.XLSX.read(buf, { type: 'array', cellStyles: true }), root.XLSX); }
+  /* v60 · propuesta: alinear la agenda con el horario de los estudiantes
+     (rotación 9:00–9:45 · desplazamiento 9:45–10:00 · descanso 10:00–10:30) */
+  function alinear(bloques) {
+    const out = [];
+    bloques.forEach(b0 => { const b = { ...b0 };
+      if (b.hora_inicio === '09:00' && b.hora_fin === '10:00') { b.hora_fin = '09:45'; out.push(b); return; }
+      if (b.hora_inicio === '10:00' && b.hora_fin === '10:30') {
+        if (/^ruta/i.test(b.lugar)) { out.push({ ...b, hora_inicio: '09:45', hora_fin: '10:00', tarea: 'Desplazamiento: acompañar a los cursos por la ruta asignada' }); out.push(DESC(['10:00', '10:30'])); return; }
+        b.hora_inicio = '09:45'; out.push(b); return; }
+      out.push(b); });
+    return out;
+  }
+  const api = { leerArchivo, leerLibro, franja, expandir, nombreLimpio, palabras, alinear };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.AgendaExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -1026,24 +1059,29 @@
       if(!q){ const tk=pal(p.nombre); const c=perf.filter(x=>{ const w=pal(x.nombre); return tk.length>=2&&tk.every(z=>w.includes(z)); }); if(c.length===1) q=c[0]; }
       const correo=(q&&q.correo)||p.correo||'';
       const est=!correo?'sincorreo':!q?'crear':q.rol==='master'?'ok':q.rol==='admin'?'admin':q.rol==='docente'?'convertir':'otro';
-      return {...p,correo,q,est,inc:['ok','crear','convertir'].includes(est)}; });
+      return {...p,correo,q,est,inc:['ok','crear','convertir'].includes(est),orig:p.bloques}; });
+    const puedeAlinear=R.franjas.some(f=>f[0]==='09:00'&&f[1]==='10:00')&&R.franjas.some(f=>f[0]==='10:00'&&f[1]==='10:30');
+    let alin=puedeAlinear; const aplica=()=>F.forEach(x=>x.bloques=alin?window.AgendaExcel.alinear(x.orig):x.orig); aplica();
     const ROLT={docente:'Docente',lider:'Líder de estación',organizador:'Organizador',secretario:'Secretario',admin:'Administrador',master:'Master'};
     const EST={ok:'✓ Master',crear:'Se crea cuenta Master (0000)',convertir:'Docente → pasa a Master',admin:'Administrador · se omite (no compite)',sincorreo:'Sin correo · no se puede cargar'};
     const mini=b=>`<span class="agmini ${b.tipo==='lib'?'lib':''}" title="${escHTML(b.tarea||'')}">${fmtHora(b.hora_inicio)} ${escHTML(b.lugar.length>26?b.lugar.slice(0,25)+'…':b.lugar)}</span>`;
     const m=document.createElement('div'); m.className='admmodal'; document.body.appendChild(m);
     const pinta=()=>{ const n=F.filter(x=>x.inc).length, bl=F.filter(x=>x.inc).reduce((s,x)=>s+x.bloques.length,0);
       m.innerHTML=`<div class="amb" style="max-width:980px;width:96vw"><h3>📥 Importar agenda · ${escHTML(R.hoja)}</h3>
-        <p class="sm">Franjas: ${R.franjas.map(f=>fmtHora(f[0])+'–'+fmtHora(f[1])).join(' · ')}. Los bloques de <b>almuerzo</b> y de <b>desplazamiento</b> quedan como «Libre»: aparecen en su agenda pero <b>no suman puntos</b> en la Liga Master.</p>
+        ${puedeAlinear?`<label class="okbox" style="display:block;cursor:pointer"><input type="checkbox" id="aiAl" ${alin?'checked':''}> <b>Ajustar al horario de los estudiantes (recomendado):</b> la rotación de las 9:00 termina a las 9:45; de 9:45 a 10:00 acompañan el desplazamiento por la ruta asignada y de 10:00 a 10:30 es su descanso.</label>`:''}
+        <p class="sm">Franjas: ${R.franjas.map(f=>fmtHora(f[0])+'–'+fmtHora(f[1])).join(' · ')}. Las franjas vacías quedan como <b>descanso</b>. Los bloques de <b>almuerzo</b> y de <b>desplazamiento</b> quedan como «Libre»: aparecen en su agenda pero <b>no suman puntos</b> en la Liga Master.</p>
         <div class="twrap" style="max-height:55vh;overflow:auto"><table class="t"><tr><th></th><th>Persona</th><th>Correo</th><th>Cuenta</th><th>Agenda</th></tr>
         ${F.map((x,i)=>`<tr style="${x.inc?'':'opacity:.55'}"><td><input type="checkbox" data-i="${i}" ${x.inc?'checked':''} ${x.est==='sincorreo'||x.est==='admin'?'disabled':''}></td>
           <td><b>${escHTML(x.nombre)}</b><br><span class="sm">${escHTML(x.cargo)}</span></td><td class="sm">${escHTML(x.correo||'—')}</td>
           <td class="sm">${x.est==='otro'?`Es ${escHTML(ROLT[x.q.rol]||x.q.rol)}${x.inc?' → pasa a Master':' · marca la casilla para pasarlo a Master'}`:EST[x.est]}</td>
           <td><div class="agminis">${x.bloques.map(mini).join('')}</div></td></tr>`).join('')}</table></div>
-        ${R.avisos.length?`<div class="warnbox">${R.avisos.map(escHTML).join('<br>')}</div>`:''}
+        ${R.leyenda&&R.leyenda.length?`<details open><summary class="sm"><b>Qué debe hacer cada uno (según el color de la celda)</b></summary><ul class="ulc">${R.leyenda.map(x=>`<li><span style="display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;background:#${x.rgb}"></span> ${escHTML(x.texto)}</li>`).join('')}</ul><p class="sm">Pasa el dedo o el ratón sobre cada bloque para ver la tarea que le llegará a la persona.</p></details>`:''}
+        ${(()=>{ const av=R.avisos.filter(a=>{ const m=a.match(/^Sin correo en el archivo: (.*)\.$/); return !m||F.some(x=>!x.correo&&x.nombre===m[1]); }); return av.length?`<div class="warnbox">${av.map(escHTML).join('<br>')}</div>`:''; })()}
         <p class="sm" style="margin-top:8px">Se reemplazan los bloques que ya tengan estas ${n} personas. A cada una le llega el aviso «Tu agenda cambió».</p>
         <div class="err" id="aiE"></div>
         <div class="abtn"><button class="b2" id="aiX">Cancelar</button><button class="b1" id="aiOk" ${n?'':'disabled'}>Cargar agenda · ${n} personas · ${bl} bloques</button></div></div>`;
       m.querySelectorAll('[data-i]').forEach(c=>c.onchange=()=>{ F[+c.dataset.i].inc=c.checked; pinta(); });
+      if(m.querySelector('#aiAl')) m.querySelector('#aiAl').onchange=e=>{ alin=e.target.checked; aplica(); pinta(); };
       m.querySelector('#aiX').onclick=()=>m.remove();
       m.querySelector('#aiOk').onclick=cargar; };
     const cargar=async()=>{ const b=m.querySelector('#aiOk'), E=m.querySelector('#aiE'); b.disabled=true; b.textContent='Cargando…';
