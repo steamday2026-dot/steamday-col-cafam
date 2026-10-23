@@ -240,7 +240,7 @@
       const porCurso={}, porArea={}; R.estudiantes.forEach(e=>{ porCurso[e.curso]=(porCurso[e.curso]||0)+1; e.planes.forEach(p=>porArea[p.area||'(sin área)']=(porArea[p.area||'(sin área)']||0)+1); });
       const logs=R.estudiantes.flatMap(e=>e.planes.filter(p=>p.logistica).map(p=>({e,p})));
       res.innerHTML=`<div class="okbox"><b>${R.estudiantes.length}</b> estudiantes · ${Object.entries(porCurso).sort((a,b)=>a[0].localeCompare(b[0],'es',{numeric:true})).map(([c,n])=>`${escHTML(c)} (${n})`).join(', ')}<br>
-          Momentos: <b>${R.momentos.map(escHTML).join(' · ')}</b>${R.porCurso?' (7:00 – 7:30; el docente y el lugar de cada curso salen de la hoja «Docentes Ciencias-Mat 10-11» del horario)':''}<br>Áreas: ${Object.entries(porArea).map(([a,n])=>`${escHTML(a)} (${n})`).join(', ')}</div>
+          Momentos: <b>${R.momentos.map(escHTML).join(' · ')}</b>${R.porCurso?' (7:00 – 7:30; el docente y el lugar de cada curso salen de la hoja «Docentes Ciencias-Mat 10-11» del horario)':''}<br>${R.porCurso?`📦 <b>Logística: ${R.logistica||0} estudiantes</b> (hoja «SIN ASIGNACIÓN», los que no tienen área en el listado). El Organizador Master puede agregar o quitar después.<br>`:''}Áreas: ${Object.entries(porArea).map(([a,n])=>`${escHTML(a)} (${n})`).join(', ')}</div>
         ${no.length?`<div class="warnbox"><b>Líderes que la app no reconoce (${no.length}):</b> sus estudiantes no le aparecerán a nadie como líder (sí al administrador, Máster Coordinador y Organizador Master). Corrige el nombre en el Excel o crea la cuenta en Usuarios.<ul class="ulc">${no.map(x=>`<li>${escHTML(x.texto)} · ${x.n} estudiante${x.n>1?'s':''}</li>`).join('')}</ul></div>`:''}
         ${sinCuenta.length?`<div class="warnbox"><b>Líderes reconocidos pero sin cuenta en la app (${sinCuenta.length}):</b> ${sinCuenta.map(x=>escHTML(x.d.nombre)).join(' · ')}. Créales la cuenta para que puedan llamar a lista.</div>`:''}
         <details><summary class="sm">Líderes reconocidos (${L.length-no.length})</summary><table class="t"><tr><th>En el Excel</th><th>En la app</th><th>Estudiantes</th></tr>${L.filter(x=>x.d).map(x=>`<tr><td>${escHTML(x.texto)}</td><td>${escHTML(x.d.nombre)}${x.perfil?'':' <span style="color:#b45309">(sin cuenta)</span>'}</td><td>${x.n}</td></tr>`).join('')}</table></details>
@@ -1124,9 +1124,12 @@
     let R; try{ await cargarXLSX(); R=await window.AgendaExcel.leerArchivo(file); }catch(e){ return aviso('No se pudo leer el archivo: '+(e.message||e),'bad'); }
     if(!R.personas.length) return aviso(R.avisos[0]||'No encontré personas en el archivo.','bad');
     let perf; try{ perf=await todosPerfiles(); }catch(e){ return aviso(e.message,'bad'); }
+    let dirA=[]; try{ const r=await sb().from('sd_directorio').select('correo,nombre'); dirA=r.data||[]; }catch(_){}   // v65: el directorio del horario (Hoja3) también sirve para los correos
     const porC=new Map(perf.map(p=>[String(p.correo).toLowerCase(),p])), pal=window.AgendaExcel.palabras;
+    const porNombre=(L,n)=>{ const tk=pal(n); const c=L.filter(x=>{ const w=pal(x.nombre); return tk.length>=2&&tk.every(z=>w.includes(z)); }); return c.length===1?c[0]:null; };
     const F=R.personas.map(p=>{ let q=p.correo?porC.get(p.correo):null;
-      if(!q){ const tk=pal(p.nombre); const c=perf.filter(x=>{ const w=pal(x.nombre); return tk.length>=2&&tk.every(z=>w.includes(z)); }); if(c.length===1) q=c[0]; }
+      if(!q) q=porNombre(perf,p.nombre);
+      if(!q&&!p.correo){ const d=porNombre(dirA,p.nombre); if(d){ p.correo=String(d.correo).toLowerCase(); q=porC.get(p.correo)||null; } }
       const correo=(q&&q.correo)||p.correo||'';
       const est=!correo?'sincorreo':!q?'crear':q.rol==='master'?'ok':q.rol==='admin'?'admin':q.rol==='docente'?'convertir':'otro';
       return {...p,correo,q,est,inc:['ok','crear','convertir'].includes(est),orig:p.bloques}; });
