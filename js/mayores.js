@@ -23,7 +23,7 @@
     return limpio(t).toUpperCase().replace(/\s+/g, '');
   }
   const grado = c => /^10/.test(c) ? 'Décimo' : /^11/.test(c) ? 'Undécimo' : '';
-  const LLAMADO = 'Llamado a lista';
+  const LLAMADO = 'Llamado a lista', LOGI = 'Logística';
   const esLog = a => /log[ií]stic/i.test(String(a || ''));
   // Logística: «Guía de visitantes - Portería principal», «Apoyo en el Coliseo», «Registro: Hall»
   function funcionLugar(t) {
@@ -67,9 +67,16 @@
         porEst.set(k, { nombre: f.nombre, curso: f.curso, grado: grado(f.curso), planes: [{ momento: LLAMADO, hora_inicio: '07:00', hora_fin: '07:30', area: /sin asignaci|no tiene/i.test(f.area) ? '' : f.area,
           logistica: false, detalle: '', funcion: '', lugar: '', lider_nombre: '', hoja: n, fila: f.fila }] });
       }));
+      // v63: Logística = estudiantes «sin asignación definitiva» (hoja SIN ASIGNACIÓN, sin área en el listado STEM)
+      let nLog = 0; const hSin = wb.SheetNames.find(n => /sin asign/i.test(norm(n)));
+      if (hSin) { const R = XLSX.utils.sheet_to_json(wb.Sheets[hSin], { header: 1, defval: '' }); const H = (R[0] || []).map(norm);
+        const cN = Math.max(0, H.findIndex(h => /estudiante/.test(h))), cC = H.findIndex(h => /^curso|^grupo/.test(h)), cA = H.findIndex(h => /area/.test(h));
+        R.slice(1).forEach(r => { const nombre = limpio(r[cN]); if (nombre.length < 5) return; if (cA >= 0 && limpio(r[cA])) return;
+          const e = porEst.get(norm(nombre) + '|' + curso(r[cC >= 0 ? cC : 1])); if (!e || e.planes.some(p => p.momento === LOGI)) return;
+          e.planes.push({ momento: LOGI, hora_inicio: null, hora_fin: null, area: 'Logística', logistica: true, detalle: '', funcion: '', lugar: '', lider_nombre: '' }); nLog++; }); }
       const estudiantes = [...porEst.values()].sort((a, b) => a.curso.localeCompare(b.curso, 'es', { numeric: true }) || a.nombre.localeCompare(b.nombre, 'es'));
       const orden = {}; estudiantes.forEach(e => e.orden = (orden[e.curso] = (orden[e.curso] || 0) + 1));
-      return { estudiantes, momentos: [LLAMADO], avisos, porCurso: true };
+      return { estudiantes, momentos: [LLAMADO], avisos, porCurso: true, logistica: nLog };
     }
     const variasHojas = hojasConDatos.length > 1;
     hojasConDatos.forEach(({ n, filas }) => filas.forEach(f => {
@@ -90,7 +97,7 @@
     return { estudiantes, momentos, avisos };
   }
   function ordenarMomentos(L) { return L.slice().sort((a, b) => String(a.hora_inicio || '99').localeCompare(String(b.hora_inicio || '99')) || String(a.momento).localeCompare(String(b.momento), 'es', { numeric: true })); }
-  const api = { leerLibro, curso, funcionLugar, franja, esLog, ordenarMomentos, norm, LLAMADO };
+  const api = { leerLibro, curso, funcionLugar, franja, esLog, ordenarMomentos, norm, LLAMADO, LOGI };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.MayoresExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -99,7 +106,7 @@ if (typeof window !== 'undefined') (function () {
   const MOT_MAY = ['No llegó al colegio', 'Se retiró', 'Está en otra actividad', 'Otros'];
   const EV = { A: ['✓', 'Presente', '#1f9d6b'], T: ['⏱', 'Llegó tarde', '#f2a900'], N: ['✗', 'No está', '#e5484d'] };
   const M = window.MAY = { est: [], plan: [], asis: {}, ok: false, loc: {}, cambios: false };
-  const todos = () => !!(S.perfil && (['admin', 'master', 'secretario'].includes(S.perfil.rol) || S.perfil.org_master || (S.perfil.rol === 'organizador' && S.perfil.org_lista)));   // v57: + Master y Secretaría
+  const todos = () => !!(S.perfil && (['admin', 'master', 'secretario'].includes(S.perfil.rol) || S.perfil.org_master));   // v57: + Master y Secretaría · v63: el Organizador Master solo llama a Logística
   const LLAM = 'Llamado a lista';
   const misLlamados = () => M.plan.filter(p => p.momento === LLAM && String(p.lider_correo || '').toLowerCase() === yoCorreo());
   /* v57: lo que debe hacer el docente a las 7:00 con su curso de 10° u 11° */
@@ -117,14 +124,17 @@ if (typeof window !== 'undefined') (function () {
   }
   window.mayPuedeTodos = todos;
   const yoCorreo = () => String((S.perfil && S.perfil.correo) || '').toLowerCase();
-  async function paginas(t, cols, ord) { let out = []; for (let i = 0; ; i += 1000) { let q = S.sb.from(t).select(cols); ord.forEach(o => q = q.order(o)); const r = await q.range(i, i + 999); if (r.error) return r; out = out.concat(r.data || []); if (!r.data || r.data.length < 1000) return { data: out }; } }
+  async function paginas(t, cols, ord) { let out = []; for (let i = 0; ; i += 1000) { let q = S.sb.from(t).select(cols); ord.forEach(o => q = q.order(o)); let r; try { r = await q.range(i, i + 999); } catch (x) { return { error: x }; } if (r.error) return r; out = out.concat(r.data || []); if (!r.data || r.data.length < 1000) return { data: out }; } }
   async function cargar() {
     const [e, p, a] = await Promise.all([paginas('sd_may_est', '*', ['curso', 'orden', 'id']), paginas('sd_may_plan', '*', ['id']), paginas('sd_may_asis', '*', ['estudiante_id'])]);
-    if (e.error) { M.ok = false; M.err = e.error.message; return; }
+    if (e.error) { const sn = window.snapLeer && snapLeer();   // v63: sin señal, la última lista guardada
+      if (window.esRed && esRed(e.error) && sn && sn.may) { Object.assign(M, sn.may, { ok: true, sucio: false }); (window.bandeja ? bandeja() : []).filter(x => x.tabla === 'sd_may_asis').forEach(x => x.filas.forEach(f => M.asis[f.estudiante_id + '|' + f.momento] = f)); return; }
+      M.ok = false; M.err = e.error.message; return; }
     M.ok = true; M.est = e.data || []; M.plan = p.data || []; M.asis = {}; (a.data || []).forEach(x => M.asis[x.estudiante_id + '|' + x.momento] = x); M.sucio = false;
+    if (window.snapGuardar && M.est.length) snapGuardar({ may: { est: M.est, plan: M.plan, asis: M.asis } });
   }
   window.mayCargar = cargar;
-  function momentos() { return window.MayoresExcel.ordenarMomentos([...new Map(M.plan.map(p => [p.momento, p])).values()]); }
+  function momentos() { return window.MayoresExcel.ordenarMomentos([...new Map(M.plan.filter(p => p.momento !== 'Logística').map(p => [p.momento, p])).values()]); }
   function momentoActual(ms) {
     const ah = window.ahora ? ahora() : null; if (!ah || !S.config || ah.fecha !== S.config.fecha_evento) return ms[0];
     const hh = String(Math.floor(ah.min / 60)).padStart(2, '0') + ':' + String(ah.min % 60).padStart(2, '0');
@@ -220,13 +230,65 @@ if (typeof window !== 'undefined') (function () {
     const ks = Object.keys(C).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })); if (!ks.length) return '';
     return `<div class="llres">${ks.map(k => { const c = C[k], ok = !c.S; return `<div class="llc ${ok ? 'ok' : c.S === c.n ? 'no' : ''}" data-lg="${escHTML(c.quien ? 'Con ' + c.quien : 'Sin líder asignado')}"><b>${escHTML(k)}</b><small>${c.S === c.n ? 'Sin llamado aún' : `✓${c.A} ⏱${c.T} ✗${c.N}${c.S ? ' ⚪' + c.S : ''}`}</small><small>${escHTML(nomCorto ? nomCorto(c.quien) : c.quien)}</small></div>`; }).join('')}</div>`;
   }
+  /* v63 · Logística (Organizador Master): llamado a lista a cualquier hora, varias veces en el día */
+  const LG = 'Logística', esLogM = m => /^Logística · \d{2}:\d{2}$/.test(m);
+  window.mayPuedeLog = () => !!(S.perfil && (S.perfil.rol === 'admin' || S.perfil.org_master || (S.perfil.rol === 'organizador' && S.perfil.org_lista)));
+  window.maySoloLog = () => !!(S.perfil && S.perfil.rol === 'organizador' && S.perfil.org_lista && !S.perfil.org_master);
+  const hhmm = () => { const a = window.ahora ? ahora() : null, m = a ? a.min : new Date().getHours() * 60 + new Date().getMinutes(); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  window.pintarLogistica = async function () {
+    const el = $('asisPz'); if (!el) return;
+    if (!M.ok || M.sucio) { el.innerHTML = '<p class="sm">Cargando…</p>'; await cargar(); }
+    const est = new Map(M.est.map(e => [e.id, e])), grupo = M.plan.filter(p => p.momento === LG && est.has(p.estudiante_id)).map(p => ({ p, e: est.get(p.estudiante_id) }))
+      .sort((a, b) => a.e.curso.localeCompare(b.e.curso, 'es', { numeric: true }) || a.e.nombre.localeCompare(b.e.nombre, 'es'));
+    const hechos = [...new Set(Object.values(M.asis).map(x => x.momento).filter(esLogM))].sort();
+    if (!M.lmom) M.lmom = hechos.length ? hechos[hechos.length - 1] : null;
+    const val = id => { const k = id + '|' + M.lmom; return M.loc[k] || M.asis[k] || null; };
+    const cnt = { A: 0, T: 0, N: 0, S: 0 }; if (M.lmom) grupo.forEach(g => { const v = val(g.e.id); v ? cnt[v.estado]++ : cnt.S++; });
+    let h = `${window.maySoloLog() ? '' : '<div class="sub"><a href="#" id="lgVol">← Volver a la asistencia</a></div>'}<h3>📦 Logística · 10° y 11°</h3>
+      <div class="sub">${grupo.length} estudiantes sin asignación que apoyan la logística. Llama a lista las veces que necesites: cada llamado queda con su hora.</div>
+      <div class="lgnew"><label>Hora del llamado <input type="time" id="lgH" value="${hhmm()}"></label><button class="b1" id="lgNuevo">➕ Nuevo llamado</button></div>
+      ${hechos.length || M.lmom ? `<div class="moms">${[...new Set([...hechos, ...(M.lmom ? [M.lmom] : [])])].sort().map(m => `<span data-lm="${escHTML(m)}" class="${m === M.lmom ? 'on' : ''}"><b>${fmtHora(m.slice(-5)).replace(' ', '')}</b>Llamado</span>`).join('')}</div>` : '<div class="alertbox">Aún no hay llamados. Elige la hora y toca «Nuevo llamado».</div>'}`;
+    if (M.lmom) {
+      h += `<div class="cnt">${['A', 'T', 'N'].map(k => `<div><b style="color:${EV[k][2]}">${cnt[k]}</b><small>${EV[k][0]} ${EV[k][1]}</small></div>`).join('')}<div><b>${cnt.S}</b><small>⚪ Sin marcar</small></div></div>
+        ${M.cambios ? '<div class="leg"><b style="color:#b07a00">Cambios sin guardar</b></div>' : ''}
+        <button class="pbtn alt" id="lgTodos">✓ Marcar a los que faltan como presentes</button><div style="height:8px"></div>`;
+      grupo.forEach(({ e }) => { const v = val(e.id), k = e.id + '|' + M.lmom;
+        h += `<div class="est"><div class="nm">${escHTML(e.nombre)}<small><b>${escHTML(e.curso)}</b>${v ? ` · <span style="color:${EV[v.estado][2]}">${EV[v.estado][1]}</span>` : ''}</small><a href="#" class="lgq" data-q="${e.id}">Quitar de Logística</a></div>
+          <div class="st">${['A', 'T', 'N'].map(x => `<span data-lk="${escHTML(k)}" data-v="${x}" class="${v && v.estado === x ? 'on' : ''}">${EV[x][0]}</span>`).join('')}</div></div>`; });
+      h += `<button class="pbtn" id="lgGuardar" ${M.cambios ? '' : 'disabled'}>Guardar llamado de las ${fmtHora(M.lmom.slice(-5))}</button>`;
+    } else grupo.forEach(({ e }) => { h += `<div class="est"><div class="nm">${escHTML(e.nombre)}<small><b>${escHTML(e.curso)}</b></small><a href="#" class="lgq" data-q="${e.id}">Quitar de Logística</a></div></div>`; });
+    h += `<div class="dlbox" style="margin-top:14px"><b>➕ Agregar un estudiante a Logística</b><input class="srch" id="lgAdd" placeholder="Escribe el nombre del estudiante de 10° u 11°…"></div>`;
+    el.innerHTML = h;
+    if ($('lgVol')) $('lgVol').onclick = ev => { ev.preventDefault(); if (M.cambios && !confirm('Hay cambios sin guardar. ¿Salir?')) return; M.loc = {}; M.cambios = false; S.asisVista = null; pintarAsis(); };
+    $('lgNuevo').onclick = () => { const v = $('lgH').value; if (!/^\d{2}:\d{2}$/.test(v)) return toast('Elige la hora', 'bad'); if (M.cambios && !confirm('Hay cambios sin guardar. ¿Empezar otro llamado?')) return; M.loc = {}; M.cambios = false; M.lmom = 'Logística · ' + v; pintarLogistica(); };
+    el.querySelectorAll('[data-lm]').forEach(x => x.onclick = () => { if (M.cambios && !confirm('Hay cambios sin guardar. ¿Cambiar de llamado?')) return; M.loc = {}; M.cambios = false; M.lmom = x.dataset.lm; pintarLogistica(); });
+    el.querySelectorAll('[data-lk]').forEach(x => x.onclick = () => { M.loc[x.dataset.lk] = { estado: x.dataset.v, motivo: null }; M.cambios = true; pintarLogistica(); });
+    if ($('lgTodos')) $('lgTodos').onclick = () => { grupo.forEach(({ e }) => { if (!val(e.id)) M.loc[e.id + '|' + M.lmom] = { estado: 'A', motivo: null }; }); M.cambios = true; pintarLogistica(); };
+    if ($('lgGuardar')) $('lgGuardar').onclick = async () => { if (S.vistaComo) return toast('Vista previa: no se guarda', 'bad');
+      const filas = Object.keys(M.loc).map(k => { const [id, ...m] = k.split('|'); return { estudiante_id: +id, momento: m.join('|'), estado: M.loc[k].estado, motivo: null, registrado_por: S.perfil.id, por_nombre: S.perfil.nombre || null, actualizado_en: new Date().toISOString() }; });
+      $('lgGuardar').disabled = true; let r; try { r = navigator.onLine ? await S.sb.from('sd_may_asis').upsert(filas, { onConflict: 'estudiante_id,momento' }) : { error: { message: 'offline' } }; } catch (x) { r = { error: x }; }
+      if (r.error && window.esRed && esRed(r.error)) { encolar('sd_may_asis', filas, 'estudiante_id,momento'); filas.forEach(f => M.asis[f.estudiante_id + '|' + f.momento] = f); M.loc = {}; M.cambios = false; toast('Sin señal: quedó guardado en el celular y se enviará solo cuando vuelva el internet.', 'ok', 5000); return pintarLogistica(); }
+      if (r.error) { toast('No se pudo guardar: ' + r.error.message, 'bad', 5000); return pintarLogistica(); }
+      filas.forEach(f => M.asis[f.estudiante_id + '|' + f.momento] = f); M.loc = {}; M.cambios = false; toast('Llamado guardado ✓', 'ok'); pintarLogistica(); };
+    el.querySelectorAll('.lgq').forEach(x => x.onclick = async ev => { ev.preventDefault(); const e = est.get(+x.dataset.q); if (!confirm(`¿Quitar a ${e.nombre} de Logística?`)) return;
+      if (S.vistaComo) return toast('Vista previa: no se guarda', 'bad');
+      const r = await S.sb.from('sd_may_plan').delete().eq('estudiante_id', e.id).eq('momento', LG); if (r.error) return toast('No se pudo: ' + (/policy|permission/i.test(r.error.message) ? 'falta ejecutar el archivo 32 en Supabase.' : r.error.message), 'bad', 5000);
+      M.plan = M.plan.filter(p => !(p.estudiante_id === e.id && p.momento === LG)); toast('Quitado de Logística', 'ok'); pintarLogistica(); });
+    const ya = new Set(grupo.map(g => g.e.id));
+    if (window.autoLista) autoLista($('lgAdd'), M.est.filter(e => !ya.has(e.id)).map(e => ({ t: e.nombre, s: e.curso, id: e.id })), async x => {
+      if (S.vistaComo) return toast('Vista previa: no se guarda', 'bad');
+      const r = await S.sb.from('sd_may_plan').insert({ estudiante_id: x.id, momento: LG, area: 'Logística', logistica: true }).select().single();
+      if (r.error) return toast('No se pudo: ' + (/policy|permission/i.test(r.error.message) ? 'falta ejecutar el archivo 32 en Supabase.' : r.error.message), 'bad', 5000);
+      M.plan.push(r.data); toast(`${x.t} quedó en Logística ✓`, 'ok'); pintarLogistica(); });
+  };
   async function guardar() {
     const ks = Object.keys(M.loc); if (!ks.length) return;
     const falta = ks.filter(k => M.loc[k].estado === 'N' && !M.loc[k].motivo); if (falta.length) return toast('Elige por qué no está cada estudiante marcado con ✗', 'bad', 3800);
     if (S.vistaComo) return toast('Vista previa: no se guarda', 'bad');
     const filas = ks.map(k => { const [id, ...m] = k.split('|'); return { estudiante_id: +id, momento: m.join('|'), estado: M.loc[k].estado, motivo: M.loc[k].estado === 'N' ? M.loc[k].motivo : null, registrado_por: S.perfil.id, por_nombre: S.perfil.nombre || null, actualizado_en: new Date().toISOString() }; });
     $('myGuardar').disabled = true; $('myGuardar').textContent = 'Guardando…';
-    const r = await S.sb.from('sd_may_asis').upsert(filas, { onConflict: 'estudiante_id,momento' });
+    let r; try { r = navigator.onLine ? await S.sb.from('sd_may_asis').upsert(filas, { onConflict: 'estudiante_id,momento' }) : { error: { message: 'offline' } }; } catch (x) { r = { error: x }; }
+    if (r.error && window.esRed && esRed(r.error)) { encolar('sd_may_asis', filas, 'estudiante_id,momento'); filas.forEach(f => M.asis[f.estudiante_id + '|' + f.momento] = f); M.loc = {}; M.cambios = false; toast('Sin señal: el llamado quedó guardado en el celular y se enviará solo cuando vuelva el internet.', 'ok', 5000); pintarMayores(); return; }
     if (r.error) { toast('No se pudo guardar: ' + r.error.message, 'bad', 5000); pintarMayores(); return; }
     filas.forEach(f => M.asis[f.estudiante_id + '|' + f.momento] = f); M.loc = {}; M.cambios = false;
     toast(`Llamado guardado ✓ · ${filas.filter(f => f.estado === 'N').length} no están`, 'ok', 3500); pintarMayores();
