@@ -38,6 +38,32 @@ function ahora(){
 }
 function fechaLarga(f){ if(!f) return ''; const d=new Date(f+'T12:00:00Z'); return d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).replace(/^./,c=>c.toUpperCase()); }
 
+/* ---------------- v63 · sin internet ----------------
+   - Guarda en el celular la última información (perfil, programación, estudiantes) y la usa si no hay señal.
+   - Los llamados a lista hechos sin señal quedan en una «bandeja de salida» y se envían solos al volver el internet. */
+const OFF={ q:'steam_bandeja' };
+const esRed=e=>!navigator.onLine||/failed to fetch|networkerror|load failed|network request failed|fetch/i.test(String((e&&(e.message||e))||''));
+function snapKey(){ return 'steam_snap_'+((S.user&&S.user.id)||''); }
+function snapGuardar(extra){ try{ if(!S.user||S.vistaComo) return; const o=LS.get(snapKey(),{})||{}; Object.assign(o,extra,{t:Date.now()}); localStorage.setItem(snapKey(),JSON.stringify(o)); localStorage.setItem('steam_last_uid',S.user.id); }catch(_){} }
+function snapLeer(){ return LS.get(snapKey(),null); }
+window.snapLeer=snapLeer; window.snapGuardar=snapGuardar; window.esRed=esRed;
+function bandeja(){ return LS.get(OFF.q,[])||[]; }
+window.bandeja=bandeja;
+function encolar(tabla,filas,conflicto){ const b=bandeja(); b.push({tabla,filas,conflicto,t:Date.now()}); LS.set(OFF.q,b); barraRed(); }
+async function vaciarBandeja(){
+  if(OFF.vaciando||!navigator.onLine||!S.sb) return; const b=bandeja(); if(!b.length) return; OFF.vaciando=true; let quedan=[], ok=0;
+  for(const x of b){ try{ const r=await S.sb.from(x.tabla).upsert(x.filas,{onConflict:x.conflicto}); if(r.error){ if(esRed(r.error)) quedan.push(x); else toast('Un llamado guardado sin señal no se pudo enviar: '+r.error.message,'bad',6000); } else ok+=x.filas.length; }catch(e){ quedan.push(x); } }
+  LS.set(OFF.q,quedan); OFF.vaciando=false; barraRed(); if(ok) toast(`Se enviaron ${ok} registros guardados sin señal ✓`,'ok',4000);
+}
+function barraRed(){ let b=document.getElementById('netBar'); const n=bandeja().reduce((s,x)=>s+x.filas.length,0), off=!navigator.onLine;
+  if(!off&&!n){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.id='netBar'; document.body.appendChild(b); }
+  b.className=off?'off':'pend'; b.textContent=off?`📴 Sin internet: ves la última información guardada${n?` · ${n} registros por enviar`:''}`:`⏳ Enviando ${n} registros guardados sin señal…`; }
+window.addEventListener('offline',barraRed);
+window.addEventListener('online',async()=>{ barraRed(); await vaciarBandeja();
+  try{ if(S.perfil&&window.recargarDatos) await recargarDatos(); }catch(_){}
+  try{ const r=await navigator.serviceWorker.getRegistration(); if(r) r.update(); }catch(_){} });
+setInterval(()=>{ if(bandeja().length) vaciarBandeja(); },30000);
 /* ---------------- arranque ---------------- */
 async function boot(){
   if(!CFG || /TU_/.test(CFG.SUPABASE_URL+CFG.SUPABASE_ANON_KEY)){
@@ -46,9 +72,11 @@ async function boot(){
   S.sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true } });
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   protegerVista();
-  const { data:{ session } } = await S.sb.auth.getSession();
-  if(!session) return pantallaLogin();
-  S.user=session.user; await continuar();
+  let session=null; try{ ({ data:{ session } } = await S.sb.auth.getSession()); }catch(_){}
+  if(!session){ const uid=LS.get('steam_last_uid',null);   // v63: sin señal y con la sesión vencida, se entra con lo guardado
+    if(!navigator.onLine&&uid&&LS.get('steam_snap_'+uid,null)){ S.user={id:uid}; S.offline=true; barraRed(); return continuar(); }
+    return pantallaLogin(); }
+  S.user=session.user; barraRed(); await continuar(); setTimeout(vaciarBandeja,4000);
 }
 
 function cuentaRegresiva(){
@@ -70,10 +98,15 @@ function pantallaLogin(){
 }
 
 async function cargarPerfil(){
-  const { data, error } = await S.sb.from('sd_perfiles').select('*').eq('id',S.user.id).maybeSingle();
-  if(error) throw error; S.perfil=data;
+  let r; try{ r=await S.sb.from('sd_perfiles').select('*').eq('id',S.user.id).maybeSingle(); }catch(e){ r={error:e}; }
+  if(r.error){ const sn=snapLeer(); if(esRed(r.error)&&sn&&sn.perfil){ S.perfil=sn.perfil; S.offline=true; return; } throw r.error; }
+  S.perfil=r.data; snapGuardar({perfil:r.data});
 }
 async function cargarDatos(){
+  try{ await cargarDatos0(); snapGuardar({config:S.config,prog:S.prog,avisos:S.avisos,lid:S.lid}); }
+  catch(e){ const sn=snapLeer(); if(esRed(e)&&sn&&sn.prog){ S.config=sn.config; S.prog=sn.prog; S.avisos=sn.avisos||[]; S.lid=sn.lid||{}; S.offline=true; barraRed(); return; } throw e; }
+}
+async function cargarDatos0(){
   const [c,p,a] = await Promise.all([
     S.sb.from('sd_config').select('*').eq('id',1).maybeSingle(),
     S.sb.from('sd_programacion').select('*').order('hora_inicio').limit(5000),
@@ -121,7 +154,7 @@ async function guardarPerfil(campos){
   if(S.vistaComo){ Object.assign(S.perfil,campos); avisoVista(); return true; }
   const { error } = await S.sb.from('sd_perfiles').update(campos).eq('id',S.perfil.id);
   if(error){ toast('No se pudo guardar: '+error.message,'bad',4000); return false; }
-  Object.assign(S.perfil,campos); return true;
+  Object.assign(S.perfil,campos); snapGuardar({perfil:S.perfil}); return true;
 }
 
 /* ---------------- primer ingreso ---------------- */
@@ -250,6 +283,14 @@ function ayudaApoyo(forzar){
       <p class="sm">Si el permiso es por otra razón (cita médica, etc.), elige «Otro motivo» y escríbelo.</p>`,botones:[{t:'Entendido'}]});
 }
 window.ayudaApoyo=ayudaApoyo;
+/* v63 · el día del evento, la primera vez que abre Lista: recordatorio del permiso de salida */
+function recordatorioApoyo(){
+  const a=ahora(), k='steam_aprec_'+(S.perfil&&S.perfil.id)+'_'+a.fecha+(typeof _sim!=='undefined'&&_sim?'_ens':''); if(LS.get(k,false)||S.vistaComo||!window.ventana) return; LS.set(k,true);
+  ventana({icono:'📋',kicker:'Llamado a lista de las 7:00 · recuerda',titulo:'¿Algún estudiante sale a apoyar el STEM Day?',color:'#7b4bd6',tag:'aprec',prioridad:true,
+    html:`<p>Después de llamar a lista, <b>pregúntale al grupo si algún estudiante se ausentará</b> porque va a participar o apoyar una actividad del STEM Day.</p>
+      <div class="apsteps"><div><b>1</b><span>Márcalo con <b>🚪 Permiso de salida</b>.</span></div><div><b>2</b><span>Elige <b>a qué área apoyará</b> y <b>con qué docente líder</b> estará.</span></div><div><b>3</b><span>Toca <b>Guardar llamado a lista</b>: al líder le aparece en su app para confirmar que llegó.</span></div></div>`,
+    botones:[{t:'Entendido, voy a llamar a lista'}]});
+}
 /* líder de estación: tarjeta debajo de su estación */
 async function apoyosLider(el){
   if(!el||!S.perfil) return; let box=el.querySelector('#apLid'); if(!box){ box=document.createElement('div'); box.id='apLid'; box.className='apcard'; el.appendChild(box); }
@@ -406,16 +447,37 @@ function b64ToU8(s){ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(
 let _pushT=null;
 function avisarYa(){ clearTimeout(_pushT); _pushT=setTimeout(()=>{ try{ S.sb.functions.invoke((CFG&&CFG.FUNCION_PUSH)||'rapid-worker',{body:{}}).catch(()=>{}); }catch(_){} },1200); }
 window.avisarYa=avisarYa;
+/* v63 · registra el celular para avisos aunque antes lo haya usado otra cuenta (RPC del SQL 32; si falta, el método anterior) */
+async function registrarPush(sub){ const j=sub.toJSON();
+  let r=await S.sb.rpc('sd_push_registrar',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_dispositivo:navigator.userAgent.slice(0,180)});
+  if(r.error&&/sd_push_registrar|function/i.test(r.error.message)) r=await S.sb.from('sd_push').upsert({ perfil_id:S.perfil.id, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, dispositivo:navigator.userAgent.slice(0,180) },{ onConflict:'endpoint' });
+  return r; }
 async function probarNotificacion(){
   if(S.vistaComo) return avisoVista();
-  let sub=null; try{ const reg=await navigator.serviceWorker.getRegistration(); sub=reg&&await reg.pushManager.getSubscription(); }catch(e){}
-  if(!('Notification' in window)||Notification.permission!=='granted'||!sub){ toast('Primero toca «Activar avisos».','bad',4000); return; }
-  ventana({icono:'🔔',titulo:'Prueba de notificación',html:'<p>Cierra o minimiza la app ahora. En <b>8 segundos</b> te llegará una notificación con sonido, como un mensaje de WhatsApp.</p><p class="sm">Si no suena, revisa que el celular no esté en silencio o en «No molestar», y que las notificaciones de la app (o del navegador) tengan el sonido activado en los ajustes del celular.</p>',botones:[{t:'Entendido'}]});
-  try{ const r=await S.sb.functions.invoke((CFG&&CFG.FUNCION_PUSH)||'rapid-worker',{body:{prueba:true,espera:8}});
-    if(r.error) toast('No se pudo enviar la prueba: '+(r.error.message||r.error)+'. ¿Ya actualizaste rapid-worker?','bad',6000);
-    else if(r.data&&r.data.motivo==='sin_suscripcion') toast('Este celular no está registrado para avisos. Toca «Activar avisos».','bad',5000);
-    else if(r.data&&!r.data.ok) toast('El servidor no pudo entregar la notificación a este celular. Vuelve a activar los avisos.','bad',6000);
-  }catch(e){ toast('No se pudo enviar la prueba: '+e.message,'bad',5000); }
+  // v63: diagnóstico paso a paso, para saber exactamente qué falla en este celular
+  const D=[], ok=(c,t,ayuda)=>D.push({c,t,ayuda});
+  const perm=('Notification' in window)?Notification.permission:'no';
+  const inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  ok(perm==='granted','Permiso de notificaciones',perm==='denied'?'Está bloqueado: actívalo en los ajustes del celular (Notificaciones → STEM Day o el navegador).':'Toca «Activar avisos».');
+  if(esIOS) ok(inst,'App instalada en la pantalla de inicio (iPhone)','En iPhone los avisos con la app cerrada solo llegan si la abres desde el ícono de la pantalla de inicio (Compartir → Agregar a inicio).');
+  let reg=null, sub=null; try{ reg=await navigator.serviceWorker.getRegistration(); sub=reg&&await reg.pushManager.getSubscription(); }catch(e){}
+  ok(!!(reg&&reg.active),'Servicio de la app activo','Cierra la app por completo y vuelve a abrirla.');
+  if(perm==='granted'&&!sub&&reg&&!/TU_/.test(CFG.VAPID_PUBLIC_KEY)){ try{ sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(CFG.VAPID_PUBLIC_KEY)}); }catch(e){} }
+  ok(!!sub,'Celular registrado para avisos','Toca «Activar avisos». Si ya lo hiciste, desinstala y vuelve a instalar la app.');
+  if(sub){ const r=await registrarPush(sub);
+    ok(!r.error,'Registro guardado en el servidor',r.error?'Error: '+r.error.message:''); }
+  let srv=null;
+  if(sub){ try{ const r=await S.sb.functions.invoke((CFG&&CFG.FUNCION_PUSH)||'rapid-worker',{body:{prueba:true,espera:8}}); srv=r.error?{error:r.error.message||String(r.error)}:r.data; }catch(e){ srv={error:e.message}; } }
+  if(srv){ if(srv.error) ok(false,'Servidor de avisos (rapid-worker)','No respondió: '+srv.error+'. Revisa que rapid-worker esté actualizado y publicado.');
+    else { ok(srv.vapid!==false,'Clave privada de avisos en el servidor','Falta el secreto VAPID_PRIVATE_KEY en Supabase.');
+      if(srv.vapid_pub!=null) ok(String(CFG.VAPID_PUBLIC_KEY).slice(0,16)===srv.vapid_pub,'La clave pública coincide con la app','El secreto VAPID_PUBLIC_KEY de Supabase no es el mismo de js/config.js: deben ser iguales.');
+      else ok(false,'Versión de rapid-worker','rapid-worker está desactualizado: pega el index.ts nuevo y publica.');
+      if(srv.motivo==='sin_suscripcion') ok(false,'El servidor ve este celular','El servidor no encontró el registro. Toca «Activar avisos» y vuelve a probar.');
+      else ok(!!srv.ok,'Envío de la prueba',srv.errores&&srv.errores.length?srv.errores.map(e=>`${e.servicio}: ${e.estado} ${e.detalle}`).join(' · '):'El servicio de avisos del celular rechazó el envío.'); } }
+  const bien=D.every(x=>x.c);
+  ventana({icono:bien?'🔔':'🩺',titulo:bien?'Prueba enviada':'Revisión de avisos',color:bien?'#1f9d6b':'#c2410c',
+    html:`<div class="diag">${D.map(x=>`<div class="${x.c?'ok':'no'}"><b>${x.c?'✓':'✗'}</b><span>${escHTML(x.t)}${!x.c&&x.ayuda?`<small>${escHTML(x.ayuda)}</small>`:''}</span></div>`).join('')}</div>
+      ${bien?'<p>Cierra o minimiza la app ahora: en unos segundos te llega la notificación. Si no suena, revisa que el celular no esté en silencio o en «No molestar», y que el ahorro de batería no bloquee la app o el navegador.</p>':'<p class="sm">Toma una captura de esta pantalla y envíasela al administrador si no logras resolverlo.</p>'}`,botones:[{t:'Entendido'}]});
 }
 // v55 · al tocar una notificación: abrir el chat (y la conversación) o la app
 if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',ev=>{ const m=ev.data||{};
@@ -431,8 +493,8 @@ async function activarAvisos(){
       const reg=await navigator.serviceWorker.ready;
       let sub=await reg.pushManager.getSubscription();
       if(!sub) sub=await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64ToU8(CFG.VAPID_PUBLIC_KEY) });
-      const j=sub.toJSON();
-      await S.sb.from('sd_push').upsert({ perfil_id:S.perfil.id, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, dispositivo:navigator.userAgent.slice(0,180) },{ onConflict:'endpoint' });
+      const rp=await registrarPush(sub);
+      if(rp.error) throw new Error('no se guardó el registro ('+rp.error.message+')');
     }
     await guardarPerfil({ alertas:{...S.perfil.alertas, app_cerrada:true} });
     toast('Avisos activados','ok'); return true;
@@ -489,6 +551,8 @@ function principal(){
   if(window.cmIniciar) cmIniciar();
   if(window.v30Iniciar) v30Iniciar();
   if(window.mayIniciar) mayIniciar();
+  // v63: si este celular ya tiene permiso de avisos, se vuelve a vincular a la cuenta que acaba de entrar
+  if(!S.vistaComo&&'Notification' in window&&Notification.permission==='granted'&&'serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then(r=>r&&r.pushManager.getSubscription()).then(sub=>{ if(sub) registrarPush(sub); }).catch(()=>{});
   try{ const q=new URLSearchParams(location.search); if(q.get('p')==='chat'&&puedeChat()){ if(q.get('sala')) S.chatSala=q.get('sala'); setTimeout(()=>irPanel('chat'),600); } }catch(_){}
 }
 function irPanel(p){
@@ -776,11 +840,15 @@ async function cargarEstudiantes(forzar){
   if(S.est&&!forzar&&!S.asisSucia) return;
   // Supabase entrega máximo 1000 filas por consulta: se piden por páginas
   const todo=async(t,cols,ord)=>{ let out=[]; for(let i=0;;i+=1000){ let q=S.sb.from(t).select(cols); ord.forEach(o=>q=q.order(o)); const r=await q.range(i,i+999); if(r.error) return r; out=out.concat(r.data||[]); if(!r.data||r.data.length<1000) return {data:out}; } };
-  const [e,a]=await Promise.all([ todo('sd_estudiantes','id,grado,curso,nombre,orden',['curso','orden','id']), todo('sd_asistencia','*',['estudiante_id']) ]);
-  if(e.error) throw e.error; if(a.error) throw a.error;
+  let e,a; try{ [e,a]=await Promise.all([ todo('sd_estudiantes','id,grado,curso,nombre,orden',['curso','orden','id']), todo('sd_asistencia','*',['estudiante_id']) ]); }catch(x){ e={error:x}; a={}; }
+  if(e.error||a.error){ const er=e.error||a.error, sn=snapLeer();   // v63: sin señal, la última lista guardada (con lo marcado en este celular)
+    if(esRed(er)&&sn&&sn.est){ S.est=sn.est; S.asis=sn.asis||{}; S.enStem=sn.enStem||{}; bandeja().filter(x=>x.tabla==='sd_asistencia').forEach(x=>x.filas.forEach(f=>S.asis[f.estudiante_id]=f)); S.asisSucia=false; return; }
+    throw er; }
   S.est=e.data||[]; S.asis={}; (a.data||[]).forEach(x=>S.asis[x.estudiante_id]=x); S.asisSucia=false;
   // v45: estudiantes en actividades del STEM Day (si aún no se ejecutó el SQL 23, la app sigue igual)
   S.enStem={}; S.enStemOk=false; try{ const r=await todo('sd_en_stem','*',['estudiante_id']); if(!r.error){ S.enStemOk=true; (r.data||[]).forEach(x=>S.enStem[x.estudiante_id]=x); } }catch(_){}
+  if(['docente','sec','org','master'].includes(S.modo)||S.perfil.rol==='admin'){ const mios=S.modo==='docente'?S.est.filter(x=>(S.cursos||[]).includes(x.curso)):S.est;
+    snapGuardar({est:mios,asis:Object.fromEntries(mios.map(x=>[x.id,S.asis[x.id]]).filter(z=>z[1])),enStem:S.enStem}); }
 }
 /* v45 · ¿el estudiante está en una actividad del STEM Day entre h0 y h1? */
 function enStem(id,h0,h1){ const r=(S.enStem||{})[id]; if(!r) return null; if(!r.desde||!h0) return r; return (r.desde<(h1||h0)&&h0<(r.hasta||'23:59'))?r:null; }
@@ -799,7 +867,7 @@ async function pintarLista2(){
   if(!S.listaCurso||!S.cursos.includes(S.listaCurso)) S.listaCurso=S.curso||S.cursos[0];
   if(!S.listaMom){ const a=ahora(); const ms=momentosLista(S.listaCurso).filter(s=>a.fecha===S.config.fecha_evento&&toMin(s.h)<=a.min); S.listaMom=ms.length?ms[ms.length-1].h:'inicial'; }
   el.innerHTML='<p class="sm">Cargando estudiantes…</p>';
-  { const a=ahora(); if(S.config&&a.fecha<=S.config.fecha_evento) setTimeout(()=>ayudaApoyo(false),900); }   // v58
+  { const a=ahora(); if(S.config&&a.fecha===S.config.fecha_evento) setTimeout(recordatorioApoyo,900); else if(S.config&&a.fecha<S.config.fecha_evento) setTimeout(()=>ayudaApoyo(false),900); }   // v58 · v63
   try{ await cargarEstudiantes(!S.listaLocal); }catch(e){ el.innerHTML=`<div class="alertbox">No se pudo cargar la lista: ${escHTML(e.message)}</div>`; return; }
   if(!S.listaLocal||S.listaLocal.curso!==S.listaCurso||S.listaLocal.mom!==S.listaMom){
     const L=S.est.filter(x=>x.curso===S.listaCurso);
@@ -902,7 +970,9 @@ async function guardarLista(){
   const quitar=L.filas.filter(x=>!x.v&&S.asis[x.id]).map(x=>x.id);
   $('lGuardar').disabled=true; $('lGuardar').textContent='Guardando…';
   let err=null;
-  if(filas.length){ const r=await S.sb.from('sd_asistencia').upsert(filas,{onConflict:'estudiante_id'}); err=r.error;
+  if(filas.length&&!navigator.onLine){ encolar('sd_asistencia',filas,'estudiante_id'); filas.forEach(f=>S.asis[f.estudiante_id]=f); L.cambios=false; toast('Sin internet: el llamado quedó guardado en el celular y se enviará solo cuando vuelva la señal.','ok',5000); dibujarLista(''); return; }
+  if(filas.length){ let r; try{ r=await S.sb.from('sd_asistencia').upsert(filas,{onConflict:'estudiante_id'}); }catch(e){ r={error:e}; } err=r.error;
+    if(err&&esRed(err)){ encolar('sd_asistencia',filas,'estudiante_id'); filas.forEach(f=>S.asis[f.estudiante_id]=f); L.cambios=false; toast('Sin señal: el llamado quedó guardado en el celular y se enviará solo cuando vuelva el internet.','ok',5000); dibujarLista(''); return; }
     if(err&&/apoyo_|hora_salida/.test(err.message)){ err={message:'falta ejecutar el archivo 32 en Supabase (permiso de salida con área y líder)'}; } }
   if(!err&&quitar.length){ const r=await S.sb.from('sd_asistencia').delete().in('estudiante_id',quitar); err=r.error; }
   if(err){ toast('No se pudo guardar: '+err.message,'bad',5000); dibujarLista(''); return; }
@@ -919,7 +989,8 @@ async function guardarListaAct(){
   if(inc.length) return toast('Escribe el docente y el lugar de la actividad del STEM Day.','bad',3800);
   const filas=dentro.map(x=>({estudiante_id:x.id,curso:L.curso,hora_inicio:L.mom,estado:x.v,motivo:x.v==='N'?x.m:null,detalle:x.v==='N'?(x.det||{}):null,registrado_por:S.perfil.id,actualizado_en:new Date().toISOString()}));
   $('lGuardar').disabled=true; $('lGuardar').textContent='Guardando…';
-  const r=await S.sb.from('sd_asistencia_act').upsert(filas,{onConflict:'estudiante_id,hora_inicio'});
+  let r; try{ r=navigator.onLine?await S.sb.from('sd_asistencia_act').upsert(filas,{onConflict:'estudiante_id,hora_inicio'}):{error:{message:'offline'}}; }catch(e){ r={error:e}; }
+  if(r.error&&esRed(r.error)){ encolar('sd_asistencia_act',filas,'estudiante_id,hora_inicio'); L.cambios=false; toast('Sin señal: el llamado quedó guardado en el celular y se enviará solo cuando vuelva el internet.','ok',5000); dibujarLista(''); return; }
   if(r.error){ toast('No se pudo guardar: '+r.error.message,'bad',5000); dibujarLista(''); return; }
   L.cambios=false; toast(`Llamado guardado ✓ · ${filas.filter(f=>f.estado==='N').length} no están`,'ok',3500); dibujarLista('');
 }
@@ -941,6 +1012,7 @@ async function pintarAsis(grado){
   if(S.asisVista==='stem'&&esOrgM()) return pintarEnStem();
   if(S.asisVista==='may'&&window.mayPuedeTodos&&mayPuedeTodos()) return pintarMayores();
   if(S.asisVista==='apo') return pintarApoyos();
+  if(S.asisVista==='log'&&window.mayPuedeLog&&mayPuedeLog()) return pintarLogistica();
   if(S.asisCurso) return detalleAsis(S.asisCurso);
   const cursos=[...new Set(S.est.map(x=>x.curso))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})), GR={}; S.est.forEach(x=>GR[x.curso]=x.grado);
   const ORDG=['transicion','primero','segundo','tercero','cuarto','quinto','sexto','septimo','octavo','noveno','decimo','undecimo'], og=g=>{ const i=ORDG.indexOf(String(g).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()); return i<0?99:i; };
@@ -951,6 +1023,7 @@ async function pintarAsis(grado){
   if(!S.est.length){ el.innerHTML=h+'<div class="alertbox">Aún no se ha cargado la lista de estudiantes (Administración → Estudiantes).</div>'; return; }
   if(S.perfil.rol==='admin'||S.modo==='sec'){ const np=S.est.filter(x=>(S.asis[x.id]||{}).previa).length; h+=`<div class="pvcard" id="aPrev"><b>📌 Ausencias anunciadas para el 23</b><span>${np?`${np} estudiante${np>1?'s':''} marcado${np>1?'s':''} · `:''}Marca a quienes ya se sabe que no vendrán. Le aparecen marcados al director de curso.</span><i>›</i></div>`; }
   { const n=(AP.lista||[]).length; h+=`<div class="pvcard apcard2" id="aApo"><b>🙋 Estudiantes de apoyo · permiso de salida</b><span>${n?`${n} estudiante${n>1?'s':''} · `:''}Con qué líder está cada uno. Confirma que llegaron.</span></div>`; }
+  if(window.mayPuedeLog&&mayPuedeLog()){ const M=window.MAY||{}, n=(M.plan||[]).filter(p=>p.momento==='Logística').length; h+=`<div class="pvcard maycard" id="aLog"><b>📦 Logística · llamado a lista</b><span>${n?`${n} estudiantes · `:''}Estudiantes de 10° y 11° sin asignación. Llama a lista a la hora que necesites, varias veces en el día.</span></div>`; }
   if(window.mayPuedeTodos&&mayPuedeTodos()){ const M=window.MAY||{}, n=(M.est||[]).length; h+=`<div class="pvcard maycard" id="aMay"><b>🎓 Décimo y undécimo · llamado a lista</b><span>${n?`${n} estudiantes · `:''}Dónde está cada estudiante (con su líder o en Logística) y su asistencia en cada momento.</span><i>›</i></div>`; }
   if(esOrgM()&&!S.vistaComo){ const ns=Object.keys(S.enStem||{}).length; h+=`<div class="pvcard stcard" id="aStem"><b>🔬 Estudiantes en actividades del STEM Day</b><span>${ns?`${ns} estudiante${ns>1?'s':''} marcado${ns>1?'s':''} · `:''}Marca a quienes estarán apoyando actividades. Su docente los ve en la lista con el aviso y como presentes.</span><i>›</i></div>`; }
   h+=`<div class="cnt">${Object.entries(EST_V).map(([k,[i,t,col]])=>`<div><b style="color:${col}">${tot[k]}</b><small>${i} ${t}</small></div>`).join('')}</div>
@@ -982,6 +1055,7 @@ async function pintarAsis(grado){
   if($('aStem')) $('aStem').onclick=()=>{ S.asisVista='stem'; pintarAsis(); };
   if($('aMay')) $('aMay').onclick=()=>{ S.asisVista='may'; pintarAsis(); };
   if($('aApo')) $('aApo').onclick=()=>{ S.asisVista='apo'; pintarAsis(); };
+  if($('aLog')) $('aLog').onclick=()=>{ S.asisVista='log'; pintarAsis(); };
 }
 /* v45 · Administración y Máster Coordinadores: estudiantes que estarán en actividades del STEM Day */
 function pintarEnStem(){
@@ -1158,16 +1232,18 @@ async function pintarAsisAct(){
 /* ================= Organizador: en vivo ================= */
 function pintarVivo(){
   const el=$('vivoPz'), a=ahora(); if(S.vivoMin==null) S.vivoMin=null;
-  const m=S.vivoMin!=null?S.vivoMin:(a.fecha===S.config.fecha_evento?a.min:515), q=(S.vivoQ||'').toLowerCase();
+  const hoyEv=a.fecha===S.config.fecha_evento;   // v63: el día del evento sigue la hora real (entre 7:00 y 3:00 p. m.)
+  const m=S.vivoMin!=null?S.vivoMin:(hoyEv?Math.max(420,Math.min(899,a.min)):515), q=(S.vivoQ||'').toLowerCase();
   const act=S.prog.filter(f=>f.tipo==='actividad'&&toMin(f.hora_inicio)<=m&&m<toMin(f.hora_fin));
   const pz=S.prog.filter(f=>f.tipo==='pausa'&&toMin(f.hora_inicio)<=m&&m<toMin(f.hora_fin));
   const hm=String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   const G={}; act.forEach(f=>{ const k=ColegioVivo.zona(f); (G[k]=G[k]||[]).push(f); });
-  let h=`<h3>En vivo · ${fmtHora(hm)}</h3><div class="sub">Qué curso está en qué salón y haciendo qué. Toca un curso para ver el recorrido.</div>
+  const nota=S.vivoMin!=null?'Estás viendo otra hora.':!hoyEv?`Vista previa: el ${escHTML(fechaLarga(S.config.fecha_evento))} esta pantalla sigue la hora real.`:a.min<420?'La jornada empieza a las 7:00 a. m.':a.min>=900?'La jornada terminó.':'Se actualiza sola cada 15 segundos.';
+  let h=`<h3>En vivo · ${fmtHora(hm)}</h3><div class="sub">Qué curso está en qué salón y haciendo qué. Toca un curso para ver el recorrido. <b>${nota}</b></div>
     <div class="hora"><span id="vMenos">− 15 min</span><b id="vAhora">${S.vivoMin==null?'Ahora':'Volver a ahora'}</b><span id="vMas">+ 15 min</span></div>
     ${window.turAbrirResumen?'<button class="b2" id="vTur" style="width:100%;margin:6px 0">👥 Turnos de director y codirector</button>':''}
     <input class="srch" id="vBus" placeholder="Buscar curso, salón o actividad…" value="${escHTML(S.vivoQ||'')}">
-    ${pz.map(p=>`<div class="leg">☕ ${escHTML(p.area)} ${escHTML(p.nivel)}: ${fmtHora(p.hora_inicio)} – ${fmtHora(p.hora_fin)}</div>`).join('')}`;
+    ${pz.map(p=>`<div class="leg">${pausaIco(p)} ${escHTML(p.nivel)} · ${escHTML(p.titulo||p.area)}: ${fmtHora(p.hora_inicio)} – ${fmtHora(p.hora_fin)}</div>`).join('')}`;
   let n=0;
   Object.entries(G).forEach(([k,fs])=>{ fs=fs.filter(f=>!q||`${f.curso} ${f.salon} ${f.area}`.toLowerCase().includes(q)).sort((x,y)=>String(x.curso).localeCompare(y.curso,'es',{numeric:true})); if(!fs.length) return; n+=fs.length;
     const col=(fs.find(f=>f.categoria!=='gen')||{}).categoria; 
@@ -1299,7 +1375,7 @@ async function pintarAlertas(){
     <div class="set"><div><b>Sonido de alerta</b><small>Suena con la app abierta.</small></div><label class="tg"><input type="checkbox" id="aSon" ${p.sonido?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Tono</h4><div class="row" id="aTonos">${Object.entries(TONOS).map(([k,v])=>`<span class="chip ${p.tono===k?'on':''}" data-t="${k}">${v}</span>`).join('')}</div></div>
     <button class="b2" style="width:100%;margin-bottom:6px" id="aProbar">▶ Probar sonido</button>
-    ${okPush?'<button class="b1" style="width:100%;margin-bottom:6px" id="aPush">🔔 Probar notificación con la app cerrada</button>':''}
+    <button class="${okPush?'b1':'b2'}" style="width:100%;margin-bottom:6px" id="aPush">🔔 ${okPush?'Probar notificación con la app cerrada':'Revisar por qué no llegan los avisos'}</button>
     <div class="set"><div><b>Vibración</b></div><label class="tg"><input type="checkbox" id="aVib" ${p.vibracion?'checked':''}><i></i></label></div>
     <div class="opt" style="margin-top:12px"><h4>Avisarme antes de cada actividad</h4><div class="row" id="aAnt">${[5,10,15].map(m=>`<span class="chip ${p.anticipacion_min===m?'on':''}" data-m="${m}">${m} min</span>`).join('')}</div></div>
     ${S.modo==='lider'?`<div class="opt"><h4>Próximas llegadas a tu estación</h4>${(()=>{ const pl=proximasLider(); return pl.length?pl.slice(0,6).map(x=>{ const m=toMin(x.h)-p.anticipacion_min; return `<div class="nx"><span>${fmtHora(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'))}</span><div><b>Llega${x.rs.length>1?'n':''} ${escHTML(x.rs.map(r=>r.curso).join(', '))}</b><small>${fmtHora(x.h)} · ${escHTML(x.rs.map(r=>r.salon).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}</small></div></div>`; }).join(''):'<p class="sm">No hay más rotaciones por hoy.</p>'; })()}</div>`:''}
@@ -1527,7 +1603,7 @@ window.recargarDatos = async()=>{ await cargarDatos(); definirModo(); S.mapaSuci
    - La app mide el alto real de la pantalla y lo usa para cada pantalla (evita el espacio en blanco abajo).
    - Con el teclado abierto, la pantalla se reduce al espacio visible y el campo activo se desplaza a la vista.
    - Al cerrar el teclado, todo vuelve a su sitio. */
-const VERSION_APP='61';
+const VERSION_APP='63';
 const VV=window.visualViewport;
 function enCampo(){ const a=document.activeElement; return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|range|button|submit)$/.test(a.type||''); }
 function reubicarVista(){
