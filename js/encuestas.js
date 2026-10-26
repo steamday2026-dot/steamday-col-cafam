@@ -157,7 +157,7 @@ function bindEnc(el){
   const x=$('encXls'); if(x) x.onclick=descargarEncuestas;
 }
 async function descargarEncuestas(){
-  try{ const XLSX=await window.cargarXLSX();
+  try{ await window.cargarXLSX(); const XLSX=window.XLSX; if(!XLSX) throw new Error('No se cargó el lector de Excel. Recarga la página.');
     const rows=(S.enc||[]).map(x=>{ const o={Fecha:new Date(x.actualizado_en||x.creado_en).toLocaleString('es-CO'),Docente:x.docente,Nivel:x.nivel,Grado:x.grado,Curso:x.curso,Hora:x.hora_inicio,Área:x.area,Actividad:nomAct(x),Salón:x.salon};
       [...ENC_DOC,...ENC_EST].forEach(q=>o[q.t]=x.respuestas[q.k]??''); return o; });
     const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows); XLSX.utils.book_append_sheet(wb,ws,'Encuestas'); XLSX.writeFile(wb,'encuestas-stem-day.xlsx');
