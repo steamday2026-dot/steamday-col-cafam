@@ -142,9 +142,9 @@
 
   function aviso(msg, tipo){ if(typeof toast==='function') toast(msg, tipo, 4000); }
   function cargarXLSX(){
-    if(window.XLSX) return Promise.resolve();
+    if(window.XLSX) return Promise.resolve(window.XLSX);
     return new Promise((ok, fail) => { const s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload=ok; s.onerror=()=>fail(new Error('No se pudo cargar el lector de Excel. Revisa la conexión.'));
+      s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload=()=>ok(window.XLSX); s.onerror=()=>fail(new Error('No se pudo cargar el lector de Excel. Revisa la conexión.'));
       document.head.appendChild(s); });
   }
   function descargar(nombre, texto){
